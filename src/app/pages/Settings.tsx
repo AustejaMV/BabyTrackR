@@ -71,7 +71,10 @@ export function Settings() {
   };
 
   const handleInvite = async () => {
-    if (!inviteEmail || !session?.access_token) return;
+    if (!inviteEmail || !session?.access_token || !user?.id || !familyId) {
+      if (!familyId) toast.error('Please wait for your family to load, or create one first.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -82,7 +85,11 @@ export function Settings() {
           'apikey': supabaseAnonKey,
           'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ email: inviteEmail }),
+        body: JSON.stringify({
+          email: inviteEmail,
+          inviter_id: user.id,
+          family_id: familyId,
+        }),
       });
 
       if (response.ok) {
@@ -205,7 +212,7 @@ export function Settings() {
                   onChange={(e) => setInviteEmail(e.target.value)}
                   className="flex-1"
                 />
-                <Button onClick={handleInvite} disabled={loading || !inviteEmail}>
+                <Button onClick={handleInvite} disabled={loading || !inviteEmail || !familyId}>
                   <UserPlus className="w-4 h-4 mr-2" />
                   Invite
                 </Button>
