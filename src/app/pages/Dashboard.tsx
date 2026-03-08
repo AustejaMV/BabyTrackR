@@ -198,7 +198,7 @@ export function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 pb-20">
-      <div className="max-w-lg mx-auto px-4 py-6">
+      <div className="max-w-2xl mx-auto px-4 py-6">
         <div className="mb-6 flex items-start justify-between">
           <div>
             <h1 className="text-3xl mb-2 dark:text-white">Baby Care Tracker</h1>
@@ -209,121 +209,104 @@ export function Dashboard() {
 
         <WarningIndicators />
 
-        <div className="space-y-4">
-          {/* Sleep Status */}
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          {/* Sleep Status tile */}
           <Link to="/sleep" className="block">
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                    <Baby className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg dark:text-white">Sleep Position</h2>
-                    {currentSleep ? (
-                      <>
-                        <p className="text-2xl text-blue-600 dark:text-blue-400">{currentSleep.position}</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {getTimeSince(currentSleep.startTime)}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-gray-500 dark:text-gray-400">Not tracking</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Link>
-
-          {/* Feeding Status */}
-          <Link to="/feeding" className="block">
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
-                    <Utensils className="w-6 h-6 text-green-600 dark:text-green-400" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg dark:text-white">Last Feeding</h2>
-                    {lastFeeding ? (
-                      <>
-                        <p className="text-2xl text-green-600 dark:text-green-400">{lastFeeding.type}</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {getTimeSince(lastFeeding.timestamp)}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-gray-500 dark:text-gray-400">No feedings yet</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Link>
-
-          {/* Diaper Status */}
-          <Link to="/diapers" className="block">
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900 rounded-full flex items-center justify-center">
-                    <Droplet className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg dark:text-white">Diaper Changes</h2>
-                    <p className="text-2xl text-amber-600 dark:text-amber-400">{recentDiapers.length}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Last 24 hours</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Link>
-
-          {/* Tummy Time */}
-          <Link to="/tummy-time" className="block">
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center">
-                    <Clock className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg dark:text-white">Tummy Time</h2>
-                    <p className="text-gray-500 dark:text-gray-400">Track sessions</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Link>
-
-          {/* Painkiller Tracker */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-3">
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-5 shadow-sm hover:shadow-md transition-all h-full min-h-[120px] flex flex-col justify-center border border-gray-100 dark:border-gray-700">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
-                  <Pill className="w-6 h-6 text-red-600 dark:text-red-400" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 dark:bg-blue-900 rounded-xl flex items-center justify-center shrink-0">
+                  <Baby className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
                 </div>
-                <div>
-                  <h2 className="text-lg dark:text-white">Painkiller Tracker (Mom)</h2>
-                  {lastPainkiller ? (
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-sm sm:text-base font-medium dark:text-white truncate">Sleep</h2>
+                  {currentSleep ? (
                     <>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Last dose: {getTimeSince(lastPainkiller.timestamp)}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        We'll remind you 8 hours after the last dose.
-                      </p>
+                      <p className="text-base sm:text-lg text-blue-600 dark:text-blue-400 truncate">{currentSleep.position}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{getTimeSince(currentSleep.startTime)}</p>
                     </>
                   ) : (
-                    <p className="text-gray-500 dark:text-gray-400">No doses logged yet</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Not tracking</p>
                   )}
                 </div>
               </div>
             </div>
-            <Button onClick={logPainkiller} className="w-full" variant="outline">
-              Log Painkiller Dose
-            </Button>
+          </Link>
+
+          {/* Feeding Status tile */}
+          <Link to="/feeding" className="block">
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-5 shadow-sm hover:shadow-md transition-all h-full min-h-[120px] flex flex-col justify-center border border-gray-100 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 dark:bg-green-900 rounded-xl flex items-center justify-center shrink-0">
+                  <Utensils className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 dark:text-green-400" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-sm sm:text-base font-medium dark:text-white truncate">Feeding</h2>
+                  {lastFeeding ? (
+                    <>
+                      <p className="text-base sm:text-lg text-green-600 dark:text-green-400 truncate">{lastFeeding.type}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{getTimeSince(lastFeeding.timestamp)}</p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">No feedings yet</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          {/* Diaper Status tile */}
+          <Link to="/diapers" className="block">
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-5 shadow-sm hover:shadow-md transition-all h-full min-h-[120px] flex flex-col justify-center border border-gray-100 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-amber-100 dark:bg-amber-900 rounded-xl flex items-center justify-center shrink-0">
+                  <Droplet className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-sm sm:text-base font-medium dark:text-white truncate">Diapers</h2>
+                  <p className="text-base sm:text-lg text-amber-600 dark:text-amber-400">{recentDiapers.length}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Last 24h</p>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          {/* Tummy Time tile */}
+          <Link to="/tummy-time" className="block">
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-5 shadow-sm hover:shadow-md transition-all h-full min-h-[120px] flex flex-col justify-center border border-gray-100 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 dark:bg-purple-900 rounded-xl flex items-center justify-center shrink-0">
+                  <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-sm sm:text-base font-medium dark:text-white truncate">Tummy Time</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Track sessions</p>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          {/* Painkiller Tracker - full width tile */}
+          <div className="col-span-2 bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 dark:bg-red-900 rounded-xl flex items-center justify-center shrink-0">
+                  <Pill className="w-5 h-5 sm:w-6 sm:h-6 text-red-600 dark:text-red-400" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-sm sm:text-base font-medium dark:text-white">Painkiller (Mom)</h2>
+                  {lastPainkiller ? (
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                      Last: {getTimeSince(lastPainkiller.timestamp)} · Reminder in 8h
+                    </p>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">No doses logged yet</p>
+                  )}
+                </div>
+              </div>
+              <Button onClick={logPainkiller} variant="outline" size="sm" className="shrink-0">
+                Log Dose
+              </Button>
+            </div>
           </div>
         </div>
       </div>

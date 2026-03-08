@@ -62,7 +62,7 @@ export function DiaperTracking() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 pb-20">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 pb-20">
       <div className="max-w-lg mx-auto px-4 py-6">
         <div className="flex items-center gap-3 mb-6">
           <Link to="/">
@@ -70,31 +70,31 @@ export function DiaperTracking() {
               <ArrowLeft className="w-5 h-5" />
             </Button>
           </Link>
-          <h1 className="text-2xl">Diaper Tracking</h1>
+          <h1 className="text-2xl dark:text-white">Diaper Tracking</h1>
         </div>
 
         {/* Stats Card */}
-        <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
-          <h2 className="text-lg mb-4">Last 24 Hours</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-6 border border-gray-100 dark:border-gray-700">
+          <h2 className="text-lg mb-4 dark:text-white">Last 24 Hours</h2>
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <p className="text-3xl text-blue-600">{stats.pee}</p>
-              <p className="text-sm text-gray-600">Pee</p>
+              <p className="text-3xl text-blue-600 dark:text-blue-400">{stats.pee}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Pee</p>
             </div>
             <div className="text-center">
-              <p className="text-3xl text-amber-600">{stats.poop}</p>
-              <p className="text-sm text-gray-600">Poop</p>
+              <p className="text-3xl text-amber-600 dark:text-amber-400">{stats.poop}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Poop</p>
             </div>
             <div className="text-center">
-              <p className="text-3xl text-purple-600">{stats.total}</p>
-              <p className="text-sm text-gray-600">Total</p>
+              <p className="text-3xl text-purple-600 dark:text-purple-400">{stats.total}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Total</p>
             </div>
           </div>
         </div>
 
         {/* Quick Add Buttons */}
-        <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
-          <h2 className="text-lg mb-4">Log Diaper Change</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-6 border border-gray-100 dark:border-gray-700">
+          <h2 className="text-lg mb-4 dark:text-white">Log Diaper Change</h2>
           <div className="grid grid-cols-3 gap-3">
             {DIAPER_TYPES.map((type) => (
               <Button
@@ -112,8 +112,8 @@ export function DiaperTracking() {
 
         {/* Chart */}
         {diaperHistory.length > 0 && (
-          <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
-            <h2 className="text-lg mb-4">Distribution</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-6 border border-gray-100 dark:border-gray-700">
+            <h2 className="text-lg mb-4 dark:text-white">Distribution</h2>
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie
@@ -137,19 +137,19 @@ export function DiaperTracking() {
         )}
 
         {/* Recent History */}
-        <div className="bg-white rounded-xl p-6 shadow-sm">
-          <h2 className="text-lg mb-4">Recent Changes</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+          <h2 className="text-lg mb-4 dark:text-white">Recent Changes</h2>
           {diaperHistory.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">No diaper changes recorded yet</p>
+            <p className="text-gray-500 dark:text-gray-400 text-center py-4">No diaper changes recorded yet</p>
           ) : (
             <div className="space-y-3">
               {diaperHistory.slice(-15).reverse().map((diaper) => {
                 const typeInfo = DIAPER_TYPES.find((t) => t.value === diaper.type);
                 return (
-                  <div key={diaper.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                  <div key={diaper.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div>
-                      <p className="text-lg">{typeInfo?.label}</p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-lg dark:text-white">{typeInfo?.label}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
                         {format(new Date(diaper.timestamp), "MMM d, h:mm a")}
                       </p>
                     </div>

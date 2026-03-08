@@ -3,7 +3,12 @@ import { ReactNode } from "react";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   return (
-    <NextThemesProvider attribute="class" defaultTheme="light">
+    <NextThemesProvider
+      attribute="class"
+      defaultTheme="light"
+      storageKey="babytracker-theme"
+      enableSystem={false}
+    >
       {children}
     </NextThemesProvider>
   );

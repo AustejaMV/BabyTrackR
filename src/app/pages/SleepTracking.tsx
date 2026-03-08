@@ -86,7 +86,7 @@ export function SleepTracking() {
   }));
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 pb-20">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 pb-20">
       <div className="max-w-lg mx-auto px-4 py-6">
         <div className="flex items-center gap-3 mb-6">
           <Link to="/">
@@ -94,12 +94,12 @@ export function SleepTracking() {
               <ArrowLeft className="w-5 h-5" />
             </Button>
           </Link>
-          <h1 className="text-2xl">Sleep Position Tracking</h1>
+          <h1 className="text-2xl dark:text-white">Sleep Position Tracking</h1>
         </div>
 
         {/* Current Position Tracker */}
-        <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
-          <h2 className="text-lg mb-4">Current Position</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-6 border border-gray-100 dark:border-gray-700">
+          <h2 className="text-lg mb-4 dark:text-white">Current Position</h2>
           
           <div className="grid grid-cols-2 gap-3 mb-4">
             {POSITIONS.map((position) => (
@@ -107,11 +107,11 @@ export function SleepTracking() {
                 key={position}
                 onClick={() => !currentSleep && setSelectedPosition(position)}
                 disabled={currentSleep !== null}
-                className={`p-4 rounded-lg border-2 transition-all ${
+                className={`p-4 rounded-lg border-2 transition-all text-left ${
                   selectedPosition === position
-                    ? "border-blue-600 bg-blue-50"
-                    : "border-gray-200 bg-white"
-                } ${currentSleep ? "opacity-50 cursor-not-allowed" : "hover:border-blue-400"}`}
+                    ? "border-blue-600 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/40 dark:text-white"
+                    : "border-gray-200 bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                } ${currentSleep ? "opacity-50 cursor-not-allowed" : "hover:border-blue-400 dark:hover:border-blue-500"}`}
               >
                 {position}
               </button>
@@ -120,10 +120,10 @@ export function SleepTracking() {
 
           {currentSleep ? (
             <div className="space-y-4">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-600">Tracking</p>
-                <p className="text-2xl text-blue-600">{currentSleep.position}</p>
-                <p className="text-sm text-gray-500">
+              <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Tracking</p>
+                <p className="text-2xl text-blue-600 dark:text-blue-400">{currentSleep.position}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   Duration: {getDuration(currentSleep.startTime)}
                 </p>
               </div>
@@ -140,8 +140,8 @@ export function SleepTracking() {
 
         {/* Chart */}
         {sleepHistory.length > 0 && (
-          <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
-            <h2 className="text-lg mb-4">Position History</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-6 border border-gray-100 dark:border-gray-700">
+            <h2 className="text-lg mb-4 dark:text-white">Position History</h2>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -155,22 +155,22 @@ export function SleepTracking() {
         )}
 
         {/* Recent History */}
-        <div className="bg-white rounded-xl p-6 shadow-sm">
-          <h2 className="text-lg mb-4">Recent Sessions</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+          <h2 className="text-lg mb-4 dark:text-white">Recent Sessions</h2>
           {sleepHistory.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">No sleep sessions recorded yet</p>
+            <p className="text-gray-500 dark:text-gray-400 text-center py-4">No sleep sessions recorded yet</p>
           ) : (
             <div className="space-y-3">
               {sleepHistory.slice(-10).reverse().map((sleep) => (
-                <div key={sleep.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                <div key={sleep.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                   <div>
-                    <p>{sleep.position}</p>
-                    <p className="text-sm text-gray-500">
+                    <p className="dark:text-white">{sleep.position}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
                       {format(new Date(sleep.startTime), "MMM d, h:mm a")}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-blue-600">
+                    <p className="text-blue-600 dark:text-blue-400">
                       {sleep.endTime && getDuration(sleep.startTime, sleep.endTime)}
                     </p>
                   </div>
