@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { ArrowLeft, UserPlus, LogOut, Download, Users, CheckCircle2, Circle, Trash2 } from 'lucide-react';
 import { Link } from 'react-router';
-import { serverUrl } from '../utils/supabase';
+import { serverUrl, supabaseAnonKey } from '../utils/supabase';
 import { generatePediatricReport } from '../utils/pdfExport';
 import { toast } from 'sonner';
 import { saveData } from '../utils/dataSync';
@@ -56,6 +56,7 @@ export function Settings() {
     try {
       const response = await fetch(`${serverUrl}/family`, {
         headers: {
+          'apikey': supabaseAnonKey,
           'Authorization': `Bearer ${session.access_token}`,
         },
       });
@@ -78,6 +79,7 @@ export function Settings() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'apikey': supabaseAnonKey,
           'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ email: inviteEmail }),

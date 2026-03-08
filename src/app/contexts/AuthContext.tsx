@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabase, serverUrl } from '../utils/supabase';
+import { supabase, serverUrl, supabaseAnonKey } from '../utils/supabase';
 
 interface AuthContextType {
   user: User | null;
@@ -53,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await fetch(`${serverUrl}/family`, {
         headers: {
+          'apikey': supabaseAnonKey,
           'Authorization': `Bearer ${accessToken}`,
         },
       });
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Check for invites
         const invitesResponse = await fetch(`${serverUrl}/family/invites`, {
           headers: {
+            'apikey': supabaseAnonKey,
             'Authorization': `Bearer ${accessToken}`,
           },
         });
@@ -78,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'apikey': supabaseAnonKey,
               'Authorization': `Bearer ${accessToken}`,
             },
             body: JSON.stringify({ inviteId: invite.id }),
@@ -93,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'apikey': supabaseAnonKey,
               'Authorization': `Bearer ${accessToken}`,
             },
             body: JSON.stringify({ familyName: 'My Family' }),

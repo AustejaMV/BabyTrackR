@@ -1,4 +1,4 @@
-import { serverUrl } from './supabase';
+import { serverUrl, supabaseAnonKey } from './supabase';
 
 export async function syncDataToServer(dataType: string, data: any, accessToken: string) {
   try {
@@ -6,6 +6,7 @@ export async function syncDataToServer(dataType: string, data: any, accessToken:
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'apikey': supabaseAnonKey,
         'Authorization': `Bearer ${accessToken}`,
       },
       body: JSON.stringify({ dataType, data }),
@@ -23,6 +24,7 @@ export async function loadDataFromServer(dataType: string, accessToken: string) 
   try {
     const response = await fetch(`${serverUrl}/data/${dataType}`, {
       headers: {
+        'apikey': supabaseAnonKey,
         'Authorization': `Bearer ${accessToken}`,
       },
     });
@@ -39,6 +41,7 @@ export async function loadAllDataFromServer(accessToken: string) {
   try {
     const response = await fetch(`${serverUrl}/data/all`, {
       headers: {
+        'apikey': supabaseAnonKey,
         'Authorization': `Bearer ${accessToken}`,
       },
     });
