@@ -80,9 +80,16 @@ export function Settings() {
   };
 
   const handleInvite = async () => {
-    if (!inviteEmail || !session?.access_token || !user?.id || !familyId) {
-      if (!familyId) toast.error('Please wait for your family to load, or create one first.');
-      return;
+    const email = inviteEmail.trim();
+    if (!email || !session?.access_token || !user?.id) return;
+
+    let effectiveFamilyId = familyId;
+    if (!effectiveFamilyId) {
+      effectiveFamilyId = await refreshFamily();
+      if (!effectiveFamilyId) {
+        toast.error('Please wait for your family to load, or try again in a moment.');
+        return;
+      }
     }
 
     setLoading(true);
@@ -95,9 +102,9 @@ export function Settings() {
           'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          email: inviteEmail,
+          email,
           inviter_id: user.id,
-          family_id: familyId,
+          family_id: effectiveFamilyId,
         }),
       });
 
@@ -230,7 +237,7 @@ export function Settings() {
                   onChange={(e) => setInviteEmail(e.target.value)}
                   className="flex-1"
                 />
-                <Button onClick={handleInvite} disabled={loading || !inviteEmail || !familyId}>
+                <Button onClick={handleInvite} disabled={loading || !inviteEmail.trim()}>
                   <UserPlus className="w-4 h-4 mr-2" />
                   Invite
                 </Button>

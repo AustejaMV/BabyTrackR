@@ -10,7 +10,7 @@ interface AuthContextType {
   signUpWithEmail: (email: string, password: string) => Promise<{ error?: Error | null }>;
   signOut: () => Promise<void>;
   familyId: string | null;
-  refreshFamily: () => Promise<void>;
+  refreshFamily: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const loadFamily = async (accessToken: string) => {
+  const loadFamily = async (accessToken: string): Promise<string | null> => {
     try {
       const response = await fetch(`${serverUrl}/family`, {
         headers: {
@@ -66,12 +66,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (result.family) {
         setFamilyId(result.family.id);
         createdFamilyIdRef.current = null;
-        return;
+        return result.family.id;
       }
       // GET returned null: if we already created a family this session, reuse it (avoids double-create when loadFamily runs twice)
       if (createdFamilyIdRef.current) {
         setFamilyId(createdFamilyIdRef.current);
-        return;
+        return createdFamilyIdRef.current;
       }
       // Check for invites
       const invitesResponse = await fetch(`${serverUrl}/family/invites`, {
@@ -98,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const acceptResult = await acceptResponse.json();
         if (acceptResult.familyId) {
           setFamilyId(acceptResult.familyId);
+          return acceptResult.familyId;
         }
       } else {
         const createResponse = await fetch(`${serverUrl}/family/create`, {
@@ -114,11 +115,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (createResult.familyId) {
           createdFamilyIdRef.current = createResult.familyId;
           setFamilyId(createResult.familyId);
+          return createResult.familyId;
         }
       }
     } catch (error) {
       console.error('Error loading family:', error);
     }
+    return null;
   };
 
   const signInWithEmail = async (email: string, password: string) => {
@@ -159,8 +162,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     createdFamilyIdRef.current = null;
   };
 
-  const refreshFamily = useCallback(async () => {
-    if (session?.access_token) await loadFamily(session.access_token);
+  const refreshFamily = useCallback(async (): Promise<string | null> => {
+    if (session?.access_token) return loadFamily(session.access_token);
+    return null;
   }, [session?.access_token]);
 
   return (
