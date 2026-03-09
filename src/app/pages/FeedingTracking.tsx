@@ -34,6 +34,8 @@ export interface FeedingRecord {
 
 const FEEDING_TYPES = ["Left breast", "Right breast", "Formula", "Solids"];
 
+const ACTIVE_SESSION_KEY = "feedingActiveSession";
+
 function getLastFeedingEndTime(f: FeedingRecord): number {
   return f.endTime ?? f.timestamp;
 }
@@ -82,6 +84,26 @@ export function FeedingTracking() {
     }
   }, [authSession?.access_token]);
 
+  // Persist active session so it survives leaving the tab (no cancel/pause on navigate away)
+  const persistActiveSession = (s: ActiveSession | null, paused: boolean, pausedMs: number, pausedAtVal: number | null) => {
+    if (!s) {
+      try {
+        localStorage.removeItem(ACTIVE_SESSION_KEY);
+      } catch {
+        // ignore
+      }
+      return;
+    }
+    try {
+      localStorage.setItem(
+        ACTIVE_SESSION_KEY,
+        JSON.stringify({ session: s, isPaused: paused, totalPausedMs: pausedMs, pausedAt: pausedAtVal })
+      );
+    } catch {
+      // ignore
+    }
+  };
+
   useEffect(() => {
     const historyData = localStorage.getItem("feedingHistory");
     if (historyData) {
@@ -90,6 +112,29 @@ export function FeedingTracking() {
     const intervalData = localStorage.getItem("feedingInterval");
     if (intervalData) {
       setFeedingInterval(intervalData);
+    }
+    // Restore active feeding session if user left the tab and came back
+    const saved = localStorage.getItem(ACTIVE_SESSION_KEY);
+    if (saved) {
+      try {
+        const { session: savedSession, isPaused: savedPaused, totalPausedMs: savedTotalPausedMs, pausedAt: savedPausedAt } = JSON.parse(saved);
+        if (savedSession?.sessionStartTime && Array.isArray(savedSession?.segments)) {
+          const now = Date.now();
+          let totalPaused = savedTotalPausedMs ?? 0;
+          if (savedPaused && savedPausedAt != null) {
+            totalPaused += now - savedPausedAt;
+          }
+          setSession(savedSession);
+          setIsPaused(!!savedPaused);
+          setTotalPausedMs(totalPaused);
+          setPausedAt(savedPaused ? now : null); // "paused since" we returned to the tab
+          setTotalElapsedMs(now - savedSession.sessionStartTime - totalPaused);
+          const last = savedSession.segments[savedSession.segments.length - 1];
+          setCurrentSegmentElapsedMs(last ? now - (last.endTime ?? last.startTime) : 0);
+        }
+      } catch {
+        localStorage.removeItem(ACTIVE_SESSION_KEY);
+      }
     }
   }, []);
 
@@ -106,6 +151,10 @@ export function FeedingTracking() {
     }, 1000);
     return () => clearInterval(interval);
   }, [session, isPaused, totalPausedMs]);
+
+  useEffect(() => {
+    persistActiveSession(session, isPaused, totalPausedMs, pausedAt);
+  }, [session, isPaused, totalPausedMs, pausedAt]);
 
   const startFeeding = () => {
     const now = Date.now();
@@ -186,6 +235,11 @@ export function FeedingTracking() {
     setIsPaused(false);
     setTotalPausedMs(0);
     setPausedAt(null);
+    try {
+      localStorage.removeItem(ACTIVE_SESSION_KEY);
+    } catch {
+      // ignore
+    }
     if (authSession?.access_token) {
       saveData("feedingHistory", updated, authSession.access_token);
     }

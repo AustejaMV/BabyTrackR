@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { requestNotificationPermission, scheduleNotification } from "../utils/notifications";
 import { useAuth } from "../contexts/AuthContext";
-import { loadAllDataFromServer, saveData, clearSyncedDataFromLocalStorage } from "../utils/dataSync";
+import { loadAllDataFromServer, saveData, clearSyncedDataFromLocalStorage, SYNCED_DATA_KEYS } from "../utils/dataSync";
 
 // Server-cost friendly: poll less often, only when tab is visible, throttle visibility refetch
 const FAMILY_DATA_POLL_INTERVAL_MS = 60 * 1000; // 60s when visible
@@ -68,15 +68,30 @@ export function Dashboard() {
     }
 
     if (user && session) {
-      // When family switched (had another family before), clear local synced data so we don't show the previous family's data
-      if (prevFamilyIdRef.current != null && familyId && familyId !== prevFamilyIdRef.current) {
+      // When family switched (had another family before), or when we now have a family (e.g. invitee just joined), clear local synced data so we don't show stale/previous data
+      if (familyId && (prevFamilyIdRef.current == null || prevFamilyIdRef.current !== familyId)) {
         clearSyncedDataFromLocalStorage();
       }
       if (familyId) prevFamilyIdRef.current = familyId;
       loadAllDataFromServer(session.access_token).then((serverData) => {
+        clearSyncedDataFromLocalStorage();
         Object.entries(serverData).forEach(([key, value]) => {
-          localStorage.setItem(key, JSON.stringify(value));
+          try {
+            localStorage.setItem(key, JSON.stringify(value));
+          } catch {
+            // ignore
+          }
         });
+        // Ensure any synced key not returned by server is set to empty so we never show stale local data (e.g. invitee's old data)
+        for (const key of SYNCED_DATA_KEYS) {
+          if (!(key in serverData)) {
+            try {
+              localStorage.setItem(key, JSON.stringify([]));
+            } catch {
+              // ignore
+            }
+          }
+        }
         loadLocalDataRef.current();
       });
     } else {
@@ -96,9 +111,23 @@ export function Dashboard() {
 
     const refetchAndApply = () => {
       loadAllDataFromServer(session!.access_token!).then((serverData) => {
+        clearSyncedDataFromLocalStorage();
         Object.entries(serverData).forEach(([key, value]) => {
-          localStorage.setItem(key, JSON.stringify(value));
+          try {
+            localStorage.setItem(key, JSON.stringify(value));
+          } catch {
+            // ignore
+          }
         });
+        for (const key of SYNCED_DATA_KEYS) {
+          if (!(key in serverData)) {
+            try {
+              localStorage.setItem(key, JSON.stringify([]));
+            } catch {
+              // ignore
+            }
+          }
+        }
         loadLocalDataRef.current();
         lastRefetchAt.current = Date.now();
       });
@@ -272,6 +301,12 @@ export function Dashboard() {
         </div>
 
         <WarningIndicators />
+
+        {familyId && !lastFeeding && recentDiapers.length === 0 && !currentSleep && !lastPainkiller && (
+          <div className="mb-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm">
+            No shared logs yet. If your family has been logging, ask them to open Settings and tap &quot;Sync my data to family&quot;.
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           {/* Sleep Status tile */}

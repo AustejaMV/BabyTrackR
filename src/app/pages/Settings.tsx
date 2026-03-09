@@ -8,7 +8,7 @@ import { Link, useNavigate } from 'react-router';
 import { serverUrl, supabaseAnonKey } from '../utils/supabase';
 import { generatePediatricReport } from '../utils/pdfExport';
 import { toast } from 'sonner';
-import { saveData, syncDataToServer, SYNCED_DATA_KEYS } from '../utils/dataSync';
+import { saveData, syncDataToServer, SYNCED_DATA_KEYS, loadAllDataFromServer, clearSyncedDataFromLocalStorage } from '../utils/dataSync';
 import { CloudUpload } from 'lucide-react';
 
 interface FamilyMember {
@@ -121,6 +121,17 @@ export function Settings() {
         setPendingInvites((prev) => prev.filter((i) => i.id !== inviteId));
         toast.success(`You've joined "${data.familyName ?? 'the family'}". You're now viewing that family's data.`);
         loadFamily(); // refresh current family details
+        // Load family data into localStorage and go to Dashboard so invitee sees shared stats immediately
+        clearSyncedDataFromLocalStorage();
+        const serverData = await loadAllDataFromServer(session.access_token);
+        Object.entries(serverData).forEach(([key, value]) => {
+          try {
+            localStorage.setItem(key, JSON.stringify(value));
+          } catch {
+            // ignore
+          }
+        });
+        navigate('/');
       } else {
         toast.error(data.error ?? 'Could not accept invite');
       }
