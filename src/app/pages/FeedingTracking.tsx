@@ -236,11 +236,11 @@ export function FeedingTracking() {
                 onChange={(e) => setFeedingInterval(e.target.value)}
                 onBlur={(e) => {
                   const val = parseInt(e.target.value, 10);
-                  if (!val || val < 1) {
-                    setFeedingInterval("1");
-                    localStorage.setItem("feedingInterval", "1");
-                  } else {
-                    localStorage.setItem("feedingInterval", e.target.value);
+                  const valueToSave = (!val || val < 1) ? "1" : e.target.value;
+                  setFeedingInterval(valueToSave);
+                  localStorage.setItem("feedingInterval", valueToSave);
+                  if (authSession?.access_token) {
+                    saveData("feedingInterval", valueToSave, authSession.access_token);
                   }
                 }}
                 className="w-16 bg-white dark:bg-gray-800 text-black dark:text-white border dark:border-gray-600"

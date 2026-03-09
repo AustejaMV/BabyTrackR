@@ -5,6 +5,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { format } from "date-fns";
 import { ArrowLeft, Play, Square } from "lucide-react";
 import { Link } from "react-router";
+import { useAuth } from "../contexts/AuthContext";
+import { saveData } from "../utils/dataSync";
 
 interface TummyTimeRecord {
   id: string;
@@ -16,6 +18,7 @@ export function TummyTime() {
   const [currentSession, setCurrentSession] = useState<TummyTimeRecord | null>(null);
   const [tummyTimeHistory, setTummyTimeHistory] = useState<TummyTimeRecord[]>([]);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const { session } = useAuth();
 
   useEffect(() => {
     // Load current session
@@ -65,6 +68,9 @@ export function TummyTime() {
     localStorage.removeItem("currentTummyTime");
     setCurrentSession(null);
     setElapsedTime(0);
+    if (session?.access_token) {
+      saveData("tummyTimeHistory", updatedHistory, session.access_token);
+    }
   };
 
   const getDuration = (start: number, end?: number) => {

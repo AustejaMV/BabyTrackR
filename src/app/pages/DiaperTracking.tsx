@@ -5,6 +5,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recha
 import { format } from "date-fns";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router";
+import { useAuth } from "../contexts/AuthContext";
+import { saveData } from "../utils/dataSync";
 
 interface DiaperRecord {
   id: string;
@@ -23,6 +25,7 @@ const COLORS = ["#3b82f6", "#f59e0b", "#8b5cf6"];
 
 export function DiaperTracking() {
   const [diaperHistory, setDiaperHistory] = useState<DiaperRecord[]>([]);
+  const { session } = useAuth();
 
   useEffect(() => {
     // Load diaper history
@@ -42,6 +45,9 @@ export function DiaperTracking() {
     const updatedHistory = [...diaperHistory, newDiaper];
     setDiaperHistory(updatedHistory);
     localStorage.setItem("diaperHistory", JSON.stringify(updatedHistory));
+    if (session?.access_token) {
+      saveData("diaperHistory", updatedHistory, session.access_token);
+    }
   };
 
   // Get stats for last 24 hours

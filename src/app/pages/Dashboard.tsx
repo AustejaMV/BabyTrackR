@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { requestNotificationPermission, scheduleNotification } from "../utils/notifications";
 import { useAuth } from "../contexts/AuthContext";
-import { loadAllDataFromServer } from "../utils/dataSync";
+import { loadAllDataFromServer, saveData } from "../utils/dataSync";
 import { toast } from "sonner";
 import { Button } from "../components/ui/button";
 
@@ -139,6 +139,9 @@ export function Dashboard() {
     };
     history.push(newDose);
     localStorage.setItem("painkillerHistory", JSON.stringify(history));
+    if (session?.access_token) {
+      saveData("painkillerHistory", history, session.access_token);
+    }
     setLastPainkiller(newDose);
 
     const eightHoursMs = 8 * 60 * 60 * 1000;
@@ -177,6 +180,9 @@ export function Dashboard() {
     };
     diaperHistory.push(newDiaper);
     localStorage.setItem('diaperHistory', JSON.stringify(diaperHistory));
+    if (session?.access_token) {
+      saveData('diaperHistory', diaperHistory, session.access_token);
+    }
     toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} logged!`);
     loadLocalData();
   };
