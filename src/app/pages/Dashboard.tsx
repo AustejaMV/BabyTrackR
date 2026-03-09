@@ -65,6 +65,9 @@ export function Dashboard() {
   const [lastPainkiller, setLastPainkiller] = useState<PainkillerDose | null>(null);
   const [lastDataDebug, setLastDataDebug] = useState<{ familyId: string | null; rowsReturned?: number } | null>(null);
   const [, setFeedingTick] = useState(0);
+  const [pollIntervalMs, setPollIntervalMs] = useState(FAMILY_DATA_POLL_INTERVAL_MS);
+  const pollIntervalMsRef = useRef(FAMILY_DATA_POLL_INTERVAL_MS);
+  pollIntervalMsRef.current = pollIntervalMs;
   const { user, session, loading, familyId } = useAuth();
 
   // Tick every second when feeding is in progress so Dashboard shows live elapsed time
@@ -182,7 +185,8 @@ export function Dashboard() {
     const startPolling = (immediateRefetch: boolean) => {
       if (intervalId != null) return;
       if (immediateRefetch) refetchAndApply();
-      intervalId = setInterval(refetchAndApply, pollIntervalMs);
+      const delay = pollIntervalMsRef.current;
+      intervalId = setInterval(refetchAndApply, typeof delay === "number" ? delay : FAMILY_DATA_POLL_INTERVAL_MS);
     };
 
     const stopPolling = () => {
