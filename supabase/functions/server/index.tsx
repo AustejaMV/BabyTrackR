@@ -35,7 +35,17 @@ async function kvSet(key: string, value: unknown): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-const kv = { get: kvGet, set: kvSet };
+/** Fetch multiple keys in one DB round-trip (reduces cost for GET /data/all). */
+async function kvGetMany(keys: string[]): Promise<Record<string, unknown>> {
+  if (keys.length === 0) return {};
+  const { data, error } = await supabase.from(KV_TABLE).select("key, value").in("key", keys);
+  if (error) throw new Error(error.message);
+  const out: Record<string, unknown> = {};
+  for (const row of data ?? []) out[row.key as string] = row.value;
+  return out;
+}
+
+const kv = { get: kvGet, set: kvSet, getMany: kvGetMany };
 
 async function verifyUser(authHeader: string | null) {
   if (!authHeader || !authHeader.startsWith("Bearer "))
@@ -237,9 +247,11 @@ app.get("/data/all", async (c) => {
   if (error) return c.json({ error }, 401);
   const familyId = await kv.get(`user:${user!.id}:family`);
   if (!familyId) return c.json({ data: {} });
-  const allData: Record<string, any> = {};
+  const keys = DATA_TYPES.map((dt) => `data:${familyId}:${dt}`);
+  const rows = await kv.getMany(keys);
+  const allData: Record<string, unknown> = {};
   for (const dataType of DATA_TYPES) {
-    const row = await kv.get(`data:${familyId}:${dataType}`);
+    const row = rows[`data:${familyId}:${dataType}`] as { data?: unknown } | undefined;
     if (row?.data !== undefined) allData[dataType] = row.data;
   }
   return c.json({ data: allData });

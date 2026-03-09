@@ -35,3 +35,9 @@ So data **is** in Supabase and **is** shared by family; localStorage is just the
 
 - **Family ID cache:**  
   The app caches `familyId` in localStorage (per user) so that when you reload, you still “have” your family even if the backend didn’t persist it (e.g. in-memory Edge Function). That way you don’t get a new family on every reload until you send an invite. For real persistence and sharing, the Edge Function must use the DB-backed KV table (see `docs/SUPABASE_SETUP.md`).
+
+## Server cost optimizations
+
+- **Poll only when tab is visible** – The Dashboard polls for family data (GET /data/all) only while the tab is in the foreground. When the user switches to another tab, polling stops.
+- **Poll interval and visibility throttle** – When visible, the app polls every 60s. When the user returns to the tab, it refetches only if the last fetch was more than 20s ago.
+- **GET /data/all in one query** – The Edge Function fetches all family data types in a single DB batch query instead of one query per type.

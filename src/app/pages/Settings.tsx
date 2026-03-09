@@ -8,7 +8,8 @@ import { Link, useNavigate } from 'react-router';
 import { serverUrl, supabaseAnonKey } from '../utils/supabase';
 import { generatePediatricReport } from '../utils/pdfExport';
 import { toast } from 'sonner';
-import { saveData } from '../utils/dataSync';
+import { saveData, syncDataToServer, SYNCED_DATA_KEYS } from '../utils/dataSync';
+import { CloudUpload } from 'lucide-react';
 
 interface FamilyMember {
   id: string;
@@ -33,6 +34,7 @@ export function Settings() {
   const [newNoteText, setNewNoteText] = useState('');
   const [pendingInvites, setPendingInvites] = useState<{ id: string; familyId: string; familyName?: string }[]>([]);
   const [inviteActionLoading, setInviteActionLoading] = useState<string | null>(null);
+  const [syncingToCloud, setSyncingToCloud] = useState(false);
 
   useEffect(() => {
     if (session?.access_token && familyId) {
@@ -126,6 +128,29 @@ export function Settings() {
       toast.error('Could not accept invite');
     } finally {
       setInviteActionLoading(null);
+    }
+  };
+
+  const handleSyncMyDataToFamily = async () => {
+    if (!session?.access_token) return;
+    setSyncingToCloud(true);
+    try {
+      for (const key of SYNCED_DATA_KEYS) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          try {
+            const value = JSON.parse(raw);
+            await syncDataToServer(key, value, session.access_token);
+          } catch {
+            // skip invalid json
+          }
+        }
+      }
+      toast.success('Your local data has been synced to the family. Other members will see it when they refresh.');
+    } catch {
+      toast.error('Sync failed. Try again.');
+    } finally {
+      setSyncingToCloud(false);
     }
   };
 
@@ -317,6 +342,20 @@ export function Settings() {
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                 {family.members?.length || 0} member{family.members?.length !== 1 ? 's' : ''}
               </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                If others don&apos;t see your logs, sync your data so it&apos;s stored for the whole family.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                disabled={syncingToCloud}
+                onClick={handleSyncMyDataToFamily}
+              >
+                <CloudUpload className="w-4 h-4 mr-2" />
+                {syncingToCloud ? 'Syncing…' : 'Sync my data to family'}
+              </Button>
             </div>
           )}
 

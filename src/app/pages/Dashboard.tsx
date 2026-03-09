@@ -3,11 +3,15 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { Navigation } from "../components/Navigation";
 import { WarningIndicators } from "../components/WarningIndicators";
 import { ThemeToggle } from "../components/ThemeToggle";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { requestNotificationPermission, scheduleNotification } from "../utils/notifications";
 import { useAuth } from "../contexts/AuthContext";
-import { loadAllDataFromServer, saveData } from "../utils/dataSync";
+import { loadAllDataFromServer, saveData, clearSyncedDataFromLocalStorage } from "../utils/dataSync";
+
+// Server-cost friendly: poll less often, only when tab is visible, throttle visibility refetch
+const FAMILY_DATA_POLL_INTERVAL_MS = 60 * 1000; // 60s when visible
+const VISIBILITY_REFETCH_MIN_MS = 20 * 1000;   // don't refetch on tab focus if we did <20s ago
 import { toast } from "sonner";
 import { Button } from "../components/ui/button";
 
@@ -44,8 +48,8 @@ export function Dashboard() {
   const [lastFeeding, setLastFeeding] = useState<FeedingRecord | null>(null);
   const [recentDiapers, setRecentDiapers] = useState<DiaperRecord[]>([]);
   const [lastPainkiller, setLastPainkiller] = useState<PainkillerDose | null>(null);
-  const { user, session, loading, familyId, refreshFamily } = useAuth();
-  const [checkingInvites, setCheckingInvites] = useState(false);
+  const { user, session, loading, familyId } = useAuth();
+  const prevFamilyIdRef = useRef<string | null>(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -64,17 +68,16 @@ export function Dashboard() {
     }
 
     if (user && session) {
-      // Load data from server (refetches when familyId changes so switching family shows the right data)
+      // When family switched (had another family before), clear local synced data so we don't show the previous family's data
+      if (prevFamilyIdRef.current != null && familyId && familyId !== prevFamilyIdRef.current) {
+        clearSyncedDataFromLocalStorage();
+      }
+      if (familyId) prevFamilyIdRef.current = familyId;
       loadAllDataFromServer(session.access_token).then((serverData) => {
-        if (Object.keys(serverData).length > 0) {
-          // Sync server data to localStorage
-          Object.entries(serverData).forEach(([key, value]) => {
-            localStorage.setItem(key, JSON.stringify(value));
-          });
-          loadLocalData();
-        } else {
-          loadLocalData();
-        }
+        Object.entries(serverData).forEach(([key, value]) => {
+          localStorage.setItem(key, JSON.stringify(value));
+        });
+        loadLocalDataRef.current();
       });
     } else {
       loadLocalData();
@@ -84,6 +87,56 @@ export function Dashboard() {
     requestNotificationPermission();
   }, [user, loading, session, navigate, familyId]);
 
+  // Poll for family data only when tab is visible (saves server cost when user has tab in background)
+  useEffect(() => {
+    if (!user || !session?.access_token || !familyId) return;
+
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const lastRefetchAt = { current: 0 };
+
+    const refetchAndApply = () => {
+      loadAllDataFromServer(session!.access_token!).then((serverData) => {
+        Object.entries(serverData).forEach(([key, value]) => {
+          localStorage.setItem(key, JSON.stringify(value));
+        });
+        loadLocalDataRef.current();
+        lastRefetchAt.current = Date.now();
+      });
+    };
+
+    const startPolling = (immediateRefetch: boolean) => {
+      if (intervalId != null) return;
+      if (immediateRefetch) refetchAndApply();
+      intervalId = setInterval(refetchAndApply, FAMILY_DATA_POLL_INTERVAL_MS);
+    };
+
+    const stopPolling = () => {
+      if (intervalId != null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        const now = Date.now();
+        const shouldRefetchNow = now - lastRefetchAt.current >= VISIBILITY_REFETCH_MIN_MS;
+        startPolling(shouldRefetchNow);
+      } else {
+        stopPolling();
+      }
+    };
+
+    if (document.visibilityState === "visible") startPolling(true);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [user, session?.access_token, familyId]);
+
+  const loadLocalDataRef = useRef<() => void>(() => {});
   const loadLocalData = () => {
     // Load current sleep session
     const sleepData = localStorage.getItem("currentSleep");
@@ -130,6 +183,7 @@ export function Dashboard() {
       }
     }
   };
+  loadLocalDataRef.current = loadLocalData;
 
   const logPainkiller = () => {
     const history: PainkillerDose[] = JSON.parse(localStorage.getItem("painkillerHistory") || "[]");
@@ -218,27 +272,6 @@ export function Dashboard() {
         </div>
 
         <WarningIndicators />
-
-        {user && !familyId && (
-          <div className="mb-4 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800">
-            <p className="text-sm text-amber-800 dark:text-amber-200 mb-2">
-              No family linked. If someone invited you, they need to have used this exact sign-in email. Tap below to check again.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={checkingInvites}
-              onClick={async () => {
-                setCheckingInvites(true);
-                await refreshFamily();
-                setCheckingInvites(false);
-              }}
-              className="border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200"
-            >
-              {checkingInvites ? "Checking…" : "Check for invites"}
-            </Button>
-          </div>
-        )}
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           {/* Sleep Status tile */}

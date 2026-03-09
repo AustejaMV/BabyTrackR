@@ -1,5 +1,18 @@
 import { serverUrl, supabaseAnonKey } from './supabase';
 
+// Keys that are synced per family (must match server DATA_TYPES)
+export const SYNCED_DATA_KEYS = [
+  'sleepHistory',
+  'feedingHistory',
+  'diaperHistory',
+  'tummyTimeHistory',
+  'currentSleep',
+  'currentTummyTime',
+  'feedingInterval',
+  'painkillerHistory',
+  'notes',
+] as const;
+
 export async function syncDataToServer(dataType: string, data: any, accessToken: string) {
   try {
     const response = await fetch(`${serverUrl}/data/save`, {
@@ -76,4 +89,9 @@ export async function loadData(key: string, accessToken?: string) {
   }
   
   return localData ? JSON.parse(localData) : null;
+}
+
+/** Clear all synced family data from localStorage (e.g. before loading a different family). */
+export function clearSyncedDataFromLocalStorage() {
+  SYNCED_DATA_KEYS.forEach((key) => localStorage.removeItem(key));
 }
