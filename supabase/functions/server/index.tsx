@@ -107,16 +107,18 @@ app.post("/family/invite", async (c) => {
   return c.json({ success: true, invite }, 201);
 });
 
-// List invites for the current user (by their email)
+// List invites for the current user (by their email from auth token)
 app.get("/family/invites", async (c) => {
   const { user, error } = await verifyUser(c.req.header("Authorization"));
   if (error) return c.json({ error }, 401);
-  const email = user!.email?.toLowerCase();
-  if (!email) return c.json({ invites: [] });
-  const inviteId = await kv.get(`invite:email:${email}`);
+  const email = (user!.email ?? "").trim().toLowerCase();
+  if (!email) return c.json({ invites: [], noEmail: true });
+  const rawInviteId = await kv.get(`invite:email:${email}`);
+  const inviteId = typeof rawInviteId === "string" ? rawInviteId : null;
   if (!inviteId) return c.json({ invites: [] });
   const invite = await kv.get(`invite:${inviteId}`);
-  return c.json({ invites: invite && invite.status === "pending" ? [invite] : [] });
+  const list = invite && invite.status === "pending" ? [invite] : [];
+  return c.json({ invites: list });
 });
 
 app.post("/family/accept-invite", async (c) => {

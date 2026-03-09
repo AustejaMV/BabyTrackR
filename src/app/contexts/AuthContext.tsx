@@ -74,16 +74,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setFamilyId(createdFamilyIdRef.current);
         return createdFamilyIdRef.current;
       }
-      // Check for invites
+      // Check for invites (by current user's email from token)
       const invitesResponse = await fetch(`${serverUrl}/family/invites`, {
         headers: {
           'apikey': supabaseAnonKey,
           'Authorization': `Bearer ${accessToken}`,
         },
       });
-      
-      const invitesResult = await invitesResponse.json();
-      
+      let invitesResult: { invites?: { id: string }[]; noEmail?: boolean } = { invites: [] };
+      try {
+        const data = await invitesResponse.json();
+        if (data && Array.isArray(data.invites)) invitesResult = data;
+        if (data?.noEmail) invitesResult.noEmail = true;
+      } catch {
+        // e.g. 404 HTML body; treat as no invites
+      }
+
       if (invitesResult.invites && invitesResult.invites.length > 0) {
         const invite = invitesResult.invites[0];
         const acceptResponse = await fetch(`${serverUrl}/family/accept-invite`, {
@@ -95,12 +101,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           },
           body: JSON.stringify({ inviteId: invite.id }),
         });
-        
-        const acceptResult = await acceptResponse.json();
-        if (acceptResult.familyId) {
+        const acceptResult = await acceptResponse.json().catch(() => ({}));
+        if (acceptResponse.ok && acceptResult.familyId) {
           setFamilyId(acceptResult.familyId);
           return acceptResult.familyId;
         }
+        console.error('Accept invite failed', acceptResponse.status, acceptResult);
+        // Don't fall through to create – invitee should retry or fix the invite
+        return null;
       } else {
         const createResponse = await fetch(`${serverUrl}/family/create`, {
           method: 'POST',

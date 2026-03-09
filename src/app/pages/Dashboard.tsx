@@ -44,7 +44,8 @@ export function Dashboard() {
   const [lastFeeding, setLastFeeding] = useState<FeedingRecord | null>(null);
   const [recentDiapers, setRecentDiapers] = useState<DiaperRecord[]>([]);
   const [lastPainkiller, setLastPainkiller] = useState<PainkillerDose | null>(null);
-  const { user, session, loading } = useAuth();
+  const { user, session, loading, familyId, refreshFamily } = useAuth();
+  const [checkingInvites, setCheckingInvites] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -217,6 +218,27 @@ export function Dashboard() {
         </div>
 
         <WarningIndicators />
+
+        {user && !familyId && (
+          <div className="mb-4 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800">
+            <p className="text-sm text-amber-800 dark:text-amber-200 mb-2">
+              No family linked. If someone invited you, they need to have used this exact sign-in email. Tap below to check again.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={checkingInvites}
+              onClick={async () => {
+                setCheckingInvites(true);
+                await refreshFamily();
+                setCheckingInvites(false);
+              }}
+              className="border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200"
+            >
+              {checkingInvites ? "Checking…" : "Check for invites"}
+            </Button>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           {/* Sleep Status tile */}
