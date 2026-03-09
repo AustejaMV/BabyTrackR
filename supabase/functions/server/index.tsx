@@ -234,16 +234,7 @@ app.post("/data/save", async (c) => {
   return c.json({ success: true });
 });
 
-app.get("/data/:dataType", async (c) => {
-  const { user, error } = await verifyUser(c.req.header("Authorization"));
-  if (error) return c.json({ error }, 401);
-  const familyId = await kv.get(`user:${user!.id}:family`);
-  if (!familyId) return c.json({ data: null });
-  const dataType = c.req.param("dataType");
-  const row = await kv.get(`data:${familyId}:${dataType}`);
-  return c.json({ data: row?.data ?? null });
-});
-
+// Register /data/all BEFORE /data/:dataType so "all" is not treated as a dataType param
 app.get("/data/all", async (c) => {
   const { user, error } = await verifyUser(c.req.header("Authorization"));
   if (error) return c.json({ error }, 401);
@@ -270,6 +261,16 @@ app.get("/data/all", async (c) => {
     data: allData,
     _debug: { familyId, userId: user!.id, keysQueried: keys.length, rowsReturned, keysWithData: returnedKeys.length },
   });
+});
+
+app.get("/data/:dataType", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  const familyId = await kv.get(`user:${user!.id}:family`);
+  if (!familyId) return c.json({ data: null });
+  const dataType = c.req.param("dataType");
+  const row = await kv.get(`data:${familyId}:${dataType}`);
+  return c.json({ data: row?.data ?? null });
 });
 
 const registeredRoutes = [
