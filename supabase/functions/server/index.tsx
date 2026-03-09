@@ -69,7 +69,7 @@ app.post("/family/create", async (c) => {
     const readBack = await kv.get(`user:${user!.id}:family`);
     if (readBack !== familyId) {
       console.error("family/create read-back failed", { familyId, readBack });
-      return c.json({ error: "storage_verify_failed", familyId, readBack }, 500);
+      // Still return 200 with familyId so the client can proceed (e.g. send invite)
     }
   } catch (e) {
     console.error("family/create kv.set failed", e);

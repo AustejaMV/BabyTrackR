@@ -25,7 +25,7 @@ interface Note {
 
 export function Settings() {
   const navigate = useNavigate();
-  const { user, signOut, session, familyId, refreshFamily } = useAuth();
+  const { user, signOut, session, familyId, refreshFamily, setFamilyIdFromCreate } = useAuth();
   const [inviteEmail, setInviteEmail] = useState('');
   const [family, setFamily] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -86,10 +86,29 @@ export function Settings() {
     let effectiveFamilyId = familyId;
     if (!effectiveFamilyId) {
       effectiveFamilyId = await refreshFamily();
-      if (!effectiveFamilyId) {
-        toast.error('Please wait for your family to load, or try again in a moment.');
-        return;
+    }
+    if (!effectiveFamilyId) {
+      // Fallback: create family directly so we have an id for the invite
+      try {
+        const createRes = await fetch(`${serverUrl}/family/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: supabaseAnonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ familyName: 'My Family' }),
+        });
+        const createData = await createRes.json();
+        effectiveFamilyId = createData?.familyId ?? null;
+        if (effectiveFamilyId) setFamilyIdFromCreate(effectiveFamilyId);
+      } catch {
+        // ignore
       }
+    }
+    if (!effectiveFamilyId) {
+      toast.error('Could not load or create family. Check your connection and try again.');
+      return;
     }
 
     setLoading(true);

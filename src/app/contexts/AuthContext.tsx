@@ -11,6 +11,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   familyId: string | null;
   refreshFamily: () => Promise<string | null>;
+  setFamilyIdFromCreate: (id: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -112,7 +113,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         
         const createResult = await createResponse.json();
-        if (createResult.familyId) {
+        // Use familyId even when server returned 500 (e.g. read-back failed but family was created)
+        if (createResult?.familyId) {
           createdFamilyIdRef.current = createResult.familyId;
           setFamilyId(createResult.familyId);
           return createResult.familyId;
@@ -167,9 +169,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return null;
   }, [session?.access_token]);
 
+  const setFamilyIdFromCreate = useCallback((id: string) => {
+    createdFamilyIdRef.current = id;
+    setFamilyId(id);
+  }, []);
+
   return (
     <AuthContext.Provider
-      value={{ user, session, loading, signInWithEmail, signUpWithEmail, signOut, familyId, refreshFamily }}
+      value={{ user, session, loading, signInWithEmail, signUpWithEmail, signOut, familyId, refreshFamily, setFamilyIdFromCreate }}
     >
       {children}
     </AuthContext.Provider>
