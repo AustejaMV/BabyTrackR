@@ -1,10 +1,10 @@
 import { Hono } from "npm:hono@3";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import * as kv from "./kv_store.tsx";
 
 const app = new Hono();
 const FUNCTION_NAME = "server";
 const ALLOWED_ORIGINS = ["https://babytrackr.fejefeja.workers.dev", "http://localhost:5173", "http://localhost:3000"];
+const KV_TABLE = "kv_store_71db3e83";
 
 function makeCorsHeaders(origin: string | null) {
   const headers = new Headers();
@@ -19,10 +19,23 @@ function makeCorsHeaders(origin: string | null) {
   return headers;
 }
 
-// KV is backed by Supabase table kv_store_71db3e83 (key TEXT, value JSONB) — data persists
+// KV is backed by Supabase table kv_store_71db3e83 (key TEXT, value JSONB) — inlined so deploy works as single file
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { global: { fetch } });
+
+async function kvGet(key: string): Promise<unknown> {
+  const { data, error } = await supabase.from(KV_TABLE).select("value").eq("key", key).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.value;
+}
+
+async function kvSet(key: string, value: unknown): Promise<void> {
+  const { error } = await supabase.from(KV_TABLE).upsert({ key, value }, { onConflict: "key" });
+  if (error) throw new Error(error.message);
+}
+
+const kv = { get: kvGet, set: kvSet };
 
 async function verifyUser(authHeader: string | null) {
   if (!authHeader || !authHeader.startsWith("Bearer "))
@@ -78,8 +91,8 @@ app.post("/family/create", async (c) => {
   return c.json({ familyId });
 });
 
-// Invite by email (app sends email, inviter_id, family_id)
-app.post("/family/invite", async (c) => {
+// Invite by email (app sends email, inviter_id, family_id). Also used for POST /family/invites (alias).
+const inviteByEmailHandler = async (c: any) => {
   const { user, error } = await verifyUser(c.req.header("Authorization"));
   if (error) return c.json({ error }, 401);
   let body: any = {};
@@ -105,7 +118,9 @@ app.post("/family/invite", async (c) => {
   await kv.set(`invite:${inviteId}`, invite);
   await kv.set(`invite:email:${email.toLowerCase()}`, inviteId);
   return c.json({ success: true, invite }, 201);
-});
+};
+app.post("/family/invite", inviteByEmailHandler);
+app.post("/family/invites", inviteByEmailHandler);
 
 // List invites for the current user (by their email from auth token)
 app.get("/family/invites", async (c) => {
@@ -117,7 +132,9 @@ app.get("/family/invites", async (c) => {
   const inviteId = typeof rawInviteId === "string" ? rawInviteId : null;
   if (!inviteId) return c.json({ invites: [] });
   const invite = await kv.get(`invite:${inviteId}`);
-  const list = invite && invite.status === "pending" ? [invite] : [];
+  if (!invite || invite.status !== "pending") return c.json({ invites: [] });
+  const family = await kv.get(`family:${invite.familyId}`);
+  const list = [{ ...invite, familyName: family?.name ?? "A family" }];
   return c.json({ invites: list });
 });
 
@@ -145,7 +162,29 @@ app.post("/family/accept-invite", async (c) => {
   await kv.set(`user:${user!.id}:family`, familyId);
   invite.status = "accepted";
   await kv.set(`invite:${inviteId}`, invite);
-  return c.json({ success: true, familyId });
+  return c.json({ success: true, familyId, familyName: family.name ?? "Family" });
+});
+
+// Decline a pending invite (so it no longer appears in GET /family/invites)
+app.post("/family/decline-invite", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  let body: any = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const inviteId = body?.inviteId;
+  if (!inviteId) return c.json({ error: "invalid_invite" }, 400);
+  const invite = await kv.get(`invite:${inviteId}`);
+  if (!invite || invite.status !== "pending") return c.json({ error: "Invalid or already used invite" }, 400);
+  if (invite.email?.toLowerCase() !== (user!.email ?? "").trim().toLowerCase()) {
+    return c.json({ error: "Invite is for a different email" }, 403);
+  }
+  invite.status = "declined";
+  await kv.set(`invite:${inviteId}`, invite);
+  return c.json({ success: true });
 });
 
 // ============= DATA SYNC =============
@@ -211,8 +250,10 @@ const registeredRoutes = [
   "GET /family",
   "POST /family/create",
   "POST /family/invite",
+  "POST /family/invites",
   "GET /family/invites",
   "POST /family/accept-invite",
+  "POST /family/decline-invite",
   "POST /data/save",
   "GET /data/:dataType",
   "GET /data/all",

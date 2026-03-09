@@ -64,7 +64,7 @@ export function Dashboard() {
     }
 
     if (user && session) {
-      // Load data from server
+      // Load data from server (refetches when familyId changes so switching family shows the right data)
       loadAllDataFromServer(session.access_token).then((serverData) => {
         if (Object.keys(serverData).length > 0) {
           // Sync server data to localStorage
@@ -82,7 +82,7 @@ export function Dashboard() {
 
     // Request notification permission on first load
     requestNotificationPermission();
-  }, [user, loading, session, navigate]);
+  }, [user, loading, session, navigate, familyId]);
 
   const loadLocalData = () => {
     // Load current sleep session

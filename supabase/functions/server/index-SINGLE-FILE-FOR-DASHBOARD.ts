@@ -129,7 +129,9 @@ app.get("/family/invites", async (c) => {
   const inviteId = typeof rawInviteId === "string" ? rawInviteId : null;
   if (!inviteId) return c.json({ invites: [] });
   const invite = await kvGet(`invite:${inviteId}`);
-  const list = invite && invite.status === "pending" ? [invite] : [];
+  if (!invite || invite.status !== "pending") return c.json({ invites: [] });
+  const family = await kvGet(`family:${invite.familyId}`);
+  const list = [{ ...invite, familyName: family?.name ?? "A family" }];
   return c.json({ invites: list });
 });
 
@@ -157,7 +159,28 @@ app.post("/family/accept-invite", async (c) => {
   await kvSet(`user:${user!.id}:family`, familyId);
   invite.status = "accepted";
   await kvSet(`invite:${inviteId}`, invite);
-  return c.json({ success: true, familyId });
+  return c.json({ success: true, familyId, familyName: family.name ?? "Family" });
+});
+
+app.post("/family/decline-invite", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  let body: any = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const inviteId = body?.inviteId;
+  if (!inviteId) return c.json({ error: "invalid_invite" }, 400);
+  const invite = await kvGet(`invite:${inviteId}`);
+  if (!invite || invite.status !== "pending") return c.json({ error: "Invalid or already used invite" }, 400);
+  if (invite.email?.toLowerCase() !== (user!.email ?? "").trim().toLowerCase()) {
+    return c.json({ error: "Invite is for a different email" }, 403);
+  }
+  invite.status = "declined";
+  await kvSet(`invite:${inviteId}`, invite);
+  return c.json({ success: true });
 });
 
 const DATA_TYPES = [
@@ -224,6 +247,7 @@ const registeredRoutes = [
   "POST /family/invite",
   "GET /family/invites",
   "POST /family/accept-invite",
+  "POST /family/decline-invite",
   "POST /data/save",
   "GET /data/:dataType",
   "GET /data/all",

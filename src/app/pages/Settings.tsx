@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Navigation } from '../components/Navigation';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { ArrowLeft, UserPlus, LogOut, Download, Users, CheckCircle2, Circle, Trash2, Lock, Globe } from 'lucide-react';
+import { ArrowLeft, UserPlus, LogOut, Download, Users, CheckCircle2, Circle, Trash2, Lock, Globe, Mail, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { serverUrl, supabaseAnonKey } from '../utils/supabase';
 import { generatePediatricReport } from '../utils/pdfExport';
@@ -31,12 +31,33 @@ export function Settings() {
   const [loading, setLoading] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
   const [newNoteText, setNewNoteText] = useState('');
+  const [pendingInvites, setPendingInvites] = useState<{ id: string; familyId: string; familyName?: string }[]>([]);
+  const [inviteActionLoading, setInviteActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     if (session?.access_token && familyId) {
       loadFamily();
     }
   }, [session, familyId]);
+
+  // Fetch pending invites whenever logged in (so user sees invites even when they already have a family)
+  useEffect(() => {
+    if (!session?.access_token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${serverUrl}/family/invites`, {
+          headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${session.access_token}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled && Array.isArray(data.invites)) setPendingInvites(data.invites);
+        else if (!cancelled) setPendingInvites([]);
+      } catch {
+        if (!cancelled) setPendingInvites([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [session?.access_token]);
 
   // If user is logged in but familyId is still null (e.g. slow load or opened Settings early), try once to load/create family
   useEffect(() => {
@@ -76,6 +97,62 @@ export function Settings() {
       }
     } catch (error) {
       console.error('Error loading family:', error);
+    }
+  };
+
+  const handleAcceptInvite = async (inviteId: string) => {
+    if (!session?.access_token) return;
+    setInviteActionLoading(inviteId);
+    try {
+      const res = await fetch(`${serverUrl}/family/accept-invite`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ inviteId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.familyId) {
+        setFamilyIdFromCreate(data.familyId);
+        setPendingInvites((prev) => prev.filter((i) => i.id !== inviteId));
+        toast.success(`You've joined "${data.familyName ?? 'the family'}". You're now viewing that family's data.`);
+        loadFamily(); // refresh current family details
+      } else {
+        toast.error(data.error ?? 'Could not accept invite');
+      }
+    } catch (e) {
+      toast.error('Could not accept invite');
+    } finally {
+      setInviteActionLoading(null);
+    }
+  };
+
+  const handleDeclineInvite = async (inviteId: string) => {
+    if (!session?.access_token) return;
+    setInviteActionLoading(inviteId);
+    try {
+      const res = await fetch(`${serverUrl}/family/decline-invite`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ inviteId }),
+      });
+      if (res.ok) {
+        setPendingInvites((prev) => prev.filter((i) => i.id !== inviteId));
+        toast.success('Invite declined.');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? 'Could not decline');
+      }
+    } catch {
+      toast.error('Could not decline invite');
+    } finally {
+      setInviteActionLoading(null);
     }
   };
 
@@ -234,12 +311,51 @@ export function Settings() {
           </div>
 
           {family && (
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Family Name</p>
+            <div className="mb-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+              <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Current family</p>
               <p className="dark:text-white font-medium">{family.name}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                 {family.members?.length || 0} member{family.members?.length !== 1 ? 's' : ''}
               </p>
+            </div>
+          )}
+
+          {pendingInvites.length > 0 && (
+            <div className="mb-4 p-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/20">
+              <p className="text-xs text-amber-700 dark:text-amber-300 uppercase tracking-wide mb-2 flex items-center gap-1">
+                <Mail className="w-3.5 h-3.5" /> Pending invite{pendingInvites.length !== 1 ? 's' : ''}
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                You can be in one family at a time. Accepting will switch you to that family and you'll see their data.
+              </p>
+              {pendingInvites.map((inv) => (
+                <div
+                  key={inv.id}
+                  className="flex flex-wrap items-center justify-between gap-2 py-2 border-t border-amber-200/80 dark:border-amber-800/80 first:border-t-0 first:pt-0 first:mt-0 mt-2"
+                >
+                  <span className="text-sm dark:text-white">
+                    Invited to <strong>{inv.familyName ?? 'a family'}</strong>
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={inviteActionLoading !== null}
+                      onClick={() => handleDeclineInvite(inv.id)}
+                      className="text-gray-600 dark:text-gray-400"
+                    >
+                      <X className="w-4 h-4 mr-1" /> Decline
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={inviteActionLoading !== null}
+                      onClick={() => handleAcceptInvite(inv.id)}
+                    >
+                      {inviteActionLoading === inv.id ? '…' : 'Accept & switch'}
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 

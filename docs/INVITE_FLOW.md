@@ -51,7 +51,15 @@
 
 ---
 
-## 5. Important details
+## 5. Already in a family, invited to another
+
+- You can be in **one family at a time**. If you're already in a family and receive an invite to another, the app still fetches and shows **pending invites** (e.g. in **Settings → Family Sharing**).
+- You'll see **Current family** and a **Pending invite(s)** section. You can:
+  - **Accept & switch**: you join the other family and the app switches to that family's data (your previous family's data stays stored under the old family).
+  - **Decline**: the invite is marked declined and no longer shown.
+- After switching, the Dashboard refetches data so you see the new family's feed.
+
+## 6. Other important details
 
 - **Email must match exactly** (including case; backend uses lowercase).
 - **One pending invite per email**: sending a new invite to the same email overwrites the previous one (same key `invite:email:<email>`).
@@ -59,7 +67,7 @@
 
 ---
 
-## 6. If "App finds invite and accepts it" doesn't work
+## 7. If "App finds invite and accepts it" doesn't work
 
 - **Backend must persist invites**  
   Invites are stored in the same KV table as families. If the Edge Function uses in-memory storage, the invite exists only on the instance that handled "Invite"; when the invitee signs in they may hit another instance and see no invite. Deploy the **DB-backed** server (see `docs/SUPABASE_SETUP.md`) so the `invite:email:...` and `invite:...` keys are stored in the table.
@@ -75,6 +83,6 @@
 
 ---
 
-## 7. Optional improvement: email notifications
+## 8. Optional improvement: email notifications
 
 To actually notify the invitee by email you would need to add an email provider (e.g. Resend, SendGrid) and call it from the Edge Function after `POST /family/invite`, sending a message like “You’ve been invited to join a family in BabyTracker – sign in with this email to join.” That is not implemented today; the flow above is “invite by email address, invitee signs in with that email.”
