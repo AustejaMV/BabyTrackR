@@ -50,7 +50,11 @@ export async function loadDataFromServer(dataType: string, accessToken: string) 
   }
 }
 
-export type LoadAllDataResult = { ok: boolean; data: Record<string, unknown> };
+export type LoadAllDataResult = {
+  ok: boolean;
+  data: Record<string, unknown>;
+  _debug?: { familyId: string | null; userId?: string; keysQueried?: number; rowsReturned?: number; keysWithData?: number; reason?: string };
+};
 
 export async function loadAllDataFromServer(accessToken: string): Promise<LoadAllDataResult> {
   const url = `${serverUrl}/data/all`;
@@ -61,7 +65,7 @@ export async function loadAllDataFromServer(accessToken: string): Promise<LoadAl
         'Authorization': `Bearer ${accessToken}`,
       },
     });
-    let result: { data?: Record<string, unknown>; error?: string } = {};
+    let result: { data?: Record<string, unknown>; error?: string; _debug?: LoadAllDataResult['_debug'] } = {};
     try {
       result = await response.json();
     } catch (parseErr) {
@@ -76,17 +80,22 @@ export async function loadAllDataFromServer(accessToken: string): Promise<LoadAl
       if (v && typeof v === 'object') return `${k}:obj`;
       return `${k}:${typeof v}`;
     });
+    const _debug = result?._debug;
     console.log('[BabyTracker] GET /data/all', {
       status: response.status,
       ok: response.ok,
       keys: keys.length,
       summary: summary.join(', ') || '(empty)',
+      _debug: _debug ?? '(none)',
     });
+    if (_debug) {
+      console.log('[BabyTracker] Server says: familyId =', _debug.familyId, '| rowsReturned =', _debug.rowsReturned, '| keysWithData =', _debug.keysWithData, _debug.reason ? `| reason: ${_debug.reason}` : '');
+    }
     if (!response.ok) {
       console.warn('[BabyTracker] GET /data/all failed', { status: response.status, error: result?.error });
-      return { ok: false, data: {} };
+      return { ok: false, data: {}, _debug };
     }
-    return { ok: true, data };
+    return { ok: true, data, _debug };
   } catch (error) {
     console.error('[BabyTracker] GET /data/all network error', { url, error });
     return { ok: false, data: {} };

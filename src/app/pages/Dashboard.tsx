@@ -48,6 +48,7 @@ export function Dashboard() {
   const [lastFeeding, setLastFeeding] = useState<FeedingRecord | null>(null);
   const [recentDiapers, setRecentDiapers] = useState<DiaperRecord[]>([]);
   const [lastPainkiller, setLastPainkiller] = useState<PainkillerDose | null>(null);
+  const [lastDataDebug, setLastDataDebug] = useState<{ familyId: string | null; rowsReturned?: number } | null>(null);
   const { user, session, loading, familyId } = useAuth();
   const prevFamilyIdRef = useRef<string | null>(null);
   const navigate = useNavigate();
@@ -74,12 +75,23 @@ export function Dashboard() {
       }
       if (familyId) prevFamilyIdRef.current = familyId;
       console.log('[BabyTracker] Dashboard: fetching family data', { familyId: familyId ?? 'none' });
-      loadAllDataFromServer(session.access_token).then(({ ok, data: serverData }) => {
+      loadAllDataFromServer(session.access_token).then(({ ok, data: serverData, _debug }) => {
         if (!ok) {
           console.warn('[BabyTracker] Dashboard: GET /data/all failed, not applying (keeping current local data)');
           return;
         }
-        console.log('[BabyTracker] Dashboard: applying server data', { keys: Object.keys(serverData) });
+        const keyCount = Object.keys(serverData).length;
+        if (keyCount === 0) {
+          if (_debug) {
+            console.warn('[BabyTracker] Server returned 0 keys. Your familyId =', _debug.familyId, '| DB rowsReturned =', _debug.rowsReturned, '- If inviter has data, ask them to sync and compare familyId in their console.');
+            setLastDataDebug({ familyId: _debug.familyId ?? null, rowsReturned: _debug.rowsReturned });
+          }
+          // Don't clear or overwrite local data when server has nothing — avoids wiping inviter's unsynced data on refresh
+          loadLocalDataRef.current();
+          return;
+        }
+        setLastDataDebug(null);
+        console.log('[BabyTracker] Dashboard: applying server data', { keys: keyCount });
         clearSyncedDataFromLocalStorage();
         Object.entries(serverData).forEach(([key, value]) => {
           try {
@@ -117,7 +129,7 @@ export function Dashboard() {
 
     const refetchAndApply = () => {
       loadAllDataFromServer(session!.access_token!).then(({ ok, data: serverData }) => {
-        if (!ok) return;
+        if (!ok || Object.keys(serverData).length === 0) return;
         clearSyncedDataFromLocalStorage();
         Object.entries(serverData).forEach(([key, value]) => {
           try {
@@ -310,8 +322,14 @@ export function Dashboard() {
         <WarningIndicators />
 
         {familyId && !lastFeeding && recentDiapers.length === 0 && !currentSleep && !lastPainkiller && (
-          <div className="mb-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm">
-            No shared logs yet. If your family has been logging, ask them to open Settings and tap &quot;Sync my data to family&quot;.
+          <div className="mb-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm space-y-1">
+            <p>No shared logs yet. Ask the inviter to open Settings and tap &quot;Sync my data to family&quot;.</p>
+            {lastDataDebug?.familyId != null && (
+              <p className="text-xs opacity-90 mt-1">Your familyId: <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">{lastDataDebug.familyId}</code> (compare with inviter&apos;s console; if different, re-accept the invite.)</p>
+            )}
+            {lastDataDebug?.rowsReturned === 0 && (
+              <p className="text-xs opacity-90">Server has 0 rows for this family — inviter must sync first.</p>
+            )}
           </div>
         )}
 

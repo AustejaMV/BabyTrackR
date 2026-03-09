@@ -229,6 +229,8 @@ app.post("/data/save", async (c) => {
     updatedBy: user!.id,
     updatedAt: Date.now(),
   });
+  const size = Array.isArray(data) ? data.length : (data && typeof data === "object" ? Object.keys(data).length : 0);
+  console.log("[data/save]", { familyId, dataType, userId: user!.id, size });
   return c.json({ success: true });
 });
 
@@ -248,10 +250,11 @@ app.get("/data/all", async (c) => {
   const familyId = await kv.get(`user:${user!.id}:family`) as string | undefined | null;
   if (!familyId) {
     console.log("[data/all] no family for user", user!.id);
-    return c.json({ data: {} });
+    return c.json({ data: {}, _debug: { familyId: null, userId: user!.id, reason: "no_family" } });
   }
   const keys = DATA_TYPES.map((dt) => `data:${familyId}:${dt}`);
   const rows = await kv.getMany(keys);
+  const rowsReturned = Object.keys(rows).length;
   const allData: Record<string, unknown> = {};
   for (const dataType of DATA_TYPES) {
     const row = rows[`data:${familyId}:${dataType}`] as { data?: unknown } | undefined;
@@ -262,8 +265,11 @@ app.get("/data/all", async (c) => {
     const v = allData[k];
     return Array.isArray(v) ? `${k}:${v.length}` : `${k}:present`;
   });
-  console.log("[data/all]", { familyId, userId: user!.id, keys: returnedKeys.length, summary: summary.join(", ") || "empty" });
-  return c.json({ data: allData });
+  console.log("[data/all]", { familyId, userId: user!.id, keysQueried: keys.length, rowsReturned, keysWithData: returnedKeys.length, summary: summary.join(", ") || "empty" });
+  return c.json({
+    data: allData,
+    _debug: { familyId, userId: user!.id, keysQueried: keys.length, rowsReturned, keysWithData: returnedKeys.length },
+  });
 });
 
 const registeredRoutes = [
