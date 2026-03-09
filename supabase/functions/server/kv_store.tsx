@@ -20,10 +20,10 @@ const client = () => createClient(
 // Set stores a key-value pair in the database.
 export const set = async (key: string, value: any): Promise<void> => {
   const supabase = client()
-  const { error } = await supabase.from("kv_store_71db3e83").upsert({
-    key,
-    value
-  });
+  const { error } = await supabase.from("kv_store_71db3e83").upsert(
+    { key, value },
+    { onConflict: "key" }
+  );
   if (error) {
     throw new Error(error.message);
   }

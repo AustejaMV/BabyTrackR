@@ -4,7 +4,7 @@ import { Navigation } from '../components/Navigation';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { ArrowLeft, UserPlus, LogOut, Download, Users, CheckCircle2, Circle, Trash2, Lock, Globe } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { serverUrl, supabaseAnonKey } from '../utils/supabase';
 import { generatePediatricReport } from '../utils/pdfExport';
 import { toast } from 'sonner';
@@ -24,7 +24,8 @@ interface Note {
 }
 
 export function Settings() {
-  const { user, signOut, session, familyId } = useAuth();
+  const navigate = useNavigate();
+  const { user, signOut, session, familyId, refreshFamily } = useAuth();
   const [inviteEmail, setInviteEmail] = useState('');
   const [family, setFamily] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -36,6 +37,13 @@ export function Settings() {
       loadFamily();
     }
   }, [session, familyId]);
+
+  // If user is logged in but familyId is still null (e.g. slow load or opened Settings early), try once to load/create family
+  useEffect(() => {
+    if (session?.access_token && !familyId) {
+      refreshFamily();
+    }
+  }, [session?.access_token, familyId, refreshFamily]);
 
   useEffect(() => {
     const storedNotes = localStorage.getItem('notes');
@@ -161,6 +169,7 @@ export function Settings() {
 
   const handleSignOut = async () => {
     await signOut();
+    navigate('/');
   };
 
   return (

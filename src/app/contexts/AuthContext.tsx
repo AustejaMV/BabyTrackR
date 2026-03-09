@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase, serverUrl, supabaseAnonKey } from '../utils/supabase';
 
@@ -10,6 +10,7 @@ interface AuthContextType {
   signUpWithEmail: (email: string, password: string) => Promise<{ error?: Error | null }>;
   signOut: () => Promise<void>;
   familyId: string | null;
+  refreshFamily: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,17 +20,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [familyId, setFamilyId] = useState<string | null>(null);
+  // Avoid creating a second family when loadFamily runs twice (getSession + onAuthStateChange)
+  const createdFamilyIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Get initial session and load family before marking ready (so familyId is set before user sees app)
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
-      
       if (session) {
-        loadFamily(session.access_token);
+        await loadFamily(session.access_token);
       }
+      setLoading(false);
     });
 
     // Listen for auth changes
@@ -43,6 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loadFamily(session.access_token);
       } else {
         setFamilyId(null);
+        createdFamilyIdRef.current = null;
       }
     });
 
@@ -62,47 +65,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (result.family) {
         setFamilyId(result.family.id);
-      } else {
-        // Check for invites
-        const invitesResponse = await fetch(`${serverUrl}/family/invites`, {
+        createdFamilyIdRef.current = null;
+        return;
+      }
+      // GET returned null: if we already created a family this session, reuse it (avoids double-create when loadFamily runs twice)
+      if (createdFamilyIdRef.current) {
+        setFamilyId(createdFamilyIdRef.current);
+        return;
+      }
+      // Check for invites
+      const invitesResponse = await fetch(`${serverUrl}/family/invites`, {
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+      
+      const invitesResult = await invitesResponse.json();
+      
+      if (invitesResult.invites && invitesResult.invites.length > 0) {
+        const invite = invitesResult.invites[0];
+        const acceptResponse = await fetch(`${serverUrl}/family/accept-invite`, {
+          method: 'POST',
           headers: {
+            'Content-Type': 'application/json',
             'apikey': supabaseAnonKey,
             'Authorization': `Bearer ${accessToken}`,
           },
+          body: JSON.stringify({ inviteId: invite.id }),
         });
         
-        const invitesResult = await invitesResponse.json();
+        const acceptResult = await acceptResponse.json();
+        if (acceptResult.familyId) {
+          setFamilyId(acceptResult.familyId);
+        }
+      } else {
+        const createResponse = await fetch(`${serverUrl}/family/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseAnonKey,
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ familyName: 'My Family' }),
+        });
         
-        if (invitesResult.invites && invitesResult.invites.length > 0) {
-          // Auto-accept first invite
-          const invite = invitesResult.invites[0];
-          const acceptResponse = await fetch(`${serverUrl}/family/accept-invite`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': supabaseAnonKey,
-              'Authorization': `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify({ inviteId: invite.id }),
-          });
-          
-          const acceptResult = await acceptResponse.json();
-          if (acceptResult.familyId) {
-            setFamilyId(acceptResult.familyId);
-          }
-        } else {
-          // Create new family
-          const createResponse = await fetch(`${serverUrl}/family/create`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': supabaseAnonKey,
-              'Authorization': `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify({ familyName: 'My Family' }),
-          });
-          
-          const createResult = await createResponse.json();
+        const createResult = await createResponse.json();
+        if (createResult.familyId) {
+          createdFamilyIdRef.current = createResult.familyId;
           setFamilyId(createResult.familyId);
         }
       }
@@ -146,11 +156,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setFamilyId(null);
+    createdFamilyIdRef.current = null;
   };
+
+  const refreshFamily = useCallback(async () => {
+    if (session?.access_token) await loadFamily(session.access_token);
+  }, [session?.access_token]);
 
   return (
     <AuthContext.Provider
-      value={{ user, session, loading, signInWithEmail, signUpWithEmail, signOut, familyId }}
+      value={{ user, session, loading, signInWithEmail, signUpWithEmail, signOut, familyId, refreshFamily }}
     >
       {children}
     </AuthContext.Provider>
