@@ -4,7 +4,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format, addHours } from "date-fns";
-import { ArrowLeft, Clock, Play, Square } from "lucide-react";
+import { ArrowLeft, Clock, Pause, Play, Square } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import { saveData } from "../utils/dataSync";
@@ -65,6 +65,9 @@ export function FeedingTracking() {
   const [session, setSession] = useState<ActiveSession | null>(null);
   const [totalElapsedMs, setTotalElapsedMs] = useState(0);
   const [currentSegmentElapsedMs, setCurrentSegmentElapsedMs] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [totalPausedMs, setTotalPausedMs] = useState(0);
+  const [pausedAt, setPausedAt] = useState<number | null>(null);
   const { session: authSession } = useAuth();
 
   // On mount: stop any active sleep (feeding means baby is up)
@@ -90,19 +93,19 @@ export function FeedingTracking() {
     }
   }, []);
 
-  // Timers: total session + current segment
+  // Timers: total session + current segment (paused time excluded)
   useEffect(() => {
-    if (!session) return;
+    if (!session || isPaused) return;
     const interval = setInterval(() => {
       const now = Date.now();
-      setTotalElapsedMs(now - session.sessionStartTime);
+      setTotalElapsedMs(now - session.sessionStartTime - totalPausedMs);
       const last = session.segments[session.segments.length - 1];
       if (last && last.startTime != null) {
         setCurrentSegmentElapsedMs(now - (last.endTime ?? last.startTime));
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [session]);
+  }, [session, isPaused, totalPausedMs]);
 
   const startFeeding = () => {
     const now = Date.now();
@@ -113,6 +116,9 @@ export function FeedingTracking() {
     });
     setTotalElapsedMs(0);
     setCurrentSegmentElapsedMs(0);
+    setIsPaused(false);
+    setTotalPausedMs(0);
+    setPausedAt(null);
   };
 
   const switchType = (type: string) => {
@@ -135,6 +141,19 @@ export function FeedingTracking() {
     setSession({ ...session, segments: segs });
   };
 
+  const pauseFeeding = () => {
+    if (!session || isPaused) return;
+    setPausedAt(Date.now());
+    setIsPaused(true);
+  };
+
+  const resumeFeeding = () => {
+    if (!session || !isPaused || pausedAt == null) return;
+    setTotalPausedMs((prev) => prev + (Date.now() - pausedAt));
+    setPausedAt(null);
+    setIsPaused(false);
+  };
+
   const endFeeding = () => {
     if (!session || session.segments.length === 0) return;
     const now = Date.now();
@@ -150,7 +169,7 @@ export function FeedingTracking() {
       durationMs: s.endTime! - s.startTime,
       amount: s.amount,
     }));
-    const totalDurationMs = now - session.sessionStartTime;
+    const totalDurationMs = now - session.sessionStartTime - totalPausedMs;
     const newFeeding: FeedingRecord = {
       id: now.toString(),
       timestamp: now,
@@ -164,6 +183,9 @@ export function FeedingTracking() {
     localStorage.setItem("feedingHistory", JSON.stringify(updated));
     setSession(null);
     setFormulaAmount("");
+    setIsPaused(false);
+    setTotalPausedMs(0);
+    setPausedAt(null);
     if (authSession?.access_token) {
       saveData("feedingHistory", updated, authSession.access_token);
     }
@@ -302,7 +324,7 @@ export function FeedingTracking() {
           ) : (
             <div className="space-y-4">
               <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Total time</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Total time {isPaused && "(paused)"}</p>
                 <p className="text-3xl font-mono text-green-600 dark:text-green-400">
                   {formatDuration(totalElapsedMs)}
                 </p>
@@ -375,10 +397,23 @@ export function FeedingTracking() {
                   </div>
                 )}
               </div>
-              <Button onClick={endFeeding} className="w-full" size="lg" variant="default">
-                <Square className="w-5 h-5 mr-2" />
-                Feeding ended
-              </Button>
+              <div className="flex gap-2">
+                {isPaused ? (
+                  <Button onClick={resumeFeeding} className="flex-1" size="lg" variant="outline">
+                    <Play className="w-5 h-5 mr-2" />
+                    Resume
+                  </Button>
+                ) : (
+                  <Button onClick={pauseFeeding} className="flex-1" size="lg" variant="outline">
+                    <Pause className="w-5 h-5 mr-2" />
+                    Pause
+                  </Button>
+                )}
+                <Button onClick={endFeeding} className="flex-1" size="lg" variant="default">
+                  <Square className="w-5 h-5 mr-2" />
+                  Feeding ended
+                </Button>
+              </div>
             </div>
           )}
         </div>

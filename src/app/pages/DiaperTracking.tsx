@@ -21,7 +21,7 @@ const DIAPER_TYPES: Array<{ value: "pee" | "poop" | "both"; label: string; color
   { value: "both", label: "💧💩 Both", color: "#8b5cf6" },
 ];
 
-const COLORS = ["#3b82f6", "#f59e0b", "#8b5cf6"];
+const CHART_COLORS = ["#3b82f6", "#f59e0b"];
 
 export function DiaperTracking() {
   const [diaperHistory, setDiaperHistory] = useState<DiaperRecord[]>([]);
@@ -60,11 +60,10 @@ export function DiaperTracking() {
     total: last24Hours.length,
   };
 
-  // Prepare chart data
+  // Chart: just Pee and Poop (both counts in each)
   const chartData = [
-    { name: "Pee Only", value: diaperHistory.filter((d) => d.type === "pee").length },
-    { name: "Poop Only", value: diaperHistory.filter((d) => d.type === "poop").length },
-    { name: "Both", value: diaperHistory.filter((d) => d.type === "both").length },
+    { name: "Pee", value: diaperHistory.filter((d) => d.type === "pee" || d.type === "both").length },
+    { name: "Poop", value: diaperHistory.filter((d) => d.type === "poop" || d.type === "both").length },
   ];
 
   return (
@@ -133,7 +132,7 @@ export function DiaperTracking() {
                   dataKey="value"
                 >
                   {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip />

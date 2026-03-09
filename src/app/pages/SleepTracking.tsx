@@ -15,7 +15,7 @@ interface SleepRecord {
   endTime?: number;
 }
 
-const POSITIONS = ["Back", "Left Side", "Right Side", "Tummy"];
+const POSITIONS = ["Back", "Left Side", "Right Side"];
 
 export function SleepTracking() {
   const [currentSleep, setCurrentSleep] = useState<SleepRecord | null>(null);
