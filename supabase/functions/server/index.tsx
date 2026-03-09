@@ -234,17 +234,24 @@ app.get("/data/all", async (c) => {
   return c.json({ data: allData });
 });
 
-// Supabase serves the function at /functions/v1/server, so the path we receive is e.g. /functions/v1/server/data/all.
-// Strip that prefix so Hono sees /data/all and can match app.get("/data/all").
-const SUPABASE_FUNCTION_PATH = "/functions/v1/server";
+// Supabase may send path as /functions/v1/server/family or /server/family. Normalize so Hono sees /family, /data/all, etc.
+function stripFunctionPrefix(pathname: string): string {
+  const prefixes = ["/functions/v1/server", "/server"];
+  for (const p of prefixes) {
+    if (pathname.startsWith(p)) {
+      const rest = pathname.slice(p.length);
+      return rest || "/";
+    }
+  }
+  return pathname;
+}
+
 const handler = (req: Request) => {
   const url = new URL(req.url);
-  if (url.pathname.startsWith(SUPABASE_FUNCTION_PATH)) {
-    const path = url.pathname.slice(SUPABASE_FUNCTION_PATH.length) || "/";
-    const newUrl = new URL(path + url.search, url.origin);
-    req = new Request(newUrl, { method: req.method, headers: req.headers, body: req.body });
-  }
-  return app.fetch(req);
+  const path = stripFunctionPrefix(url.pathname);
+  const newUrl = new URL(path + url.search, url.origin);
+  const normalized = new Request(newUrl, { method: req.method, headers: req.headers, body: req.body });
+  return app.fetch(normalized);
 };
 
 Deno.serve(handler);
