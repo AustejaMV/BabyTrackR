@@ -47,6 +47,9 @@ export function SleepTracking() {
     };
     setCurrentSleep(newSleep);
     localStorage.setItem("currentSleep", JSON.stringify(newSleep));
+    if (session?.access_token) {
+      saveData("currentSleep", newSleep, session.access_token);
+    }
   };
 
   const stopTracking = () => {
@@ -63,9 +66,9 @@ export function SleepTracking() {
     localStorage.removeItem("currentSleep");
     setCurrentSleep(null);
 
-    // Save data to cloud
     if (session?.access_token) {
       saveData("sleepHistory", updatedHistory, session.access_token);
+      saveData("currentSleep", null, session.access_token);
     }
   };
 

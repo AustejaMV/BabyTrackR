@@ -7,11 +7,16 @@ import { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { requestNotificationPermission, scheduleNotification } from "../utils/notifications";
 import { useAuth } from "../contexts/AuthContext";
-import { loadAllDataFromServer, saveData, clearSyncedDataFromLocalStorage, SYNCED_DATA_KEYS } from "../utils/dataSync";
+import { loadAllDataFromServer, saveData, clearSyncedDataFromLocalStorage, SYNCED_DATA_KEYS, SYNCED_DATA_DEFAULTS } from "../utils/dataSync";
 
 // Server-cost friendly: poll less often, only when tab is visible, throttle visibility refetch
-const FAMILY_DATA_POLL_INTERVAL_MS = 60 * 1000; // 60s when visible
+const FAMILY_DATA_POLL_INTERVAL_MS = 60 * 1000; // 60s when no timer active
+const POLL_WHEN_ACTIVE_MS = 15 * 1000;         // 15s when any timer (feeding/sleep/tummy) is active to reduce desync
 const VISIBILITY_REFETCH_MIN_MS = 20 * 1000;   // don't refetch on tab focus if we did <20s ago
+
+function hasActiveSession(data: Record<string, unknown>): boolean {
+  return data?.feedingActiveSession != null || data?.currentSleep != null || data?.currentTummyTime != null;
+}
 import { toast } from "sonner";
 import { Button } from "../components/ui/button";
 
@@ -43,13 +48,31 @@ interface PainkillerDose {
   timestamp: number;
 }
 
+/** Synced active feeding session so family can see counter started. serverStartTime is set by server so all devices show same elapsed. */
+interface ActiveFeedingSession {
+  session: { sessionStartTime: number; segments: { type: string; startTime: number; endTime?: number; amount?: number }[] };
+  isPaused: boolean;
+  totalPausedMs: number;
+  pausedAt: number | null;
+  serverStartTime?: number;
+}
+
 export function Dashboard() {
   const [currentSleep, setCurrentSleep] = useState<SleepRecord | null>(null);
   const [lastFeeding, setLastFeeding] = useState<FeedingRecord | null>(null);
+  const [activeFeedingSession, setActiveFeedingSession] = useState<ActiveFeedingSession | null>(null);
   const [recentDiapers, setRecentDiapers] = useState<DiaperRecord[]>([]);
   const [lastPainkiller, setLastPainkiller] = useState<PainkillerDose | null>(null);
   const [lastDataDebug, setLastDataDebug] = useState<{ familyId: string | null; rowsReturned?: number } | null>(null);
+  const [, setFeedingTick] = useState(0);
   const { user, session, loading, familyId } = useAuth();
+
+  // Tick every second when feeding is in progress so Dashboard shows live elapsed time
+  useEffect(() => {
+    if (!activeFeedingSession) return;
+    const id = setInterval(() => setFeedingTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [activeFeedingSession]);
   const prevFamilyIdRef = useRef<string | null>(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -91,6 +114,7 @@ export function Dashboard() {
           return;
         }
         setLastDataDebug(null);
+        setPollIntervalMs(hasActiveSession(serverData) ? POLL_WHEN_ACTIVE_MS : FAMILY_DATA_POLL_INTERVAL_MS);
         console.log('[BabyTracker] Dashboard: applying server data', { keys: keyCount });
         clearSyncedDataFromLocalStorage();
         Object.entries(serverData).forEach(([key, value]) => {
@@ -100,11 +124,12 @@ export function Dashboard() {
             // ignore
           }
         });
-        // Ensure any synced key not returned by server is set to empty so we never show stale local data (e.g. invitee's old data)
+        // Ensure any synced key not returned by server gets the right default (e.g. feedingInterval "3", not [])
         for (const key of SYNCED_DATA_KEYS) {
           if (!(key in serverData)) {
             try {
-              localStorage.setItem(key, JSON.stringify([]));
+              const defaultValue = SYNCED_DATA_DEFAULTS[key];
+              localStorage.setItem(key, JSON.stringify(defaultValue));
             } catch {
               // ignore
             }
@@ -130,6 +155,7 @@ export function Dashboard() {
     const refetchAndApply = () => {
       loadAllDataFromServer(session!.access_token!).then(({ ok, data: serverData }) => {
         if (!ok || Object.keys(serverData).length === 0) return;
+        setPollIntervalMs(hasActiveSession(serverData) ? POLL_WHEN_ACTIVE_MS : FAMILY_DATA_POLL_INTERVAL_MS);
         clearSyncedDataFromLocalStorage();
         Object.entries(serverData).forEach(([key, value]) => {
           try {
@@ -141,7 +167,8 @@ export function Dashboard() {
         for (const key of SYNCED_DATA_KEYS) {
           if (!(key in serverData)) {
             try {
-              localStorage.setItem(key, JSON.stringify([]));
+              const defaultValue = SYNCED_DATA_DEFAULTS[key];
+              localStorage.setItem(key, JSON.stringify(defaultValue));
             } catch {
               // ignore
             }
@@ -155,7 +182,7 @@ export function Dashboard() {
     const startPolling = (immediateRefetch: boolean) => {
       if (intervalId != null) return;
       if (immediateRefetch) refetchAndApply();
-      intervalId = setInterval(refetchAndApply, FAMILY_DATA_POLL_INTERVAL_MS);
+      intervalId = setInterval(refetchAndApply, pollIntervalMs);
     };
 
     const stopPolling = () => {
@@ -182,15 +209,28 @@ export function Dashboard() {
       stopPolling();
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [user, session?.access_token, familyId]);
+  }, [user, session?.access_token, familyId, pollIntervalMs]);
 
   const loadLocalDataRef = useRef<() => void>(() => {});
   const loadLocalData = () => {
     // Load current sleep session
     const sleepData = localStorage.getItem("currentSleep");
-    if (sleepData) {
-      setCurrentSleep(JSON.parse(sleepData));
+    setCurrentSleep(sleepData ? JSON.parse(sleepData) : null);
+
+    // Load active feeding session (synced so family sees counter)
+    let activeFeeding: ActiveFeedingSession | null = null;
+    try {
+      const raw = localStorage.getItem("feedingActiveSession");
+      if (raw && raw !== "null") {
+        const parsed = JSON.parse(raw);
+        if (parsed?.session?.sessionStartTime != null && Array.isArray(parsed?.session?.segments)) {
+          activeFeeding = parsed;
+        }
+      }
+    } catch {
+      // ignore
     }
+    setActiveFeedingSession(activeFeeding);
 
     // Load last feeding (use endTime ?? timestamp for "when it ended")
     const feedingHistory = localStorage.getItem("feedingHistory");
@@ -321,7 +361,7 @@ export function Dashboard() {
 
         <WarningIndicators />
 
-        {familyId && !lastFeeding && recentDiapers.length === 0 && !currentSleep && !lastPainkiller && (
+        {familyId && !activeFeedingSession && !lastFeeding && recentDiapers.length === 0 && !currentSleep && !lastPainkiller && (
           <div className="mb-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm space-y-1">
             <p>No shared logs yet. Ask the inviter to open Settings and tap &quot;Sync my data to family&quot;.</p>
             {lastDataDebug?.familyId != null && (
@@ -346,7 +386,9 @@ export function Dashboard() {
                   {currentSleep ? (
                     <>
                       <p className="text-base sm:text-lg text-blue-600 dark:text-blue-400 truncate">{currentSleep.position}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{getTimeSince(currentSleep.startTime)}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {getTimeSince((currentSleep as SleepRecord & { serverStartTime?: number }).serverStartTime ?? currentSleep.startTime)}
+                      </p>
                     </>
                   ) : (
                     <p className="text-sm text-gray-500 dark:text-gray-400">Not tracking</p>
@@ -365,7 +407,25 @@ export function Dashboard() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <h2 className="text-sm sm:text-base font-medium dark:text-white truncate">Feeding</h2>
-                  {lastFeeding ? (
+                  {activeFeedingSession ? (
+                    <>
+                      <p className="text-base sm:text-lg text-green-600 dark:text-green-400 truncate">
+                        In progress
+                        {activeFeedingSession.isPaused ? " (paused)" : ""}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {(() => {
+                          const { session, isPaused, totalPausedMs, pausedAt, serverStartTime } = activeFeedingSession;
+                          const start = typeof serverStartTime === "number" ? serverStartTime : session.sessionStartTime;
+                          const elapsed = isPaused && pausedAt != null
+                            ? pausedAt - start - totalPausedMs
+                            : Date.now() - start - totalPausedMs;
+                          const mins = Math.max(0, Math.floor(elapsed / 60000));
+                          return `${mins}m`;
+                        })()}
+                      </p>
+                    </>
+                  ) : lastFeeding ? (
                     <>
                       <p className="text-base sm:text-lg text-green-600 dark:text-green-400 truncate">
                         {lastFeeding.segments?.length

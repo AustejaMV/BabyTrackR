@@ -206,9 +206,25 @@ const DATA_TYPES = [
   "currentSleep",
   "currentTummyTime",
   "feedingInterval",
+  "feedingActiveSession",
   "painkillerHistory",
   "notes",
 ];
+
+// Session-like keys: server sets canonical serverStartTime on first save so all devices show same elapsed; first write wins
+const SESSION_DATA_TYPES = ["feedingActiveSession", "currentSleep", "currentTummyTime"];
+
+function normalizeSessionPayload(dataType: string, data: unknown, existingRow: { data?: unknown } | null): unknown {
+  if (data == null) return null;
+  if (!SESSION_DATA_TYPES.includes(dataType)) return data;
+  const existing = existingRow?.data as Record<string, unknown> | null | undefined;
+  const existingStart = existing && typeof existing.serverStartTime === "number" ? existing.serverStartTime : null;
+  const out = typeof data === "object" && data !== null ? { ...data } : data;
+  if (typeof out === "object" && out !== null && !Array.isArray(out)) {
+    (out as Record<string, unknown>).serverStartTime = existingStart ?? Date.now();
+  }
+  return out;
+}
 
 app.post("/data/save", async (c) => {
   const { user, error } = await verifyUser(c.req.header("Authorization"));
@@ -222,8 +238,12 @@ app.post("/data/save", async (c) => {
     return c.json({ error: "invalid_json" }, 400);
   }
   const dataType = body?.dataType;
-  const data = body?.data;
+  let data = body?.data;
   if (!dataType) return c.json({ error: "missing_dataType" }, 400);
+  if (SESSION_DATA_TYPES.includes(dataType)) {
+    const existing = await kv.get(`data:${familyId}:${dataType}`) as { data?: unknown } | null;
+    data = normalizeSessionPayload(dataType, data, existing);
+  }
   await kv.set(`data:${familyId}:${dataType}`, {
     data,
     updatedBy: user!.id,

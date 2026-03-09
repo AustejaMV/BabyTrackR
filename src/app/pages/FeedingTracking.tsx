@@ -7,7 +7,7 @@ import { format, addHours } from "date-fns";
 import { ArrowLeft, Clock, Pause, Play, Square } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
-import { saveData } from "../utils/dataSync";
+import { saveData, syncDataToServer } from "../utils/dataSync";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
 import { toast } from "sonner";
 
@@ -110,25 +110,33 @@ export function FeedingTracking() {
       setFeedingHistory(JSON.parse(historyData));
     }
     const intervalData = localStorage.getItem("feedingInterval");
-    if (intervalData) {
-      setFeedingInterval(intervalData);
+    if (intervalData && intervalData !== "[]") {
+      try {
+        const parsed = JSON.parse(intervalData);
+        if (typeof parsed === "string" && parsed !== "") setFeedingInterval(parsed);
+        else if (typeof parsed === "number" && !Number.isNaN(parsed)) setFeedingInterval(String(parsed));
+      } catch {
+        setFeedingInterval(intervalData);
+      }
     }
     // Restore active feeding session if user left the tab and came back
     const saved = localStorage.getItem(ACTIVE_SESSION_KEY);
     if (saved) {
       try {
-        const { session: savedSession, isPaused: savedPaused, totalPausedMs: savedTotalPausedMs, pausedAt: savedPausedAt } = JSON.parse(saved);
-        if (savedSession?.sessionStartTime && Array.isArray(savedSession?.segments)) {
+        const parsed = JSON.parse(saved);
+        const { session: savedSession, isPaused: savedPaused, totalPausedMs: savedTotalPausedMs, pausedAt: savedPausedAt, serverStartTime } = parsed;
+        if (savedSession?.sessionStartTime != null && Array.isArray(savedSession?.segments)) {
           const now = Date.now();
           let totalPaused = savedTotalPausedMs ?? 0;
           if (savedPaused && savedPausedAt != null) {
             totalPaused += now - savedPausedAt;
           }
-          setSession(savedSession);
+          const canonicalStart = typeof serverStartTime === "number" ? serverStartTime : savedSession.sessionStartTime;
+          setSession({ ...savedSession, sessionStartTime: canonicalStart });
           setIsPaused(!!savedPaused);
           setTotalPausedMs(totalPaused);
           setPausedAt(savedPaused ? now : null); // "paused since" we returned to the tab
-          setTotalElapsedMs(now - savedSession.sessionStartTime - totalPaused);
+          setTotalElapsedMs(now - canonicalStart - totalPaused);
           const last = savedSession.segments[savedSession.segments.length - 1];
           setCurrentSegmentElapsedMs(last ? now - (last.endTime ?? last.startTime) : 0);
         }
@@ -154,7 +162,19 @@ export function FeedingTracking() {
 
   useEffect(() => {
     persistActiveSession(session, isPaused, totalPausedMs, pausedAt);
-  }, [session, isPaused, totalPausedMs, pausedAt]);
+    // Sync active feeding session so family can see counter started
+    if (authSession?.access_token) {
+      if (session) {
+        syncDataToServer(
+          "feedingActiveSession",
+          { session, isPaused, totalPausedMs, pausedAt },
+          authSession.access_token
+        );
+      } else {
+        syncDataToServer("feedingActiveSession", null, authSession.access_token);
+      }
+    }
+  }, [session, isPaused, totalPausedMs, pausedAt, authSession?.access_token]);
 
   const startFeeding = () => {
     const now = Date.now();

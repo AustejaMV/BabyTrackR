@@ -52,7 +52,17 @@ export function WarningIndicators() {
           const lastFeeding = feedings[feedings.length - 1];
           const lastEnd = getLastFeedingEndTime(lastFeeding);
           const hoursSinceFeeding = (Date.now() - lastEnd) / 3600000;
-          const feedingInterval = parseInt(localStorage.getItem("feedingInterval") || "3");
+          let feedingInterval = 3;
+try {
+  const raw = localStorage.getItem("feedingInterval");
+  if (raw && raw !== "[]") {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === "number" && Number.isFinite(parsed)) feedingInterval = parsed;
+    else if (typeof parsed === "string") feedingInterval = parseInt(parsed, 10) || 3;
+  }
+} catch {
+  // keep 3
+}
 
           if (hoursSinceFeeding >= feedingInterval) {
             newWarnings.push("feeding-due");

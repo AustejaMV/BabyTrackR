@@ -52,6 +52,9 @@ export function TummyTime() {
     };
     setCurrentSession(newSession);
     localStorage.setItem("currentTummyTime", JSON.stringify(newSession));
+    if (session?.access_token) {
+      saveData("currentTummyTime", newSession, session.access_token);
+    }
   };
 
   const stopSession = () => {
@@ -70,6 +73,7 @@ export function TummyTime() {
     setElapsedTime(0);
     if (session?.access_token) {
       saveData("tummyTimeHistory", updatedHistory, session.access_token);
+      saveData("currentTummyTime", null, session.access_token);
     }
   };
 

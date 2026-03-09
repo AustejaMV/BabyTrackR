@@ -9,9 +9,24 @@ export const SYNCED_DATA_KEYS = [
   'currentSleep',
   'currentTummyTime',
   'feedingInterval',
+  'feedingActiveSession',
   'painkillerHistory',
   'notes',
 ] as const;
+
+/** Default value when server doesn't return a key. Use these so inputs never get "[]" (e.g. feedingInterval must be "3" not []). */
+export const SYNCED_DATA_DEFAULTS: Record<(typeof SYNCED_DATA_KEYS)[number], unknown> = {
+  sleepHistory: [],
+  feedingHistory: [],
+  diaperHistory: [],
+  tummyTimeHistory: [],
+  currentSleep: null,
+  currentTummyTime: null,
+  feedingInterval: '3',
+  feedingActiveSession: null,
+  painkillerHistory: [],
+  notes: [],
+};
 
 export async function syncDataToServer(dataType: string, data: any, accessToken: string) {
   try {
