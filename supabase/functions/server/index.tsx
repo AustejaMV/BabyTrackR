@@ -234,4 +234,17 @@ app.get("/data/all", async (c) => {
   return c.json({ data: allData });
 });
 
-Deno.serve(app.fetch);
+// Supabase serves the function at /functions/v1/server, so the path we receive is e.g. /functions/v1/server/data/all.
+// Strip that prefix so Hono sees /data/all and can match app.get("/data/all").
+const SUPABASE_FUNCTION_PATH = "/functions/v1/server";
+const handler = (req: Request) => {
+  const url = new URL(req.url);
+  if (url.pathname.startsWith(SUPABASE_FUNCTION_PATH)) {
+    const path = url.pathname.slice(SUPABASE_FUNCTION_PATH.length) || "/";
+    const newUrl = new URL(path + url.search, url.origin);
+    req = new Request(newUrl, { method: req.method, headers: req.headers, body: req.body });
+  }
+  return app.fetch(req);
+};
+
+Deno.serve(handler);
