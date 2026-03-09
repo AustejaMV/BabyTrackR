@@ -245,8 +245,11 @@ app.get("/data/:dataType", async (c) => {
 app.get("/data/all", async (c) => {
   const { user, error } = await verifyUser(c.req.header("Authorization"));
   if (error) return c.json({ error }, 401);
-  const familyId = await kv.get(`user:${user!.id}:family`);
-  if (!familyId) return c.json({ data: {} });
+  const familyId = await kv.get(`user:${user!.id}:family`) as string | undefined | null;
+  if (!familyId) {
+    console.log("[data/all] no family for user", user!.id);
+    return c.json({ data: {} });
+  }
   const keys = DATA_TYPES.map((dt) => `data:${familyId}:${dt}`);
   const rows = await kv.getMany(keys);
   const allData: Record<string, unknown> = {};
@@ -254,6 +257,12 @@ app.get("/data/all", async (c) => {
     const row = rows[`data:${familyId}:${dataType}`] as { data?: unknown } | undefined;
     if (row?.data !== undefined) allData[dataType] = row.data;
   }
+  const returnedKeys = Object.keys(allData);
+  const summary = returnedKeys.map((k) => {
+    const v = allData[k];
+    return Array.isArray(v) ? `${k}:${v.length}` : `${k}:present`;
+  });
+  console.log("[data/all]", { familyId, userId: user!.id, keys: returnedKeys.length, summary: summary.join(", ") || "empty" });
   return c.json({ data: allData });
 });
 

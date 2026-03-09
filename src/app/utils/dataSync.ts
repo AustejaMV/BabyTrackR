@@ -50,20 +50,46 @@ export async function loadDataFromServer(dataType: string, accessToken: string) 
   }
 }
 
-export async function loadAllDataFromServer(accessToken: string) {
+export type LoadAllDataResult = { ok: boolean; data: Record<string, unknown> };
+
+export async function loadAllDataFromServer(accessToken: string): Promise<LoadAllDataResult> {
+  const url = `${serverUrl}/data/all`;
   try {
-    const response = await fetch(`${serverUrl}/data/all`, {
+    const response = await fetch(url, {
       headers: {
         'apikey': supabaseAnonKey,
         'Authorization': `Bearer ${accessToken}`,
       },
     });
-    
-    const result = await response.json();
-    return result.data || {};
+    let result: { data?: Record<string, unknown>; error?: string } = {};
+    try {
+      result = await response.json();
+    } catch (parseErr) {
+      console.error('[BabyTracker] GET /data/all: response not JSON', { status: response.status, url });
+      return { ok: false, data: {} };
+    }
+    const data = result?.data ?? {};
+    const keys = Object.keys(data);
+    const summary = keys.map((k) => {
+      const v = data[k];
+      if (Array.isArray(v)) return `${k}:${v.length}`;
+      if (v && typeof v === 'object') return `${k}:obj`;
+      return `${k}:${typeof v}`;
+    });
+    console.log('[BabyTracker] GET /data/all', {
+      status: response.status,
+      ok: response.ok,
+      keys: keys.length,
+      summary: summary.join(', ') || '(empty)',
+    });
+    if (!response.ok) {
+      console.warn('[BabyTracker] GET /data/all failed', { status: response.status, error: result?.error });
+      return { ok: false, data: {} };
+    }
+    return { ok: true, data };
   } catch (error) {
-    console.error('Error loading all data:', error);
-    return {};
+    console.error('[BabyTracker] GET /data/all network error', { url, error });
+    return { ok: false, data: {} };
   }
 }
 

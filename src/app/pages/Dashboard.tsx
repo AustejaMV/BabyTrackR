@@ -73,7 +73,13 @@ export function Dashboard() {
         clearSyncedDataFromLocalStorage();
       }
       if (familyId) prevFamilyIdRef.current = familyId;
-      loadAllDataFromServer(session.access_token).then((serverData) => {
+      console.log('[BabyTracker] Dashboard: fetching family data', { familyId: familyId ?? 'none' });
+      loadAllDataFromServer(session.access_token).then(({ ok, data: serverData }) => {
+        if (!ok) {
+          console.warn('[BabyTracker] Dashboard: GET /data/all failed, not applying (keeping current local data)');
+          return;
+        }
+        console.log('[BabyTracker] Dashboard: applying server data', { keys: Object.keys(serverData) });
         clearSyncedDataFromLocalStorage();
         Object.entries(serverData).forEach(([key, value]) => {
           try {
@@ -110,7 +116,8 @@ export function Dashboard() {
     const lastRefetchAt = { current: 0 };
 
     const refetchAndApply = () => {
-      loadAllDataFromServer(session!.access_token!).then((serverData) => {
+      loadAllDataFromServer(session!.access_token!).then(({ ok, data: serverData }) => {
+        if (!ok) return;
         clearSyncedDataFromLocalStorage();
         Object.entries(serverData).forEach(([key, value]) => {
           try {

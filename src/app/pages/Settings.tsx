@@ -122,15 +122,20 @@ export function Settings() {
         toast.success(`You've joined "${data.familyName ?? 'the family'}". You're now viewing that family's data.`);
         loadFamily(); // refresh current family details
         // Load family data into localStorage and go to Dashboard so invitee sees shared stats immediately
-        clearSyncedDataFromLocalStorage();
-        const serverData = await loadAllDataFromServer(session.access_token);
-        Object.entries(serverData).forEach(([key, value]) => {
-          try {
-            localStorage.setItem(key, JSON.stringify(value));
-          } catch {
-            // ignore
-          }
-        });
+        const { ok, data: serverData } = await loadAllDataFromServer(session.access_token);
+        if (ok) {
+          clearSyncedDataFromLocalStorage();
+          Object.entries(serverData).forEach(([key, value]) => {
+            try {
+              localStorage.setItem(key, JSON.stringify(value));
+            } catch {
+              // ignore
+            }
+          });
+          console.log('[BabyTracker] Settings (after accept): applied server data', { keys: Object.keys(serverData) });
+        } else {
+          console.warn('[BabyTracker] Settings (after accept): GET /data/all failed, going to Dashboard anyway');
+        }
         navigate('/');
       } else {
         toast.error(data.error ?? 'Could not accept invite');
