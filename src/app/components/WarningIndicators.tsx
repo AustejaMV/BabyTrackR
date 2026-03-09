@@ -1,5 +1,6 @@
-import { AlertCircle, Baby, Utensils, Droplet, Clock } from "lucide-react";
+import { AlertCircle, Baby, Utensils, Droplet, Clock, Pill } from "lucide-react";
 import { useEffect, useState } from "react";
+import { maybeNotifyForWarning } from "../utils/notifications";
 
 interface SleepRecord {
   id: string;
@@ -10,9 +11,13 @@ interface SleepRecord {
 
 interface FeedingRecord {
   id: string;
-  type: string;
+  type?: string;
   timestamp: number;
   amount?: number;
+  startTime?: number;
+  endTime?: number;
+  durationMs?: number;
+  segments?: { type: string; durationMs: number; amount?: number }[];
 }
 
 interface DiaperRecord {
@@ -27,6 +32,8 @@ interface TummyTimeRecord {
   endTime?: number;
 }
 
+const PAINKILLER_INTERVAL_HOURS = 8;
+
 export function WarningIndicators() {
   const [warnings, setWarnings] = useState<string[]>([]);
 
@@ -34,15 +41,19 @@ export function WarningIndicators() {
     const checkWarnings = () => {
       const newWarnings: string[] = [];
 
+      // Use end time for "last feeding" (timer-based feedings have endTime or timestamp)
+      const getLastFeedingEndTime = (f: FeedingRecord) => f.endTime ?? f.timestamp;
+
       // Check feeding
       const feedingHistory = localStorage.getItem("feedingHistory");
       if (feedingHistory) {
         const feedings: FeedingRecord[] = JSON.parse(feedingHistory);
         if (feedings.length > 0) {
           const lastFeeding = feedings[feedings.length - 1];
-          const hoursSinceFeeding = (Date.now() - lastFeeding.timestamp) / 3600000;
+          const lastEnd = getLastFeedingEndTime(lastFeeding);
+          const hoursSinceFeeding = (Date.now() - lastEnd) / 3600000;
           const feedingInterval = parseInt(localStorage.getItem("feedingInterval") || "3");
-          
+
           if (hoursSinceFeeding >= feedingInterval) {
             newWarnings.push("feeding-due");
           } else if (hoursSinceFeeding >= feedingInterval - 0.5) {
@@ -98,7 +109,43 @@ export function WarningIndicators() {
         }
       }
 
+      // Painkiller: 8h since last dose = safe to take another; show warning so user knows they can take a pill
+      const painkillerHistory = localStorage.getItem("painkillerHistory");
+      if (painkillerHistory) {
+        const doses: { id: string; timestamp: number }[] = JSON.parse(painkillerHistory);
+        if (doses.length > 0) {
+          const last = doses[doses.length - 1];
+          const hoursSince = (Date.now() - last.timestamp) / 3600000;
+          if (hoursSince >= PAINKILLER_INTERVAL_HOURS) {
+            newWarnings.push("painkiller-due");
+          }
+        }
+      }
+
       setWarnings(newWarnings);
+
+      // Send at most one notification per warning type per cooldown period
+      if (newWarnings.includes("feeding-due")) {
+        maybeNotifyForWarning("feeding-due", "Feeding due", "Time for the next feeding.");
+      }
+      if (newWarnings.includes("feeding-soon")) {
+        maybeNotifyForWarning("feeding-soon", "Feeding soon", "Feeding time is coming up soon.");
+      }
+      if (newWarnings.includes("painkiller-due")) {
+        maybeNotifyForWarning("painkiller-due", "Painkiller reminder", "It's been 8+ hours — you can take another dose if needed.");
+      }
+      if (newWarnings.includes("same-position")) {
+        maybeNotifyForWarning("same-position", "Sleep position", "Consider changing baby's sleep position.");
+      }
+      if (newWarnings.includes("no-poop")) {
+        maybeNotifyForWarning("no-poop", "Diaper check", "No poop in 24 hours. Check with your pediatrician if concerned.");
+      }
+      if (newWarnings.includes("no-sleep")) {
+        maybeNotifyForWarning("no-sleep", "Sleep check", "No sleep recorded in the last 6 hours.");
+      }
+      if (newWarnings.includes("no-tummy-time")) {
+        maybeNotifyForWarning("no-tummy-time", "Tummy time", "No tummy time logged today yet.");
+      }
     };
 
     checkWarnings();
@@ -145,6 +192,12 @@ export function WarningIndicators() {
         <div className="flex items-center gap-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 px-3 py-1 rounded-full text-sm">
           <AlertCircle className="w-4 h-4" />
           <span>No tummy time today</span>
+        </div>
+      )}
+      {warnings.includes("painkiller-due") && (
+        <div className="flex items-center gap-1 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 px-3 py-1 rounded-full text-sm">
+          <Pill className="w-4 h-4" />
+          <span>Painkiller: you can take another dose (8h passed)</span>
         </div>
       )}
     </div>

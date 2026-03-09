@@ -31,3 +31,18 @@ export function scheduleNotification(title: string, message: string, delayMs: nu
     sendNotification(title, { body: message });
   }, delayMs);
 }
+
+const WARNING_NOTIFY_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 hours between same warning
+
+export function maybeNotifyForWarning(
+  warningKey: string,
+  title: string,
+  message: string
+): void {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  const key = `lastWarningNotify:${warningKey}`;
+  const last = parseInt(localStorage.getItem(key) || "0", 10);
+  if (Date.now() - last < WARNING_NOTIFY_COOLDOWN_MS) return;
+  sendNotification(title, { body: message });
+  localStorage.setItem(key, String(Date.now()));
+}

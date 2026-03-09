@@ -20,9 +20,12 @@ interface SleepRecord {
 
 interface FeedingRecord {
   id: string;
-  type: string;
+  type?: string;
   timestamp: number;
   amount?: number;
+  endTime?: number;
+  durationMs?: number;
+  segments?: { type: string; durationMs: number; amount?: number }[];
 }
 
 interface DiaperRecord {
@@ -87,10 +90,10 @@ export function Dashboard() {
       setCurrentSleep(JSON.parse(sleepData));
     }
 
-    // Load last feeding
+    // Load last feeding (use endTime ?? timestamp for "when it ended")
     const feedingHistory = localStorage.getItem("feedingHistory");
     if (feedingHistory) {
-      const feedings = JSON.parse(feedingHistory);
+      const feedings: FeedingRecord[] = JSON.parse(feedingHistory);
       if (feedings.length > 0) {
         setLastFeeding(feedings[feedings.length - 1]);
       }
@@ -243,8 +246,15 @@ export function Dashboard() {
                   <h2 className="text-sm sm:text-base font-medium dark:text-white truncate">Feeding</h2>
                   {lastFeeding ? (
                     <>
-                      <p className="text-base sm:text-lg text-green-600 dark:text-green-400 truncate">{lastFeeding.type}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{getTimeSince(lastFeeding.timestamp)}</p>
+                      <p className="text-base sm:text-lg text-green-600 dark:text-green-400 truncate">
+                        {lastFeeding.segments?.length
+                          ? `${Math.round((lastFeeding.durationMs ?? 0) / 60000)}m total`
+                          : (lastFeeding.type ?? "Feeding")}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {getTimeSince(lastFeeding.endTime ?? lastFeeding.timestamp)}
+                        {lastFeeding.durationMs != null && ` · ${Math.round(lastFeeding.durationMs / 60000)}m`}
+                      </p>
                     </>
                   ) : (
                     <p className="text-sm text-gray-500 dark:text-gray-400">No feedings yet</p>

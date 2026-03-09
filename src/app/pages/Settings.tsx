@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Navigation } from '../components/Navigation';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { ArrowLeft, UserPlus, LogOut, Download, Users, CheckCircle2, Circle, Trash2 } from 'lucide-react';
+import { ArrowLeft, UserPlus, LogOut, Download, Users, CheckCircle2, Circle, Trash2, Lock, Globe } from 'lucide-react';
 import { Link } from 'react-router';
 import { serverUrl, supabaseAnonKey } from '../utils/supabase';
 import { generatePediatricReport } from '../utils/pdfExport';
@@ -20,6 +20,7 @@ interface Note {
   text: string;
   createdAt: number;
   done: boolean;
+  isPublic?: boolean;
 }
 
 export function Settings() {
@@ -128,9 +129,17 @@ export function Settings() {
       text: newNoteText.trim(),
       createdAt: Date.now(),
       done: false,
+      isPublic: false,
     };
     persistNotes([note, ...notes]);
     setNewNoteText('');
+  };
+
+  const handleToggleNotePublic = (id: string) => {
+    const updated = notes.map((n) =>
+      n.id === id ? { ...n, isPublic: !(n.isPublic ?? false) } : n
+    );
+    persistNotes(updated);
   };
 
   const handleToggleNote = (id: string) => {
@@ -240,6 +249,9 @@ export function Settings() {
                 Add
               </Button>
             </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+              Public notes are included in the PDF report. Default: private.
+            </p>
             {notes.length > 0 ? (
               <ul className="space-y-2 max-h-60 overflow-y-auto">
                 {notes.map((note) => (
@@ -251,6 +263,7 @@ export function Settings() {
                       type="button"
                       onClick={() => handleToggleNote(note.id)}
                       className="mt-0.5 text-blue-600 dark:text-blue-400"
+                      title={note.done ? 'Mark undone' : 'Mark done'}
                     >
                       {note.done ? (
                         <CheckCircle2 className="w-5 h-5" />
@@ -258,7 +271,7 @@ export function Settings() {
                         <Circle className="w-5 h-5" />
                       )}
                     </button>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <p
                         className={`text-sm dark:text-white ${
                           note.done ? 'line-through text-gray-400 dark:text-gray-500' : ''
@@ -269,8 +282,16 @@ export function Settings() {
                     </div>
                     <button
                       type="button"
+                      onClick={() => handleToggleNotePublic(note.id)}
+                      className={`shrink-0 p-1 rounded ${(note.isPublic ?? false) ? 'text-green-600 dark:text-green-400' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
+                      title={(note.isPublic ?? false) ? 'Public (in PDF)' : 'Private (not in PDF)'}
+                    >
+                      {(note.isPublic ?? false) ? <Globe className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => handleDeleteNote(note.id)}
-                      className="text-gray-400 hover:text-red-500"
+                      className="text-gray-400 hover:text-red-500 shrink-0"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

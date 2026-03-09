@@ -4,81 +4,207 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format, addHours } from "date-fns";
-import { ArrowLeft, Clock } from "lucide-react";
+import { ArrowLeft, Clock, Play, Square } from "lucide-react";
 import { Link } from "react-router";
+import { useAuth } from "../contexts/AuthContext";
+import { saveData } from "../utils/dataSync";
+import { endCurrentSleepIfActive } from "../utils/sleepUtils";
+import { toast } from "sonner";
 
-interface FeedingRecord {
-  id: string;
+export interface FeedingSegment {
   type: string;
-  timestamp: number;
+  startTime: number;
+  endTime: number;
+  durationMs: number;
   amount?: number;
 }
 
-const FEEDING_TYPES = ["Breast (Left)", "Breast (Right)", "Bottle", "Solid Food"];
+export interface FeedingRecord {
+  id: string;
+  /** Single type for backward compat when no segments (legacy or simple feed). */
+  type?: string;
+  timestamp: number;
+  amount?: number;
+  startTime?: number;
+  endTime?: number;
+  durationMs?: number;
+  /** When present, one feeding session with multiple segments (e.g. 30m left, 10m right, 20m formula 60ml). */
+  segments?: FeedingSegment[];
+}
+
+const FEEDING_TYPES = ["Left breast", "Right breast", "Formula", "Solids"];
+
+function getLastFeedingEndTime(f: FeedingRecord): number {
+  return f.endTime ?? f.timestamp;
+}
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function formatDurationShort(ms: number): string {
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m`;
+}
+
+interface ActiveSession {
+  sessionStartTime: number;
+  segments: { type: string; startTime: number; endTime?: number; amount?: number }[];
+}
 
 export function FeedingTracking() {
   const [feedingHistory, setFeedingHistory] = useState<FeedingRecord[]>([]);
-  const [selectedType, setSelectedType] = useState<string>("Breast (Left)");
-  const [amount, setAmount] = useState<string>("");
-  const [feedingInterval, setFeedingInterval] = useState<string>("3"); // hours
+  const [selectedType, setSelectedType] = useState<string>(FEEDING_TYPES[0]);
+  const [formulaAmount, setFormulaAmount] = useState<string>("");
+  const [feedingInterval, setFeedingInterval] = useState<string>("3");
+  const [session, setSession] = useState<ActiveSession | null>(null);
+  const [totalElapsedMs, setTotalElapsedMs] = useState(0);
+  const [currentSegmentElapsedMs, setCurrentSegmentElapsedMs] = useState(0);
+  const { session: authSession } = useAuth();
+
+  // On mount: stop any active sleep (feeding means baby is up)
+  useEffect(() => {
+    const ended = endCurrentSleepIfActive((sleepHistory) => {
+      if (authSession?.access_token) {
+        saveData("sleepHistory", sleepHistory, authSession.access_token);
+      }
+    });
+    if (ended) {
+      toast.info("Sleep session ended (baby is feeding).");
+    }
+  }, [authSession?.access_token]);
 
   useEffect(() => {
-    // Load feeding history
     const historyData = localStorage.getItem("feedingHistory");
     if (historyData) {
       setFeedingHistory(JSON.parse(historyData));
     }
-
-    // Load feeding interval preference
     const intervalData = localStorage.getItem("feedingInterval");
     if (intervalData) {
       setFeedingInterval(intervalData);
     }
   }, []);
 
-  const addFeeding = () => {
-    const newFeeding: FeedingRecord = {
-      id: Date.now().toString(),
-      type: selectedType,
-      timestamp: Date.now(),
-      amount: amount ? parseFloat(amount) : undefined,
-    };
+  // Timers: total session + current segment
+  useEffect(() => {
+    if (!session) return;
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setTotalElapsedMs(now - session.sessionStartTime);
+      const last = session.segments[session.segments.length - 1];
+      if (last && last.startTime != null) {
+        setCurrentSegmentElapsedMs(now - (last.endTime ?? last.startTime));
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [session]);
 
-    const updatedHistory = [...feedingHistory, newFeeding];
-    setFeedingHistory(updatedHistory);
-    localStorage.setItem("feedingHistory", JSON.stringify(updatedHistory));
-    setAmount("");
+  const startFeeding = () => {
+    const now = Date.now();
+    const amount = selectedType === "Formula" && formulaAmount ? parseFloat(formulaAmount) : undefined;
+    setSession({
+      sessionStartTime: now,
+      segments: [{ type: selectedType, startTime: now, amount }],
+    });
+    setTotalElapsedMs(0);
+    setCurrentSegmentElapsedMs(0);
+  };
+
+  const switchType = (type: string) => {
+    if (!session || session.segments.length === 0) return;
+    const now = Date.now();
+    const segs = [...session.segments];
+    const last = segs[segs.length - 1];
+    segs[segs.length - 1] = { ...last, endTime: now };
+    const amount = type === "Formula" && formulaAmount ? parseFloat(formulaAmount) : undefined;
+    segs.push({ type, startTime: now, amount });
+    setSession({ ...session, segments: segs });
+    setCurrentSegmentElapsedMs(0);
+    if (type === "Formula") setFormulaAmount("");
+  };
+
+  const setCurrentSegmentAmount = (ml: number | undefined) => {
+    if (!session || session.segments.length === 0) return;
+    const segs = [...session.segments];
+    segs[segs.length - 1].amount = ml;
+    setSession({ ...session, segments: segs });
+  };
+
+  const endFeeding = () => {
+    if (!session || session.segments.length === 0) return;
+    const now = Date.now();
+    const segs = session.segments.map((s, i) => ({
+      ...s,
+      endTime: s.endTime ?? now,
+    }));
+    if (segs.length > 0) segs[segs.length - 1] = { ...segs[segs.length - 1], endTime: now };
+    const segments: FeedingSegment[] = segs.map((s) => ({
+      type: s.type,
+      startTime: s.startTime,
+      endTime: s.endTime!,
+      durationMs: s.endTime! - s.startTime,
+      amount: s.amount,
+    }));
+    const totalDurationMs = now - session.sessionStartTime;
+    const newFeeding: FeedingRecord = {
+      id: now.toString(),
+      timestamp: now,
+      startTime: session.sessionStartTime,
+      endTime: now,
+      durationMs: totalDurationMs,
+      segments,
+    };
+    const updated = [...feedingHistory, newFeeding];
+    setFeedingHistory(updated);
+    localStorage.setItem("feedingHistory", JSON.stringify(updated));
+    setSession(null);
+    setFormulaAmount("");
+    if (authSession?.access_token) {
+      saveData("feedingHistory", updated, authSession.access_token);
+    }
+    const totalMins = Math.round(totalDurationMs / 60000);
+    toast.success(`Feeding logged: ${totalMins} min total (${segments.length} segment${segments.length === 1 ? "" : "s"}).`);
   };
 
   const getNextFeedingTime = () => {
     if (feedingHistory.length === 0) return null;
     const lastFeeding = feedingHistory[feedingHistory.length - 1];
-    const interval = parseInt(feedingInterval) || 3;
-    return addHours(new Date(lastFeeding.timestamp), interval);
+    const lastEnd = getLastFeedingEndTime(lastFeeding);
+    const interval = parseInt(feedingInterval, 10) || 3;
+    return addHours(new Date(lastEnd), interval);
   };
 
   const getTimeUntilNext = () => {
     const nextTime = getNextFeedingTime();
     if (!nextTime) return null;
-    
     const diff = nextTime.getTime() - Date.now();
     if (diff < 0) return "Overdue";
-    
     const hours = Math.floor(diff / 3600000);
     const minutes = Math.floor((diff % 3600000) / 60000);
     return `${hours}h ${minutes}m`;
   };
 
-  // Prepare chart data - last 7 days
+  // Chart: total ml per feeding (sum of segment amounts)
   const chartData = feedingHistory
     .slice(-20)
-    .map((feeding, index) => ({
-      index: index + 1,
-      time: format(new Date(feeding.timestamp), "HH:mm"),
-      amount: feeding.amount || 0,
-    }));
+    .map((feeding, index) => {
+      const totalMl = feeding.segments
+        ? feeding.segments.reduce((sum, s) => sum + (s.amount ?? 0), 0)
+        : feeding.amount ?? 0;
+      return {
+        index: index + 1,
+        time: format(new Date(getLastFeedingEndTime(feeding)), "HH:mm"),
+        amount: totalMl,
+      };
+    });
 
   const nextFeedingTime = getNextFeedingTime();
+  const currentSegment = session?.segments[session.segments.length - 1];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 pb-20">
@@ -92,7 +218,6 @@ export function FeedingTracking() {
           <h1 className="text-2xl dark:text-white">Feeding Tracking</h1>
         </div>
 
-        {/* Next Feeding Reminder */}
         {feedingHistory.length > 0 && (
           <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl p-6 shadow-sm mb-6">
             <div className="flex items-center gap-2 mb-2">
@@ -110,7 +235,7 @@ export function FeedingTracking() {
                 value={feedingInterval}
                 onChange={(e) => setFeedingInterval(e.target.value)}
                 onBlur={(e) => {
-                  const val = parseInt(e.target.value);
+                  const val = parseInt(e.target.value, 10);
                   if (!val || val < 1) {
                     setFeedingInterval("1");
                     localStorage.setItem("feedingInterval", "1");
@@ -119,66 +244,148 @@ export function FeedingTracking() {
                   }
                 }}
                 className="w-16 bg-white dark:bg-gray-800 text-black dark:text-white border dark:border-gray-600"
-                min="1"
-                max="12"
+                min={1}
+                max={12}
               />
               <span className="text-sm">hours</span>
             </div>
           </div>
         )}
 
-        {/* Add Feeding */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-6 border border-gray-100 dark:border-gray-700">
-          <h2 className="text-lg mb-4 dark:text-white">Log Feeding</h2>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm text-gray-600 dark:text-gray-400 mb-2 block">Feeding Type</label>
-              <div className="grid grid-cols-2 gap-2">
-                {FEEDING_TYPES.map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => setSelectedType(type)}
-                    className={`p-3 rounded-lg border-2 transition-all text-sm ${
-                      selectedType === type
-                        ? "border-green-600 bg-green-50 dark:border-green-500 dark:bg-green-900/40 dark:text-white"
-                        : "border-gray-200 bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 hover:border-green-400 dark:hover:border-green-500"
-                    }`}
-                  >
-                    {type}
-                  </button>
-                ))}
+          <h2 className="text-lg mb-4 dark:text-white">
+            {session ? "Feeding in progress" : "Start feeding"}
+          </h2>
+
+          {!session ? (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Choose the first type, then tap Start. You can switch types during the session; one feeding is saved when you tap Feeding ended.
+              </p>
+              <div>
+                <label className="text-sm text-gray-600 dark:text-gray-400 mb-2 block">First type</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {FEEDING_TYPES.map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setSelectedType(type)}
+                      className={`p-3 rounded-lg border-2 transition-all text-sm ${
+                        selectedType === type
+                          ? "border-green-600 bg-green-50 dark:border-green-500 dark:bg-green-900/40 dark:text-white"
+                          : "border-gray-200 bg-white dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 hover:border-green-400 dark:hover:border-green-500"
+                      }`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
               </div>
+              {selectedType === "Formula" && (
+                <div>
+                  <label className="text-sm text-gray-600 dark:text-gray-400 mb-2 block">Amount (ml) – optional</label>
+                  <Input
+                    type="number"
+                    value={formulaAmount}
+                    onChange={(e) => setFormulaAmount(e.target.value)}
+                    placeholder="e.g. 60"
+                    step="10"
+                    min={0}
+                  />
+                </div>
+              )}
+              <Button onClick={startFeeding} className="w-full" size="lg">
+                <Play className="w-5 h-5 mr-2" />
+                Start feeding
+              </Button>
             </div>
-
-            <div>
-              <label className="text-sm text-gray-600 dark:text-gray-400 mb-2 block">
-                Amount (oz) - Optional
-              </label>
-              <Input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                onBlur={(e) => {
-                  if (e.target.value === "") {
-                    setAmount("1");
-                  }
-                }}
-                placeholder="Enter amount"
-                step="0.5"
-              />
+          ) : (
+            <div className="space-y-4">
+              <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Total time</p>
+                <p className="text-3xl font-mono text-green-600 dark:text-green-400">
+                  {formatDuration(totalElapsedMs)}
+                </p>
+              </div>
+              {session.segments.length > 1 && (
+                <div className="text-sm">
+                  <p className="text-gray-600 dark:text-gray-400 mb-1">So far:</p>
+                  <ul className="space-y-0.5">
+                    {session.segments.slice(0, -1).map((seg, i) => (
+                      <li key={i} className="dark:text-gray-300">
+                        {seg.type}
+                        {seg.endTime != null && ` ${formatDurationShort(seg.endTime - seg.startTime)}`}
+                        {seg.amount != null && seg.amount > 0 && ` · ${seg.amount} ml`}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Current</p>
+                <p className="text-xl font-medium dark:text-white">{currentSegment?.type}</p>
+                <p className="text-2xl font-mono text-green-600 dark:text-green-400 mt-1">
+                  {formatDuration(currentSegmentElapsedMs)}
+                </p>
+                {currentSegment?.type === "Formula" && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <label className="text-sm text-gray-600 dark:text-gray-400">ml:</label>
+                    <Input
+                      type="number"
+                      value={currentSegment.amount ?? ""}
+                      onChange={(e) => {
+                        const v = e.target.value === "" ? undefined : parseFloat(e.target.value);
+                        setCurrentSegmentAmount(v);
+                      }}
+                      placeholder="e.g. 60"
+                      className="w-24"
+                      step="10"
+                      min={0}
+                    />
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Switch to</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {FEEDING_TYPES.filter((t) => t !== currentSegment?.type).map((type) => (
+                    <Button
+                      key={type}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => switchType(type)}
+                    >
+                      {type}
+                    </Button>
+                  ))}
+                </div>
+                {currentSegment?.type !== "Formula" && (
+                  <div className="mt-2">
+                    <label className="text-xs text-gray-500 dark:text-gray-400">Formula amount (ml) for next switch:</label>
+                    <Input
+                      type="number"
+                      value={formulaAmount}
+                      onChange={(e) => setFormulaAmount(e.target.value)}
+                      placeholder="e.g. 60"
+                      className="w-24 mt-1"
+                      step="10"
+                      min={0}
+                    />
+                  </div>
+                )}
+              </div>
+              <Button onClick={endFeeding} className="w-full" size="lg" variant="default">
+                <Square className="w-5 h-5 mr-2" />
+                Feeding ended
+              </Button>
             </div>
-
-            <Button onClick={addFeeding} className="w-full">
-              Log Feeding
-            </Button>
-          </div>
+          )}
         </div>
 
-        {/* Chart */}
-        {chartData.length > 0 && chartData.some(d => d.amount > 0) && (
+        {chartData.length > 0 && chartData.some((d) => d.amount > 0) && (
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-6 border border-gray-100 dark:border-gray-700">
-            <h2 className="text-lg mb-4 dark:text-white">Feeding Amounts</h2>
+            <h2 className="text-lg mb-4 dark:text-white">Feeding amounts (ml)</h2>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -191,28 +398,58 @@ export function FeedingTracking() {
           </div>
         )}
 
-        {/* Recent History */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-          <h2 className="text-lg mb-4 dark:text-white">Recent Feedings</h2>
+          <h2 className="text-lg mb-4 dark:text-white">Recent feedings</h2>
           {feedingHistory.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400 text-center py-4">No feedings recorded yet</p>
           ) : (
             <div className="space-y-3">
-              {feedingHistory.slice(-10).reverse().map((feeding) => (
-                <div key={feeding.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                  <div>
-                    <p className="dark:text-white">{feeding.type}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {format(new Date(feeding.timestamp), "MMM d, h:mm a")}
-                    </p>
-                  </div>
-                  {feeding.amount && (
-                    <div className="text-right">
-                      <p className="text-green-600 dark:text-green-400">{feeding.amount} oz</p>
+              {feedingHistory
+                .slice(-10)
+                .reverse()
+                .map((feeding) => {
+                  const endTime = getLastFeedingEndTime(feeding);
+                  const duration = feeding.durationMs != null ? formatDuration(feeding.durationMs) : null;
+                  const hasSegments = feeding.segments && feeding.segments.length > 0;
+                  const totalMl = hasSegments
+                    ? feeding.segments!.reduce((s, seg) => s + (seg.amount ?? 0), 0)
+                    : feeding.amount ?? 0;
+                  return (
+                    <div
+                      key={feeding.id}
+                      className="flex flex-col gap-1 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          {hasSegments ? (
+                            <p className="dark:text-white font-medium">
+                              {formatDurationShort(feeding.durationMs ?? 0)} total
+                            </p>
+                          ) : (
+                            <p className="dark:text-white font-medium">{feeding.type ?? "Feeding"}</p>
+                          )}
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {format(new Date(endTime), "MMM d, h:mm a")}
+                            {duration != null && ` · ${duration}`}
+                          </p>
+                        </div>
+                        {totalMl > 0 && (
+                          <p className="text-green-600 dark:text-green-400 font-medium">{totalMl} ml</p>
+                        )}
+                      </div>
+                      {hasSegments && feeding.segments!.length > 0 && (
+                        <ul className="text-xs text-gray-600 dark:text-gray-400 mt-1 space-y-0.5">
+                          {feeding.segments!.map((seg, i) => (
+                            <li key={i}>
+                              {seg.type}: {formatDurationShort(seg.durationMs)}
+                              {seg.amount != null && seg.amount > 0 && ` · ${seg.amount} ml`}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))}
+                  );
+                })}
             </div>
           )}
         </div>
