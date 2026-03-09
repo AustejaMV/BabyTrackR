@@ -16,6 +16,17 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const FAMILY_ID_CACHE_KEY = (userId: string) => `babytracker_familyId_${userId}`;
+
+function setFamilyIdAndCache(id: string, userId: string, setter: (id: string) => void) {
+  setter(id);
+  try {
+    localStorage.setItem(FAMILY_ID_CACHE_KEY(userId), id);
+  } catch {
+    // ignore
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -29,8 +40,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session) {
-        await loadFamily(session.access_token);
+      if (session?.user) {
+        const uid = session.user.id;
+        const cached = localStorage.getItem(FAMILY_ID_CACHE_KEY(uid));
+        if (cached) setFamilyId(cached);
+        await loadFamily(session.access_token, uid);
       }
       setLoading(false);
     });
@@ -42,8 +56,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
 
-      if (session) {
-        loadFamily(session.access_token);
+      if (session?.user) {
+        const uid = session.user.id;
+        const cached = localStorage.getItem(FAMILY_ID_CACHE_KEY(uid));
+        if (cached) setFamilyId(cached);
+        loadFamily(session.access_token, uid);
       } else {
         setFamilyId(null);
         createdFamilyIdRef.current = null;
@@ -53,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const loadFamily = async (accessToken: string): Promise<string | null> => {
+  const loadFamily = async (accessToken: string, userId: string): Promise<string | null> => {
     try {
       const response = await fetch(`${serverUrl}/family`, {
         headers: {
@@ -65,14 +82,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await response.json();
       
       if (result.family) {
-        setFamilyId(result.family.id);
+        setFamilyIdAndCache(result.family.id, userId, setFamilyId);
         createdFamilyIdRef.current = null;
         return result.family.id;
       }
       // GET returned null: if we already created a family this session, reuse it (avoids double-create when loadFamily runs twice)
       if (createdFamilyIdRef.current) {
-        setFamilyId(createdFamilyIdRef.current);
+        setFamilyIdAndCache(createdFamilyIdRef.current, userId, setFamilyId);
         return createdFamilyIdRef.current;
+      }
+      // When server doesn't persist (e.g. in-memory): reuse last known familyId from localStorage so we don't create a new family on every reload
+      const cached = localStorage.getItem(FAMILY_ID_CACHE_KEY(userId));
+      if (cached) {
+        setFamilyId(cached);
+        return cached;
       }
       // Check for invites (by current user's email from token)
       const invitesResponse = await fetch(`${serverUrl}/family/invites`, {
@@ -103,7 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         const acceptResult = await acceptResponse.json().catch(() => ({}));
         if (acceptResponse.ok && acceptResult.familyId) {
-          setFamilyId(acceptResult.familyId);
+          setFamilyIdAndCache(acceptResult.familyId, userId, setFamilyId);
           return acceptResult.familyId;
         }
         console.error('Accept invite failed', acceptResponse.status, acceptResult);
@@ -124,7 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Use familyId even when server returned 500 (e.g. read-back failed but family was created)
         if (createResult?.familyId) {
           createdFamilyIdRef.current = createResult.familyId;
-          setFamilyId(createResult.familyId);
+          setFamilyIdAndCache(createResult.familyId, userId, setFamilyId);
           return createResult.familyId;
         }
       }
@@ -167,20 +190,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    if (user) {
+      try {
+        localStorage.removeItem(FAMILY_ID_CACHE_KEY(user.id));
+      } catch {
+        // ignore
+      }
+    }
     await supabase.auth.signOut();
     setFamilyId(null);
     createdFamilyIdRef.current = null;
   };
 
   const refreshFamily = useCallback(async (): Promise<string | null> => {
-    if (session?.access_token) return loadFamily(session.access_token);
+    if (session?.access_token && session?.user) return loadFamily(session.access_token, session.user.id);
     return null;
-  }, [session?.access_token]);
+  }, [session?.access_token, session?.user?.id]);
 
   const setFamilyIdFromCreate = useCallback((id: string) => {
     createdFamilyIdRef.current = id;
     setFamilyId(id);
-  }, []);
+    if (user) {
+      try {
+        localStorage.setItem(FAMILY_ID_CACHE_KEY(user.id), id);
+      } catch {
+        // ignore
+      }
+    }
+  }, [user]);
 
   return (
     <AuthContext.Provider

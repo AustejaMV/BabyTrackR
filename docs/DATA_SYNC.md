@@ -32,3 +32,6 @@ So data **is** in Supabase and **is** shared by family; localStorage is just the
 
 - **“Last write wins”:**  
   There is no merge logic. Whoever saves last overwrites that key for the whole family. So if two people edit the same list at the same time offline, the last sync wins.
+
+- **Family ID cache:**  
+  The app caches `familyId` in localStorage (per user) so that when you reload, you still “have” your family even if the backend didn’t persist it (e.g. in-memory Edge Function). That way you don’t get a new family on every reload until you send an invite. For real persistence and sharing, the Edge Function must use the DB-backed KV table (see `docs/SUPABASE_SETUP.md`).
