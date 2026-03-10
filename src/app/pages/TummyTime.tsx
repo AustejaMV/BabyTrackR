@@ -7,6 +7,7 @@ import { ArrowLeft, Play, Square } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import { saveData, loadAllDataFromServer } from "../utils/dataSync";
+import { safeFormat } from "../utils/dateUtils";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
 
 const TUMMY_POLL_MS = 4 * 1000;
@@ -205,7 +206,7 @@ export function TummyTime() {
                   {formatDuration(elapsedTime)}
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Started at {format(new Date(currentSession.startTime), "h:mm a")}
+                  Started at {safeFormat(currentSession?.startTime, "h:mm a")}
                 </p>
               </div>
               <Button onClick={stopSession} className="w-full" variant="destructive" size="lg">
@@ -257,10 +258,10 @@ export function TummyTime() {
                   >
                     <div>
                       <p className="dark:text-white">
-                        {format(new Date(session.startTime), "MMM d")}
+                        {safeFormat(session?.startTime, "MMM d")}
                       </p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {format(new Date(session.startTime), "h:mm a")}
+                        {safeFormat(session?.startTime, "h:mm a")}
                       </p>
                     </div>
                     <div className="text-right">

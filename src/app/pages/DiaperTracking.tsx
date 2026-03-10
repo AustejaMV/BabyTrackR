@@ -2,11 +2,11 @@ import { useState, useEffect } from "react";
 import { Navigation } from "../components/Navigation";
 import { Button } from "../components/ui/button";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
-import { format } from "date-fns";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import { saveData, loadAllDataFromServer } from "../utils/dataSync";
+import { safeFormat } from "../utils/dateUtils";
 
 const DIAPER_POLL_MS = 4 * 1000;
 
@@ -181,7 +181,7 @@ export function DiaperTracking() {
                     <div>
                       <p className="text-lg dark:text-white">{typeInfo?.label}</p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {format(new Date(diaper.timestamp), "MMM d, h:mm a")}
+                        {safeFormat(diaper?.timestamp, "MMM d, h:mm a")}
                       </p>
                     </div>
                   </div>

@@ -3,11 +3,12 @@ import { Navigation } from "../components/Navigation";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { format, addHours } from "date-fns";
+import { addHours } from "date-fns";
 import { ArrowLeft, Clock, Pause, Play, Square } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import { saveData, syncDataToServer, loadAllDataFromServer } from "../utils/dataSync";
+import { safeFormat } from "../utils/dateUtils";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
 import { toast } from "sonner";
 
@@ -347,7 +348,7 @@ export function FeedingTracking() {
         : feeding.amount ?? 0;
       return {
         index: index + 1,
-        time: format(new Date(getLastFeedingEndTime(feeding)), "HH:mm"),
+        time: safeFormat(getLastFeedingEndTime(feeding), "HH:mm", ""),
         amount: totalMl,
       };
     });
@@ -374,7 +375,7 @@ export function FeedingTracking() {
               <h2 className="text-lg">Next Feeding</h2>
             </div>
             <p className="text-3xl mb-1">
-              {nextFeedingTime && format(nextFeedingTime, "h:mm a")}
+              {nextFeedingTime && safeFormat(nextFeedingTime.getTime(), "h:mm a")}
             </p>
             <p className="text-green-100">in {getTimeUntilNext()}</p>
             <div className="mt-3 flex items-center gap-2">
@@ -591,7 +592,7 @@ export function FeedingTracking() {
                             <p className="dark:text-white font-medium">{feeding.type ?? "Feeding"}</p>
                           )}
                           <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {format(new Date(endTime), "MMM d, h:mm a")}
+                            {safeFormat(endTime, "MMM d, h:mm a")}
                             {duration != null && ` · ${duration}`}
                           </p>
                         </div>

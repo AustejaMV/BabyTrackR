@@ -2,11 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { Navigation } from "../components/Navigation";
 import { Button } from "../components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { format } from "date-fns";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import { saveData, loadAllDataFromServer } from "../utils/dataSync";
+import { safeFormat } from "../utils/dateUtils";
 
 const SLEEP_POLL_MS = 4 * 1000;
 
@@ -218,7 +218,7 @@ export function SleepTracking() {
                   <div>
                     <p className="dark:text-white">{sleep?.position ?? "—"}</p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {format(new Date(sleep.startTime), "MMM d, h:mm a")}
+                      {safeFormat(sleep?.startTime, "MMM d, h:mm a")}
                     </p>
                   </div>
                   <div className="text-right">
