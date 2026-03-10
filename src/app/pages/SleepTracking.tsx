@@ -25,10 +25,9 @@ export function SleepTracking() {
   const [selectedPosition, setSelectedPosition] = useState<string>("Back");
   const [, setTick] = useState(0);
   const { session, familyId } = useAuth();
-  const currentSleepRef = useRef<SleepRecord | null>(null);
-  currentSleepRef.current = currentSleep;
-  // true only when THIS device started the session (not when received from server)
-  const isLocallyTrackingRef = useRef(false);
+  // After a local start/stop, skip one poll cycle so the server has time to receive our change
+  // before we apply server state (prevents race where poll fires before save completes).
+  const wasLocalActionRef = useRef(false);
 
   // Tick every second while a sleep session is active so the duration updates live
   useEffect(() => {
@@ -43,20 +42,24 @@ export function SleepTracking() {
       loadAllDataFromServer(session.access_token).then(({ ok, data }) => {
         if (!ok || !data) return;
         if (document.visibilityState !== "visible") return;
-        if (isLocallyTrackingRef.current) return;
+        // Skip one cycle after a local action so the server has time to receive it
+        if (wasLocalActionRef.current) {
+          wasLocalActionRef.current = false;
+          return;
+        }
         if (data.currentSleep != null) {
           try {
-            localStorage.setItem("currentSleep", JSON.stringify(data.currentSleep));
-            localStorage.removeItem("sleepStartedLocally"); // server data, not ours
             const s = data.currentSleep as SleepRecord;
-            if (s?.position != null) setCurrentSleep(s);
+            if (s?.position != null) {
+              localStorage.setItem("currentSleep", JSON.stringify(s));
+              setCurrentSleep(s);
+            }
           } catch {
             // ignore
           }
         } else {
           try {
             localStorage.removeItem("currentSleep");
-            localStorage.removeItem("sleepStartedLocally");
             setCurrentSleep(null);
           } catch {
             // ignore
@@ -83,10 +86,6 @@ export function SleepTracking() {
       try {
         const saved = JSON.parse(currentData);
         if (saved && typeof saved.position === "string") {
-          // Only reclaim local ownership if THIS device started it
-          if (localStorage.getItem("sleepStartedLocally") === "1") {
-            isLocallyTrackingRef.current = true;
-          }
           setCurrentSleep(saved);
           setSelectedPosition(saved.position);
         }
@@ -110,10 +109,9 @@ export function SleepTracking() {
       position: selectedPosition,
       startTime: Date.now(),
     };
-    isLocallyTrackingRef.current = true;
+    wasLocalActionRef.current = true;
     setCurrentSleep(newSleep);
     localStorage.setItem("currentSleep", JSON.stringify(newSleep));
-    localStorage.setItem("sleepStartedLocally", "1");
     if (session?.access_token) {
       saveData("currentSleep", newSleep, session.access_token);
     }
@@ -122,17 +120,12 @@ export function SleepTracking() {
   const stopTracking = () => {
     if (!currentSleep) return;
 
-    const completedSleep = {
-      ...currentSleep,
-      endTime: Date.now(),
-    };
-
+    const completedSleep = { ...currentSleep, endTime: Date.now() };
     const updatedHistory = [...sleepHistory, completedSleep];
-    isLocallyTrackingRef.current = false;
+    wasLocalActionRef.current = true;
     setSleepHistory(updatedHistory);
     localStorage.setItem("sleepHistory", JSON.stringify(updatedHistory));
     localStorage.removeItem("currentSleep");
-    localStorage.removeItem("sleepStartedLocally");
     setCurrentSleep(null);
 
     if (session?.access_token) {
