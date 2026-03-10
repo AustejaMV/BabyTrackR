@@ -7,6 +7,7 @@ import { ArrowLeft, Play, Square } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import { saveData } from "../utils/dataSync";
+import { endCurrentSleepIfActive } from "../utils/sleepUtils";
 
 interface TummyTimeRecord {
   id: string;
@@ -46,6 +47,12 @@ export function TummyTime() {
   }, [currentSession]);
 
   const startSession = () => {
+    endCurrentSleepIfActive((sleepHistory) => {
+      if (session?.access_token) {
+        saveData("sleepHistory", sleepHistory, session.access_token);
+        saveData("currentSleep", null, session.access_token);
+      }
+    });
     const newSession: TummyTimeRecord = {
       id: Date.now().toString(),
       startTime: Date.now(),

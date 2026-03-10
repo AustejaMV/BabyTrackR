@@ -8,10 +8,11 @@ import { format } from "date-fns";
 import { requestNotificationPermission, scheduleNotification } from "../utils/notifications";
 import { useAuth } from "../contexts/AuthContext";
 import { loadAllDataFromServer, saveData, clearSyncedDataFromLocalStorage, SYNCED_DATA_KEYS, SYNCED_DATA_DEFAULTS } from "../utils/dataSync";
+import { endCurrentSleepIfActive } from "../utils/sleepUtils";
 
-// Server-cost friendly: poll less often, only when tab is visible, throttle visibility refetch
-const FAMILY_DATA_POLL_INTERVAL_MS = 60 * 1000; // 60s when no timer active
-const POLL_WHEN_ACTIVE_MS = 15 * 1000;         // 15s when any timer (feeding/sleep/tummy) is active to reduce desync
+// Server-cost friendly: poll when tab is visible; throttle visibility refetch
+const FAMILY_DATA_POLL_INTERVAL_MS = 20 * 1000; // 20s so invitees see inviter's counter within one cycle
+const POLL_WHEN_ACTIVE_MS = 15 * 1000;         // 15s when any timer (feeding/sleep/tummy) is active
 const VISIBILITY_REFETCH_MIN_MS = 20 * 1000;   // don't refetch on tab focus if we did <20s ago
 
 function hasActiveSession(data: Record<string, unknown>): boolean {
@@ -221,13 +222,14 @@ export function Dashboard() {
     const sleepData = localStorage.getItem("currentSleep");
     setCurrentSleep(sleepData ? JSON.parse(sleepData) : null);
 
-    // Load active feeding session (synced so family sees counter)
+    // Load active feeding session (synced so family sees counter; accept serverStartTime or session.sessionStartTime)
     let activeFeeding: ActiveFeedingSession | null = null;
     try {
       const raw = localStorage.getItem("feedingActiveSession");
       if (raw && raw !== "null") {
         const parsed = JSON.parse(raw);
-        if (parsed?.session?.sessionStartTime != null && Array.isArray(parsed?.session?.segments)) {
+        const hasStart = parsed?.session?.sessionStartTime != null || parsed?.serverStartTime != null;
+        if (hasStart && parsed?.session && Array.isArray(parsed?.session?.segments)) {
           activeFeeding = parsed;
         }
       }
@@ -319,6 +321,12 @@ export function Dashboard() {
   };
 
   const logDiaper = (type: 'pee' | 'poop') => {
+    endCurrentSleepIfActive((sleepHistory) => {
+      if (session?.access_token) {
+        saveData("sleepHistory", sleepHistory, session.access_token);
+        saveData("currentSleep", null, session.access_token);
+      }
+    });
     const diaperHistory = JSON.parse(localStorage.getItem('diaperHistory') || '[]');
     const newDiaper: DiaperRecord = {
       id: Date.now().toString(),

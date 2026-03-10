@@ -72,18 +72,6 @@ export function FeedingTracking() {
   const [pausedAt, setPausedAt] = useState<number | null>(null);
   const { session: authSession } = useAuth();
 
-  // On mount: stop any active sleep (feeding means baby is up)
-  useEffect(() => {
-    const ended = endCurrentSleepIfActive((sleepHistory) => {
-      if (authSession?.access_token) {
-        saveData("sleepHistory", sleepHistory, authSession.access_token);
-      }
-    });
-    if (ended) {
-      toast.info("Sleep session ended (baby is feeding).");
-    }
-  }, [authSession?.access_token]);
-
   // Persist active session so it survives leaving the tab (no cancel/pause on navigate away)
   const persistActiveSession = (s: ActiveSession | null, paused: boolean, pausedMs: number, pausedAtVal: number | null) => {
     if (!s) {
@@ -188,6 +176,14 @@ export function FeedingTracking() {
     setIsPaused(false);
     setTotalPausedMs(0);
     setPausedAt(null);
+    // End sleep only when user actually starts feeding (not when just visiting the tab)
+    const ended = endCurrentSleepIfActive((sleepHistory) => {
+      if (authSession?.access_token) {
+        saveData("sleepHistory", sleepHistory, authSession.access_token);
+        saveData("currentSleep", null, authSession.access_token);
+      }
+    });
+    if (ended) toast.info("Sleep session ended (baby is feeding).");
   };
 
   const switchType = (type: string) => {
