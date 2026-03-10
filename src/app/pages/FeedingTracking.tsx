@@ -88,12 +88,14 @@ export function FeedingTracking() {
         if (remote != null) {
           try {
             localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(remote));
+            localStorage.removeItem("feedingStartedLocally"); // server data, not ours
           } catch {
             // ignore
           }
         } else {
           try {
             localStorage.removeItem(ACTIVE_SESSION_KEY);
+            localStorage.removeItem("feedingStartedLocally");
           } catch {
             // ignore
           }
@@ -183,7 +185,10 @@ export function FeedingTracking() {
             totalPaused += now - savedPausedAt;
           }
           const canonicalStart = typeof serverStartTime === "number" ? serverStartTime : savedSession.sessionStartTime;
-          isLocallyTrackingRef.current = true;
+          // Only reclaim local ownership if THIS device started this session
+          if (localStorage.getItem("feedingStartedLocally") === "1") {
+            isLocallyTrackingRef.current = true;
+          }
           setSession({ ...savedSession, sessionStartTime: canonicalStart });
           setIsPaused(!!savedPaused);
           setTotalPausedMs(totalPaused);
@@ -228,6 +233,7 @@ export function FeedingTracking() {
     const now = Date.now();
     const amount = selectedType === "Formula" && formulaAmount ? parseFloat(formulaAmount) : undefined;
     isLocallyTrackingRef.current = true;
+    localStorage.setItem("feedingStartedLocally", "1");
     setSession({
       sessionStartTime: now,
       segments: [{ type: selectedType, startTime: now, amount }],
@@ -306,6 +312,7 @@ export function FeedingTracking() {
     };
     const updated = [...feedingHistory, newFeeding];
     isLocallyTrackingRef.current = false;
+    localStorage.removeItem("feedingStartedLocally");
     setFeedingHistory(updated);
     localStorage.setItem("feedingHistory", JSON.stringify(updated));
     setSession(null);

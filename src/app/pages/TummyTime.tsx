@@ -38,6 +38,7 @@ export function TummyTime() {
         if (data.currentTummyTime != null) {
           try {
             localStorage.setItem("currentTummyTime", JSON.stringify(data.currentTummyTime));
+            localStorage.removeItem("tummyStartedLocally"); // server data, not ours
             setCurrentSession(data.currentTummyTime as TummyTimeRecord);
           } catch {
             // ignore
@@ -45,6 +46,7 @@ export function TummyTime() {
         } else {
           try {
             localStorage.removeItem("currentTummyTime");
+            localStorage.removeItem("tummyStartedLocally");
             setCurrentSession(null);
           } catch {
             // ignore
@@ -66,10 +68,12 @@ export function TummyTime() {
   }, [session?.access_token, familyId]);
 
   useEffect(() => {
-    // Load current session
+    // Load current session — only reclaim local ownership if THIS device started it
     const currentData = localStorage.getItem("currentTummyTime");
     if (currentData) {
-      isLocallyTrackingRef.current = true;
+      if (localStorage.getItem("tummyStartedLocally") === "1") {
+        isLocallyTrackingRef.current = true;
+      }
       setCurrentSession(JSON.parse(currentData));
     }
 
@@ -105,6 +109,7 @@ export function TummyTime() {
     isLocallyTrackingRef.current = true;
     setCurrentSession(newSession);
     localStorage.setItem("currentTummyTime", JSON.stringify(newSession));
+    localStorage.setItem("tummyStartedLocally", "1");
     if (session?.access_token) {
       saveData("currentTummyTime", newSession, session.access_token);
     }
@@ -123,6 +128,7 @@ export function TummyTime() {
     setTummyTimeHistory(updatedHistory);
     localStorage.setItem("tummyTimeHistory", JSON.stringify(updatedHistory));
     localStorage.removeItem("currentTummyTime");
+    localStorage.removeItem("tummyStartedLocally");
     setCurrentSession(null);
     setElapsedTime(0);
     if (session?.access_token) {

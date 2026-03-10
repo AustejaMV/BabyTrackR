@@ -47,6 +47,7 @@ export function SleepTracking() {
         if (data.currentSleep != null) {
           try {
             localStorage.setItem("currentSleep", JSON.stringify(data.currentSleep));
+            localStorage.removeItem("sleepStartedLocally"); // server data, not ours
             const s = data.currentSleep as SleepRecord;
             if (s?.position != null) setCurrentSleep(s);
           } catch {
@@ -55,6 +56,7 @@ export function SleepTracking() {
         } else {
           try {
             localStorage.removeItem("currentSleep");
+            localStorage.removeItem("sleepStartedLocally");
             setCurrentSleep(null);
           } catch {
             // ignore
@@ -81,7 +83,10 @@ export function SleepTracking() {
       try {
         const saved = JSON.parse(currentData);
         if (saved && typeof saved.position === "string") {
-          isLocallyTrackingRef.current = true;
+          // Only reclaim local ownership if THIS device started it
+          if (localStorage.getItem("sleepStartedLocally") === "1") {
+            isLocallyTrackingRef.current = true;
+          }
           setCurrentSleep(saved);
           setSelectedPosition(saved.position);
         }
@@ -108,6 +113,7 @@ export function SleepTracking() {
     isLocallyTrackingRef.current = true;
     setCurrentSleep(newSleep);
     localStorage.setItem("currentSleep", JSON.stringify(newSleep));
+    localStorage.setItem("sleepStartedLocally", "1");
     if (session?.access_token) {
       saveData("currentSleep", newSleep, session.access_token);
     }
@@ -126,6 +132,7 @@ export function SleepTracking() {
     setSleepHistory(updatedHistory);
     localStorage.setItem("sleepHistory", JSON.stringify(updatedHistory));
     localStorage.removeItem("currentSleep");
+    localStorage.removeItem("sleepStartedLocally");
     setCurrentSleep(null);
 
     if (session?.access_token) {
