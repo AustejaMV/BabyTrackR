@@ -25,6 +25,8 @@ export function TummyTime() {
   const { session, familyId } = useAuth();
   const currentSessionRef = useRef<TummyTimeRecord | null>(null);
   currentSessionRef.current = currentSession;
+  // true only when THIS device started the session (not when received from server)
+  const isLocallyTrackingRef = useRef(false);
 
   useEffect(() => {
     if (!session?.access_token || !familyId) return;
@@ -32,7 +34,7 @@ export function TummyTime() {
       loadAllDataFromServer(session.access_token).then(({ ok, data }) => {
         if (!ok || !data) return;
         if (document.visibilityState !== "visible") return;
-        if (currentSessionRef.current !== null) return;
+        if (isLocallyTrackingRef.current) return;
         if (data.currentTummyTime != null) {
           try {
             localStorage.setItem("currentTummyTime", JSON.stringify(data.currentTummyTime));
@@ -67,6 +69,7 @@ export function TummyTime() {
     // Load current session
     const currentData = localStorage.getItem("currentTummyTime");
     if (currentData) {
+      isLocallyTrackingRef.current = true;
       setCurrentSession(JSON.parse(currentData));
     }
 
@@ -99,6 +102,7 @@ export function TummyTime() {
       id: Date.now().toString(),
       startTime: Date.now(),
     };
+    isLocallyTrackingRef.current = true;
     setCurrentSession(newSession);
     localStorage.setItem("currentTummyTime", JSON.stringify(newSession));
     if (session?.access_token) {
@@ -115,6 +119,7 @@ export function TummyTime() {
     };
 
     const updatedHistory = [...tummyTimeHistory, completedSession];
+    isLocallyTrackingRef.current = false;
     setTummyTimeHistory(updatedHistory);
     localStorage.setItem("tummyTimeHistory", JSON.stringify(updatedHistory));
     localStorage.removeItem("currentTummyTime");

@@ -71,12 +71,12 @@ export function Dashboard() {
   pollIntervalMsRef.current = pollIntervalMs;
   const { user, session, loading, familyId } = useAuth();
 
-  // Tick every second when feeding is in progress so Dashboard shows live elapsed time
+  // Tick every second when any active session is in progress so timers stay live
   useEffect(() => {
-    if (!activeFeedingSession) return;
+    if (!activeFeedingSession && !currentSleep) return;
     const id = setInterval(() => setFeedingTick((t) => t + 1), 1000);
     return () => clearInterval(id);
-  }, [activeFeedingSession]);
+  }, [activeFeedingSession, currentSleep]);
   const prevFamilyIdRef = useRef<string | null>(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -354,8 +354,10 @@ export function Dashboard() {
   }
 
   const getTimeSince = (timestamp: number) => {
-    const minutes = Math.floor((Date.now() - timestamp) / 60000);
-    if (minutes < 60) return `${minutes}m ago`;
+    const totalSeconds = Math.floor((Date.now() - timestamp) / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes < 60) return `${minutes}m ${seconds.toString().padStart(2, "0")}s ago`;
     const hours = Math.floor(minutes / 60);
     return `${hours}h ${minutes % 60}m ago`;
   };
@@ -429,11 +431,13 @@ export function Dashboard() {
                         {(() => {
                           const { session, isPaused, totalPausedMs, pausedAt, serverStartTime } = activeFeedingSession;
                           const start = typeof serverStartTime === "number" ? serverStartTime : session.sessionStartTime;
-                          const elapsed = isPaused && pausedAt != null
+                          const elapsed = Math.max(0, isPaused && pausedAt != null
                             ? pausedAt - start - totalPausedMs
-                            : Date.now() - start - totalPausedMs;
-                          const mins = Math.max(0, Math.floor(elapsed / 60000));
-                          return `${mins}m`;
+                            : Date.now() - start - totalPausedMs);
+                          const totalSec = Math.floor(elapsed / 1000);
+                          const mins = Math.floor(totalSec / 60);
+                          const secs = totalSec % 60;
+                          return `${mins}:${secs.toString().padStart(2, "0")}`;
                         })()}
                       </p>
                     </>

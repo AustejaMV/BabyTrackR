@@ -75,6 +75,8 @@ export function FeedingTracking() {
   const { session: authSession, familyId } = useAuth();
   const sessionRef = useRef<ActiveSession | null>(null);
   sessionRef.current = session;
+  // true only when THIS device started the feeding (not when received from server)
+  const isLocallyTrackingRef = useRef(false);
 
   // Poll when on this tab so we see the other person start/stop feeding (like same screen)
   useEffect(() => {
@@ -104,7 +106,7 @@ export function FeedingTracking() {
           }
         }
         if (document.visibilityState !== "visible") return;
-        if (sessionRef.current !== null) return;
+        if (isLocallyTrackingRef.current) return;
         if (remote != null && remote.session?.segments) {
           const now = Date.now();
           const r = remote as { session: ActiveSession; isPaused?: boolean; totalPausedMs?: number; pausedAt?: number | null };
@@ -181,6 +183,7 @@ export function FeedingTracking() {
             totalPaused += now - savedPausedAt;
           }
           const canonicalStart = typeof serverStartTime === "number" ? serverStartTime : savedSession.sessionStartTime;
+          isLocallyTrackingRef.current = true;
           setSession({ ...savedSession, sessionStartTime: canonicalStart });
           setIsPaused(!!savedPaused);
           setTotalPausedMs(totalPaused);
@@ -224,6 +227,7 @@ export function FeedingTracking() {
   const startFeeding = () => {
     const now = Date.now();
     const amount = selectedType === "Formula" && formulaAmount ? parseFloat(formulaAmount) : undefined;
+    isLocallyTrackingRef.current = true;
     setSession({
       sessionStartTime: now,
       segments: [{ type: selectedType, startTime: now, amount }],
@@ -301,6 +305,7 @@ export function FeedingTracking() {
       segments,
     };
     const updated = [...feedingHistory, newFeeding];
+    isLocallyTrackingRef.current = false;
     setFeedingHistory(updated);
     localStorage.setItem("feedingHistory", JSON.stringify(updated));
     setSession(null);

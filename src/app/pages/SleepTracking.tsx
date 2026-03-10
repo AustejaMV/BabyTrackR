@@ -23,9 +23,19 @@ export function SleepTracking() {
   const [currentSleep, setCurrentSleep] = useState<SleepRecord | null>(null);
   const [sleepHistory, setSleepHistory] = useState<SleepRecord[]>([]);
   const [selectedPosition, setSelectedPosition] = useState<string>("Back");
+  const [, setTick] = useState(0);
   const { session, familyId } = useAuth();
   const currentSleepRef = useRef<SleepRecord | null>(null);
   currentSleepRef.current = currentSleep;
+  // true only when THIS device started the session (not when received from server)
+  const isLocallyTrackingRef = useRef(false);
+
+  // Tick every second while a sleep session is active so the duration updates live
+  useEffect(() => {
+    if (!currentSleep) return;
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [currentSleep]);
 
   useEffect(() => {
     if (!session?.access_token || !familyId) return;
@@ -33,7 +43,7 @@ export function SleepTracking() {
       loadAllDataFromServer(session.access_token).then(({ ok, data }) => {
         if (!ok || !data) return;
         if (document.visibilityState !== "visible") return;
-        if (currentSleepRef.current !== null) return;
+        if (isLocallyTrackingRef.current) return;
         if (data.currentSleep != null) {
           try {
             localStorage.setItem("currentSleep", JSON.stringify(data.currentSleep));
@@ -71,6 +81,7 @@ export function SleepTracking() {
       try {
         const saved = JSON.parse(currentData);
         if (saved && typeof saved.position === "string") {
+          isLocallyTrackingRef.current = true;
           setCurrentSleep(saved);
           setSelectedPosition(saved.position);
         }
@@ -94,6 +105,7 @@ export function SleepTracking() {
       position: selectedPosition,
       startTime: Date.now(),
     };
+    isLocallyTrackingRef.current = true;
     setCurrentSleep(newSleep);
     localStorage.setItem("currentSleep", JSON.stringify(newSleep));
     if (session?.access_token) {
@@ -110,6 +122,7 @@ export function SleepTracking() {
     };
 
     const updatedHistory = [...sleepHistory, completedSleep];
+    isLocallyTrackingRef.current = false;
     setSleepHistory(updatedHistory);
     localStorage.setItem("sleepHistory", JSON.stringify(updatedHistory));
     localStorage.removeItem("currentSleep");
@@ -122,13 +135,19 @@ export function SleepTracking() {
   };
 
   const getDuration = (start: number, end?: number) => {
-    const duration = (end || Date.now()) - start;
-    const minutes = Math.floor(duration / 60000);
-    const hours = Math.floor(minutes / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes % 60}m`;
+    const duration = (end ?? Date.now()) - start;
+    const totalSeconds = Math.floor(duration / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (end != null) {
+      // Completed session — no seconds needed
+      if (hours > 0) return `${hours}h ${minutes}m`;
+      return `${minutes}m`;
     }
-    return `${minutes}m`;
+    // Ongoing — show seconds
+    if (hours > 0) return `${hours}h ${minutes}m ${seconds.toString().padStart(2, "0")}s`;
+    return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
   };
 
   // Prepare chart data - count by position
