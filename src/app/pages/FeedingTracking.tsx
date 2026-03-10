@@ -150,17 +150,13 @@ export function FeedingTracking() {
 
   useEffect(() => {
     persistActiveSession(session, isPaused, totalPausedMs, pausedAt);
-    // Sync active feeding session so family can see counter started
-    if (authSession?.access_token) {
-      if (session) {
-        syncDataToServer(
-          "feedingActiveSession",
-          { session, isPaused, totalPausedMs, pausedAt },
-          authSession.access_token
-        );
-      } else {
-        syncDataToServer("feedingActiveSession", null, authSession.access_token);
-      }
+    // Sync only when there is an active session (don't send null just from being on the tab)
+    if (authSession?.access_token && session) {
+      syncDataToServer(
+        "feedingActiveSession",
+        { session, isPaused, totalPausedMs, pausedAt },
+        authSession.access_token
+      );
     }
   }, [session, isPaused, totalPausedMs, pausedAt, authSession?.access_token]);
 
@@ -257,6 +253,7 @@ export function FeedingTracking() {
       // ignore
     }
     if (authSession?.access_token) {
+      syncDataToServer("feedingActiveSession", null, authSession.access_token);
       saveData("feedingHistory", updated, authSession.access_token);
     }
     const totalMins = Math.round(totalDurationMs / 60000);
