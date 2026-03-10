@@ -85,10 +85,21 @@ export function FeedingTracking() {
       loadAllDataFromServer(authSession.access_token).then(({ ok, data: serverData }) => {
         if (!ok || !serverData) return;
         const remote = serverData.feedingActiveSession as typeof session | null | undefined;
+        // Always persist history for all devices
+        if (serverData.feedingHistory != null) {
+          try {
+            localStorage.setItem("feedingHistory", JSON.stringify(serverData.feedingHistory));
+          } catch {
+            // ignore
+          }
+        }
+        // If WE started this session, leave our localStorage and state alone — we are source of truth
+        if (isLocallyTrackingRef.current) return;
+        // Watcher / idle: persist the server session to localStorage (survives tab navigation)
         if (remote != null) {
           try {
             localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(remote));
-            localStorage.removeItem("feedingStartedLocally"); // server data, not ours
+            localStorage.removeItem("feedingStartedLocally");
           } catch {
             // ignore
           }
@@ -100,15 +111,7 @@ export function FeedingTracking() {
             // ignore
           }
         }
-        if (serverData.feedingHistory != null) {
-          try {
-            localStorage.setItem("feedingHistory", JSON.stringify(serverData.feedingHistory));
-          } catch {
-            // ignore
-          }
-        }
         if (document.visibilityState !== "visible") return;
-        if (isLocallyTrackingRef.current) return;
         if (remote != null && remote.session?.segments) {
           const now = Date.now();
           const r = remote as { session: ActiveSession; isPaused?: boolean; totalPausedMs?: number; pausedAt?: number | null };
@@ -219,7 +222,9 @@ export function FeedingTracking() {
 
   useEffect(() => {
     persistActiveSession(session, isPaused, totalPausedMs, pausedAt);
-    // Sync only when there is an active session (don't send null just from being on the tab)
+    // Only sync to server when WE started the session — watchers must never write back or they'll
+    // resurrect the session after the tracker has already stopped it.
+    if (!isLocallyTrackingRef.current) return;
     if (authSession?.access_token && session) {
       syncDataToServer(
         "feedingActiveSession",
