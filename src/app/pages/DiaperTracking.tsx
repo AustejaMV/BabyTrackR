@@ -6,7 +6,9 @@ import { format } from "date-fns";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
-import { saveData } from "../utils/dataSync";
+import { saveData, loadAllDataFromServer } from "../utils/dataSync";
+
+const DIAPER_POLL_MS = 4 * 1000;
 
 interface DiaperRecord {
   id: string;
@@ -25,13 +27,37 @@ const CHART_COLORS = ["#3b82f6", "#f59e0b"];
 
 export function DiaperTracking() {
   const [diaperHistory, setDiaperHistory] = useState<DiaperRecord[]>([]);
-  const { session } = useAuth();
+  const { session, familyId } = useAuth();
 
   useEffect(() => {
-    // Load diaper history
+    if (!session?.access_token || !familyId) return;
+    const refetch = () => {
+      loadAllDataFromServer(session.access_token).then(({ ok, data }) => {
+        if (!ok || !data) return;
+        if (document.visibilityState !== "visible") return;
+        if (data.diaperHistory != null && Array.isArray(data.diaperHistory)) {
+          try {
+            localStorage.setItem("diaperHistory", JSON.stringify(data.diaperHistory));
+            setDiaperHistory(data.diaperHistory as DiaperRecord[]);
+          } catch {
+            // ignore
+          }
+        }
+      });
+    };
+    refetch();
+    const id = setInterval(refetch, DIAPER_POLL_MS);
+    return () => clearInterval(id);
+  }, [session?.access_token, familyId]);
+
+  useEffect(() => {
     const historyData = localStorage.getItem("diaperHistory");
     if (historyData) {
-      setDiaperHistory(JSON.parse(historyData));
+      try {
+        setDiaperHistory(JSON.parse(historyData));
+      } catch {
+        // ignore
+      }
     }
   }, []);
 

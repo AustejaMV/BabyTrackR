@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigation } from "../components/Navigation";
 import { Button } from "../components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -6,7 +6,9 @@ import { format } from "date-fns";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
-import { saveData } from "../utils/dataSync";
+import { saveData, loadAllDataFromServer } from "../utils/dataSync";
+
+const SLEEP_POLL_MS = 4 * 1000;
 
 interface SleepRecord {
   id: string;
@@ -21,21 +23,68 @@ export function SleepTracking() {
   const [currentSleep, setCurrentSleep] = useState<SleepRecord | null>(null);
   const [sleepHistory, setSleepHistory] = useState<SleepRecord[]>([]);
   const [selectedPosition, setSelectedPosition] = useState<string>("Back");
-  const { session } = useAuth();
+  const { session, familyId } = useAuth();
+  const currentSleepRef = useRef<SleepRecord | null>(null);
+  currentSleepRef.current = currentSleep;
 
   useEffect(() => {
-    // Load current sleep session
+    if (!session?.access_token || !familyId) return;
+    const refetch = () => {
+      loadAllDataFromServer(session.access_token).then(({ ok, data }) => {
+        if (!ok || !data) return;
+        if (document.visibilityState !== "visible") return;
+        if (currentSleepRef.current !== null) return;
+        if (data.currentSleep != null) {
+          try {
+            localStorage.setItem("currentSleep", JSON.stringify(data.currentSleep));
+            const s = data.currentSleep as SleepRecord;
+            if (s?.position != null) setCurrentSleep(s);
+          } catch {
+            // ignore
+          }
+        } else {
+          try {
+            localStorage.removeItem("currentSleep");
+            setCurrentSleep(null);
+          } catch {
+            // ignore
+          }
+        }
+        if (data.sleepHistory != null) {
+          try {
+            localStorage.setItem("sleepHistory", JSON.stringify(data.sleepHistory));
+            setSleepHistory(data.sleepHistory as SleepRecord[]);
+          } catch {
+            // ignore
+          }
+        }
+      });
+    };
+    refetch();
+    const id = setInterval(refetch, SLEEP_POLL_MS);
+    return () => clearInterval(id);
+  }, [session?.access_token, familyId]);
+
+  useEffect(() => {
     const currentData = localStorage.getItem("currentSleep");
     if (currentData) {
-      setCurrentSleep(JSON.parse(currentData));
-      const saved = JSON.parse(currentData);
-      setSelectedPosition(saved.position);
+      try {
+        const saved = JSON.parse(currentData);
+        if (saved && typeof saved.position === "string") {
+          setCurrentSleep(saved);
+          setSelectedPosition(saved.position);
+        }
+      } catch {
+        // ignore
+      }
     }
-
-    // Load sleep history
     const historyData = localStorage.getItem("sleepHistory");
     if (historyData) {
-      setSleepHistory(JSON.parse(historyData));
+      try {
+        setSleepHistory(JSON.parse(historyData));
+      } catch {
+        // ignore
+      }
     }
   }, []);
 
@@ -125,9 +174,9 @@ export function SleepTracking() {
             <div className="space-y-4">
               <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg">
                 <p className="text-sm text-gray-600 dark:text-gray-400">Tracking</p>
-                <p className="text-2xl text-blue-600 dark:text-blue-400">{currentSleep.position}</p>
+                <p className="text-2xl text-blue-600 dark:text-blue-400">{currentSleep?.position ?? "Sleep"}</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Duration: {getDuration(currentSleep.startTime)}
+                  Duration: {getDuration(currentSleep?.startTime ?? 0)}
                 </p>
               </div>
               <Button onClick={stopTracking} className="w-full" variant="destructive">
@@ -164,10 +213,10 @@ export function SleepTracking() {
             <p className="text-gray-500 dark:text-gray-400 text-center py-4">No sleep sessions recorded yet</p>
           ) : (
             <div className="space-y-3">
-              {sleepHistory.slice(-10).reverse().map((sleep) => (
-                <div key={sleep.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              {sleepHistory.slice(-10).reverse().map((sleep, i) => (
+                <div key={sleep?.id ?? `sleep-${i}`} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                   <div>
-                    <p className="dark:text-white">{sleep.position}</p>
+                    <p className="dark:text-white">{sleep?.position ?? "—"}</p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       {format(new Date(sleep.startTime), "MMM d, h:mm a")}
                     </p>

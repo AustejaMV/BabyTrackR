@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigation } from "../components/Navigation";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -7,7 +7,7 @@ import { format, addHours } from "date-fns";
 import { ArrowLeft, Clock, Pause, Play, Square } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
-import { saveData, syncDataToServer } from "../utils/dataSync";
+import { saveData, syncDataToServer, loadAllDataFromServer } from "../utils/dataSync";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
 import { toast } from "sonner";
 
@@ -35,6 +35,7 @@ export interface FeedingRecord {
 const FEEDING_TYPES = ["Left breast", "Right breast", "Formula", "Solids"];
 
 const ACTIVE_SESSION_KEY = "feedingActiveSession";
+const FEEDING_POLL_MS = 4 * 1000; // same as Dashboard so we see them start/stop while on this tab
 
 function getLastFeedingEndTime(f: FeedingRecord): number {
   return f.endTime ?? f.timestamp;
@@ -70,7 +71,66 @@ export function FeedingTracking() {
   const [isPaused, setIsPaused] = useState(false);
   const [totalPausedMs, setTotalPausedMs] = useState(0);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
-  const { session: authSession } = useAuth();
+  const { session: authSession, familyId } = useAuth();
+  const sessionRef = useRef<ActiveSession | null>(null);
+  sessionRef.current = session;
+
+  // Poll when on this tab so we see the other person start/stop feeding (like same screen)
+  useEffect(() => {
+    if (!authSession?.access_token || !familyId) return;
+    const refetch = () => {
+      loadAllDataFromServer(authSession.access_token).then(({ ok, data: serverData }) => {
+        if (!ok || !serverData) return;
+        const remote = serverData.feedingActiveSession as typeof session | null | undefined;
+        if (remote != null) {
+          try {
+            localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(remote));
+          } catch {
+            // ignore
+          }
+        } else {
+          try {
+            localStorage.removeItem(ACTIVE_SESSION_KEY);
+          } catch {
+            // ignore
+          }
+        }
+        if (serverData.feedingHistory != null) {
+          try {
+            localStorage.setItem("feedingHistory", JSON.stringify(serverData.feedingHistory));
+          } catch {
+            // ignore
+          }
+        }
+        if (document.visibilityState !== "visible") return;
+        if (sessionRef.current !== null) return;
+        if (remote != null && remote.session?.segments) {
+          const now = Date.now();
+          const r = remote as { session: ActiveSession; isPaused?: boolean; totalPausedMs?: number; pausedAt?: number | null };
+          let totalPaused = r.totalPausedMs ?? 0;
+          if (r.isPaused && r.pausedAt != null) totalPaused += now - r.pausedAt;
+          const start = (r as { serverStartTime?: number }).serverStartTime ?? r.session.sessionStartTime;
+          setSession({ ...r.session, sessionStartTime: start });
+          setIsPaused(!!r.isPaused);
+          setTotalPausedMs(totalPaused);
+          setPausedAt(r.isPaused ? now : null);
+          setTotalElapsedMs(now - start - totalPaused);
+          const last = r.session.segments[r.session.segments.length - 1];
+          setCurrentSegmentElapsedMs(last ? now - (last.endTime ?? last.startTime) : 0);
+          setFeedingHistory(JSON.parse(localStorage.getItem("feedingHistory") || "[]"));
+        } else {
+          setSession(null);
+          setIsPaused(false);
+          setTotalPausedMs(0);
+          setPausedAt(null);
+          setFeedingHistory(JSON.parse(localStorage.getItem("feedingHistory") || "[]"));
+        }
+      });
+    };
+    refetch();
+    const id = setInterval(refetch, FEEDING_POLL_MS);
+    return () => clearInterval(id);
+  }, [authSession?.access_token, familyId]);
 
   // Persist active session so it survives leaving the tab (no cancel/pause on navigate away)
   const persistActiveSession = (s: ActiveSession | null, paused: boolean, pausedMs: number, pausedAtVal: number | null) => {

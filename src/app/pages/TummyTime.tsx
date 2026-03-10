@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigation } from "../components/Navigation";
 import { Button } from "../components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -6,8 +6,10 @@ import { format } from "date-fns";
 import { ArrowLeft, Play, Square } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
-import { saveData } from "../utils/dataSync";
+import { saveData, loadAllDataFromServer } from "../utils/dataSync";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
+
+const TUMMY_POLL_MS = 4 * 1000;
 
 interface TummyTimeRecord {
   id: string;
@@ -19,7 +21,46 @@ export function TummyTime() {
   const [currentSession, setCurrentSession] = useState<TummyTimeRecord | null>(null);
   const [tummyTimeHistory, setTummyTimeHistory] = useState<TummyTimeRecord[]>([]);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
-  const { session } = useAuth();
+  const { session, familyId } = useAuth();
+  const currentSessionRef = useRef<TummyTimeRecord | null>(null);
+  currentSessionRef.current = currentSession;
+
+  useEffect(() => {
+    if (!session?.access_token || !familyId) return;
+    const refetch = () => {
+      loadAllDataFromServer(session.access_token).then(({ ok, data }) => {
+        if (!ok || !data) return;
+        if (document.visibilityState !== "visible") return;
+        if (currentSessionRef.current !== null) return;
+        if (data.currentTummyTime != null) {
+          try {
+            localStorage.setItem("currentTummyTime", JSON.stringify(data.currentTummyTime));
+            setCurrentSession(data.currentTummyTime as TummyTimeRecord);
+          } catch {
+            // ignore
+          }
+        } else {
+          try {
+            localStorage.removeItem("currentTummyTime");
+            setCurrentSession(null);
+          } catch {
+            // ignore
+          }
+        }
+        if (data.tummyTimeHistory != null) {
+          try {
+            localStorage.setItem("tummyTimeHistory", JSON.stringify(data.tummyTimeHistory));
+            setTummyTimeHistory(data.tummyTimeHistory as TummyTimeRecord[]);
+          } catch {
+            // ignore
+          }
+        }
+      });
+    };
+    refetch();
+    const id = setInterval(refetch, TUMMY_POLL_MS);
+    return () => clearInterval(id);
+  }, [session?.access_token, familyId]);
 
   useEffect(() => {
     // Load current session

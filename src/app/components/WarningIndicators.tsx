@@ -78,8 +78,9 @@ try {
         const sleeps: SleepRecord[] = JSON.parse(sleepHistory);
         if (sleeps.length >= 3) {
           const lastThree = sleeps.slice(-3);
-          const allSamePosition = lastThree.every(s => s.position === lastThree[0].position);
-          if (allSamePosition && lastThree[0].position !== "Back") {
+          const first = lastThree[0];
+          const allSamePosition = first && lastThree.every(s => s?.position === first?.position);
+          if (allSamePosition && first?.position !== "Back") {
             newWarnings.push("same-position");
           }
         }

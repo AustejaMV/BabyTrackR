@@ -10,10 +10,10 @@ import { useAuth } from "../contexts/AuthContext";
 import { loadAllDataFromServer, saveData, clearSyncedDataFromLocalStorage, SYNCED_DATA_KEYS, SYNCED_DATA_DEFAULTS } from "../utils/dataSync";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
 
-// Server-cost friendly: poll when tab is visible; throttle visibility refetch
-const FAMILY_DATA_POLL_INTERVAL_MS = 20 * 1000; // 20s so invitees see inviter's counter within one cycle
-const POLL_WHEN_ACTIVE_MS = 15 * 1000;         // 15s when any timer (feeding/sleep/tummy) is active
-const VISIBILITY_REFETCH_MIN_MS = 20 * 1000;   // don't refetch on tab focus if we did <20s ago
+// Near real-time: poll every 4s when tab visible so it feels like both looking at the same screen
+const FAMILY_DATA_POLL_INTERVAL_MS = 4 * 1000;  // 4s
+const POLL_WHEN_ACTIVE_MS = 4 * 1000;           // 4s when any timer active
+const VISIBILITY_REFETCH_MIN_MS = 2 * 1000;      // refetch when tab visible if >2s since last
 
 function hasActiveSession(data: Record<string, unknown>): boolean {
   return data?.feedingActiveSession != null || data?.currentSleep != null || data?.currentTummyTime != null;
@@ -397,9 +397,9 @@ export function Dashboard() {
                   <h2 className="text-sm sm:text-base font-medium dark:text-white truncate">Sleep</h2>
                   {currentSleep ? (
                     <>
-                      <p className="text-base sm:text-lg text-blue-600 dark:text-blue-400 truncate">{currentSleep.position}</p>
+                      <p className="text-base sm:text-lg text-blue-600 dark:text-blue-400 truncate">{currentSleep?.position ?? "Sleep"}</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {getTimeSince((currentSleep as SleepRecord & { serverStartTime?: number }).serverStartTime ?? currentSleep.startTime)}
+                        {getTimeSince((currentSleep as SleepRecord & { serverStartTime?: number })?.serverStartTime ?? currentSleep?.startTime ?? 0)}
                       </p>
                     </>
                   ) : (
