@@ -23,21 +23,17 @@ export function TummyTime() {
   const [tummyTimeHistory, setTummyTimeHistory] = useState<TummyTimeRecord[]>([]);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
   const { session, familyId } = useAuth();
-  // After a local start/stop, skip one poll cycle so the server has time to receive our change
-  const wasLocalActionRef = useRef(false);
+  const GRACE_MS = 5000;
+  const lastStartedAtRef = useRef(0);
+  const lastStoppedAtRef = useRef(0);
 
   useEffect(() => {
     if (!session?.access_token || !familyId) return;
     const refetch = () => {
       loadAllDataFromServer(session.access_token).then(({ ok, data }) => {
         if (!ok || !data) return;
-        if (document.visibilityState !== "visible") return;
-        // Skip one cycle after a local action so the server has time to receive it
-        if (wasLocalActionRef.current) {
-          wasLocalActionRef.current = false;
-          return;
-        }
         if (data.currentTummyTime != null) {
+          if (Date.now() - lastStoppedAtRef.current < GRACE_MS) return;
           try {
             localStorage.setItem("currentTummyTime", JSON.stringify(data.currentTummyTime));
             setCurrentSession(data.currentTummyTime as TummyTimeRecord);
@@ -45,6 +41,7 @@ export function TummyTime() {
             // ignore
           }
         } else {
+          if (Date.now() - lastStartedAtRef.current < GRACE_MS) return;
           try {
             localStorage.removeItem("currentTummyTime");
             setCurrentSession(null);
@@ -108,7 +105,7 @@ export function TummyTime() {
       id: Date.now().toString(),
       startTime: Date.now(),
     };
-    wasLocalActionRef.current = true;
+    lastStartedAtRef.current = Date.now();
     setCurrentSession(newSession);
     localStorage.setItem("currentTummyTime", JSON.stringify(newSession));
     if (session?.access_token) {
@@ -121,7 +118,7 @@ export function TummyTime() {
 
     const completedSession = { ...currentSession, endTime: Date.now() };
     const updatedHistory = [...tummyTimeHistory, completedSession];
-    wasLocalActionRef.current = true;
+    lastStoppedAtRef.current = Date.now();
     setTummyTimeHistory(updatedHistory);
     localStorage.setItem("tummyTimeHistory", JSON.stringify(updatedHistory));
     localStorage.removeItem("currentTummyTime");

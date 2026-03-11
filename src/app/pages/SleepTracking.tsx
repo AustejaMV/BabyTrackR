@@ -25,9 +25,11 @@ export function SleepTracking() {
   const [selectedPosition, setSelectedPosition] = useState<string>("Back");
   const [, setTick] = useState(0);
   const { session, familyId } = useAuth();
-  // After a local start/stop, skip one poll cycle so the server has time to receive our change
-  // before we apply server state (prevents race where poll fires before save completes).
-  const wasLocalActionRef = useRef(false);
+  // Grace periods to prevent race conditions where a poll fires before a save reaches the server.
+  // Each ref only guards its own transition so the OTHER transition always propagates immediately.
+  const GRACE_MS = 5000;
+  const lastStartedAtRef = useRef(0); // set when WE start — prevents null from server clearing it
+  const lastStoppedAtRef = useRef(0); // set when WE stop  — prevents old session from restoring
 
   // Tick every second while a sleep session is active so the duration updates live
   useEffect(() => {
@@ -41,13 +43,9 @@ export function SleepTracking() {
     const refetch = () => {
       loadAllDataFromServer(session.access_token).then(({ ok, data }) => {
         if (!ok || !data) return;
-        if (document.visibilityState !== "visible") return;
-        // Skip one cycle after a local action so the server has time to receive it
-        if (wasLocalActionRef.current) {
-          wasLocalActionRef.current = false;
-          return;
-        }
         if (data.currentSleep != null) {
+          // Server says active — skip only if WE just stopped (our stop save may not have arrived yet)
+          if (Date.now() - lastStoppedAtRef.current < GRACE_MS) return;
           try {
             const s = data.currentSleep as SleepRecord;
             if (s?.position != null) {
@@ -58,6 +56,8 @@ export function SleepTracking() {
             // ignore
           }
         } else {
+          // Server says null — skip only if WE just started (our start save may not have arrived yet)
+          if (Date.now() - lastStartedAtRef.current < GRACE_MS) return;
           try {
             localStorage.removeItem("currentSleep");
             setCurrentSleep(null);
@@ -109,7 +109,7 @@ export function SleepTracking() {
       position: selectedPosition,
       startTime: Date.now(),
     };
-    wasLocalActionRef.current = true;
+    lastStartedAtRef.current = Date.now();
     setCurrentSleep(newSleep);
     localStorage.setItem("currentSleep", JSON.stringify(newSleep));
     if (session?.access_token) {
@@ -122,7 +122,7 @@ export function SleepTracking() {
 
     const completedSleep = { ...currentSleep, endTime: Date.now() };
     const updatedHistory = [...sleepHistory, completedSleep];
-    wasLocalActionRef.current = true;
+    lastStoppedAtRef.current = Date.now();
     setSleepHistory(updatedHistory);
     localStorage.setItem("sleepHistory", JSON.stringify(updatedHistory));
     localStorage.removeItem("currentSleep");

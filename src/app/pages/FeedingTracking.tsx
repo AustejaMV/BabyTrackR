@@ -73,9 +73,10 @@ export function FeedingTracking() {
   const [totalPausedMs, setTotalPausedMs] = useState(0);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
   const { session: authSession, familyId } = useAuth();
-  // After a local action (start/stop/pause/resume/switch), skip one poll cycle so the server
-  // has time to receive our change before we apply server state (prevents race condition).
-  const wasLocalActionRef = useRef(false);
+  const GRACE_MS = 5000;
+  const lastStartedAtRef = useRef(0);  // set on start — prevents null from server clearing it
+  const lastStoppedAtRef = useRef(0);  // set on stop  — prevents old session from restoring
+  const lastLocalActionAtRef = useRef(0); // set on any action — gates persistActiveSession sync
 
   // Poll when on this tab so we see the other person start/stop feeding (like same screen)
   useEffect(() => {
@@ -84,7 +85,7 @@ export function FeedingTracking() {
       loadAllDataFromServer(authSession.access_token).then(({ ok, data: serverData }) => {
         if (!ok || !serverData) return;
         const remote = serverData.feedingActiveSession as typeof session | null | undefined;
-        // Always persist history
+        // Always persist history so it survives tab navigation
         if (serverData.feedingHistory != null) {
           try {
             localStorage.setItem("feedingHistory", JSON.stringify(serverData.feedingHistory));
@@ -92,25 +93,10 @@ export function FeedingTracking() {
             // ignore
           }
         }
-        // Skip one cycle after a local action so the server has time to receive it
-        if (wasLocalActionRef.current) {
-          wasLocalActionRef.current = false;
-          // Still update localStorage so state survives tab navigation
-          if (remote != null) {
-            try { localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(remote)); } catch { /* ignore */ }
-          } else {
-            try { localStorage.removeItem(ACTIVE_SESSION_KEY); } catch { /* ignore */ }
-          }
-          return;
-        }
-        if (document.visibilityState !== "visible") return;
-        // Persist server session to localStorage (survives tab navigation)
-        if (remote != null) {
-          try { localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(remote)); } catch { /* ignore */ }
-        } else {
-          try { localStorage.removeItem(ACTIVE_SESSION_KEY); } catch { /* ignore */ }
-        }
         if (remote != null && remote.session?.segments) {
+          // Server says active — skip if WE just stopped (our stop save may not have arrived yet)
+          if (Date.now() - lastStoppedAtRef.current < GRACE_MS) return;
+          try { localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(remote)); } catch { /* ignore */ }
           const now = Date.now();
           const r = remote as { session: ActiveSession; isPaused?: boolean; totalPausedMs?: number; pausedAt?: number | null };
           let totalPaused = r.totalPausedMs ?? 0;
@@ -125,6 +111,9 @@ export function FeedingTracking() {
           setCurrentSegmentElapsedMs(last ? now - (last.endTime ?? last.startTime) : 0);
           setFeedingHistory(JSON.parse(localStorage.getItem("feedingHistory") || "[]"));
         } else {
+          // Server says null — skip if WE just started (our start save may not have arrived yet)
+          if (Date.now() - lastStartedAtRef.current < GRACE_MS) return;
+          try { localStorage.removeItem(ACTIVE_SESSION_KEY); } catch { /* ignore */ }
           setSession(null);
           setIsPaused(false);
           setTotalPausedMs(0);
@@ -216,10 +205,9 @@ export function FeedingTracking() {
 
   useEffect(() => {
     persistActiveSession(session, isPaused, totalPausedMs, pausedAt);
-    // Only sync when the state change came from a local action (start/stop/pause/resume/switch).
-    // If wasLocalActionRef is false the change came from a poll — don't write it back or we'd
-    // resurrect a stopped session on the server.
-    if (!wasLocalActionRef.current) return;
+    // Only sync when the state change came from a local action (within grace window).
+    // State changes from polls must not be written back — that would resurrect a stopped session.
+    if (Date.now() - lastLocalActionAtRef.current > GRACE_MS) return;
     if (authSession?.access_token && session) {
       syncDataToServer(
         "feedingActiveSession",
@@ -232,7 +220,8 @@ export function FeedingTracking() {
   const startFeeding = () => {
     const now = Date.now();
     const amount = selectedType === "Formula" && formulaAmount ? parseFloat(formulaAmount) : undefined;
-    wasLocalActionRef.current = true;
+    lastStartedAtRef.current = Date.now();
+    lastLocalActionAtRef.current = Date.now();
     setSession({
       sessionStartTime: now,
       segments: [{ type: selectedType, startTime: now, amount }],
@@ -260,7 +249,7 @@ export function FeedingTracking() {
     segs[segs.length - 1] = { ...last, endTime: now };
     const amount = type === "Formula" && formulaAmount ? parseFloat(formulaAmount) : undefined;
     segs.push({ type, startTime: now, amount });
-    wasLocalActionRef.current = true;
+    lastLocalActionAtRef.current = Date.now();
     setSession({ ...session, segments: segs });
     setCurrentSegmentElapsedMs(0);
     if (type === "Formula") setFormulaAmount("");
@@ -270,20 +259,20 @@ export function FeedingTracking() {
     if (!session || session.segments.length === 0) return;
     const segs = [...session.segments];
     segs[segs.length - 1].amount = ml;
-    wasLocalActionRef.current = true;
+    lastLocalActionAtRef.current = Date.now();
     setSession({ ...session, segments: segs });
   };
 
   const pauseFeeding = () => {
     if (!session || isPaused) return;
-    wasLocalActionRef.current = true;
+    lastLocalActionAtRef.current = Date.now();
     setPausedAt(Date.now());
     setIsPaused(true);
   };
 
   const resumeFeeding = () => {
     if (!session || !isPaused || pausedAt == null) return;
-    wasLocalActionRef.current = true;
+    lastLocalActionAtRef.current = Date.now();
     setTotalPausedMs((prev) => prev + (Date.now() - pausedAt));
     setPausedAt(null);
     setIsPaused(false);
@@ -314,7 +303,8 @@ export function FeedingTracking() {
       segments,
     };
     const updated = [...feedingHistory, newFeeding];
-    wasLocalActionRef.current = true;
+    lastStoppedAtRef.current = Date.now();
+    lastLocalActionAtRef.current = Date.now();
     setFeedingHistory(updated);
     localStorage.setItem("feedingHistory", JSON.stringify(updated));
     setSession(null);
