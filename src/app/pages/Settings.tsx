@@ -10,6 +10,8 @@ import { generatePediatricReport } from '../utils/pdfExport';
 import { toast } from 'sonner';
 import { saveData, saveManyToServer, SYNCED_DATA_KEYS, SYNCED_DATA_DEFAULTS, loadAllDataFromServer, clearSyncedDataFromLocalStorage } from '../utils/dataSync';
 import type { Note } from '../types';
+import { Mic } from 'lucide-react';
+import { VOICE_COMMAND_EXAMPLES } from '../components/VoiceControl';
 
 interface FamilyMember {
   id: string;
@@ -525,6 +527,25 @@ export function Settings() {
               <p className="text-sm text-gray-500 dark:text-gray-400">No notes yet.</p>
             )}
           </div>
+        </div>
+
+        {/* Voice Commands */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Mic className="w-5 h-5 text-purple-500 dark:text-purple-400" />
+            <h2 className="text-lg dark:text-white">Voice Commands</h2>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+            Tap the <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs"><Mic className="w-3 h-3" /> mic button</span> floating above the nav bar, then say any of these commands. The &ldquo;BabyTracker,&rdquo; prefix is optional.
+          </p>
+          <ul className="space-y-2">
+            {VOICE_COMMAND_EXAMPLES.map(({ cmd, desc }) => (
+              <li key={cmd} className="flex flex-col gap-0.5">
+                <code className="text-xs bg-gray-100 dark:bg-gray-700 text-purple-700 dark:text-purple-300 rounded px-2 py-0.5 font-mono">{cmd}</code>
+                <span className="text-xs text-gray-500 dark:text-gray-400 pl-1">{desc}</span>
+              </li>
+            ))}
+          </ul>
         </div>
 
         {/* Export Report */}

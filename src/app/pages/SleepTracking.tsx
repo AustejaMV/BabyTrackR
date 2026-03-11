@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Navigation } from "../components/Navigation";
 import { Button } from "../components/ui/button";
+import { TimeAdjustButtons } from "../components/TimeAdjustButtons";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router";
@@ -130,6 +131,23 @@ export function SleepTracking() {
     return end != null ? formatDurationShort(ms) : formatLiveDuration(ms);
   };
 
+  const adjustActiveSleepTime = (mins: number) => {
+    if (!currentSleep) return;
+    const updated = { ...currentSleep, startTime: currentSleep.startTime - mins * 60_000 };
+    setCurrentSleep(updated);
+    localStorage.setItem("currentSleep", JSON.stringify(updated));
+    if (session?.access_token) saveData("currentSleep", updated, session.access_token);
+  };
+
+  const adjustSleepHistoryTime = (id: string, mins: number) => {
+    const updated = sleepHistory.map((s) =>
+      s.id === id ? { ...s, startTime: s.startTime - mins * 60_000 } : s,
+    );
+    setSleepHistory(updated);
+    localStorage.setItem("sleepHistory", JSON.stringify(updated));
+    if (session?.access_token) saveData("sleepHistory", updated, session.access_token);
+  };
+
   const chartData = POSITIONS.map((position) => ({
     position,
     count: sleepHistory.filter((s) => s.position === position).length,
@@ -171,9 +189,12 @@ export function SleepTracking() {
               <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg">
                 <p className="text-sm text-gray-600 dark:text-gray-400">Tracking</p>
                 <p className="text-2xl text-blue-600 dark:text-blue-400">{currentSleep?.position ?? "Sleep"}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Duration: {getDuration(currentSleep?.startTime ?? 0)}
-                </p>
+                <div className="flex items-center gap-3 mt-1">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {getDuration(currentSleep?.startTime ?? 0)}
+                  </p>
+                  <TimeAdjustButtons onAdjust={adjustActiveSleepTime} />
+                </div>
               </div>
               <Button onClick={stopTracking} className="w-full" variant="destructive">
                 Stop Tracking
@@ -208,17 +229,18 @@ export function SleepTracking() {
           ) : (
             <div className="space-y-3">
               {sleepHistory.slice(-10).reverse().map((sleep, i) => (
-                <div key={sleep?.id ?? `sleep-${i}`} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <div key={sleep?.id ?? `sleep-${i}`} className="flex justify-between items-start p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                   <div>
                     <p className="dark:text-white">{sleep?.position ?? "—"}</p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       {safeFormat(sleep?.startTime, "MMM d, h:mm a")}
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="flex flex-col items-end gap-1">
                     <p className="text-blue-600 dark:text-blue-400">
                       {sleep.endTime && getDuration(sleep.startTime, sleep.endTime)}
                     </p>
+                    <TimeAdjustButtons onAdjust={(min) => adjustSleepHistoryTime(sleep.id, min)} />
                   </div>
                 </div>
               ))}

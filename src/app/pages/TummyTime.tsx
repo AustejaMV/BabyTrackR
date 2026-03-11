@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Navigation } from "../components/Navigation";
 import { Button } from "../components/ui/button";
+import { TimeAdjustButtons } from "../components/TimeAdjustButtons";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
 import { ArrowLeft, Play, Square } from "lucide-react";
@@ -117,6 +118,24 @@ export function TummyTime() {
     }
   };
 
+  const adjustActiveTime = (mins: number) => {
+    if (!currentSession) return;
+    const updated = { ...currentSession, startTime: currentSession.startTime - mins * 60_000 };
+    setCurrentSession(updated);
+    setElapsedTime((t) => t + mins * 60_000);
+    localStorage.setItem("currentTummyTime", JSON.stringify(updated));
+    if (session?.access_token) saveData("currentTummyTime", updated, session.access_token);
+  };
+
+  const adjustHistoryTime = (id: string, mins: number) => {
+    const updated = tummyTimeHistory.map((t) =>
+      t.id === id ? { ...t, startTime: t.startTime - mins * 60_000 } : t,
+    );
+    setTummyTimeHistory(updated);
+    localStorage.setItem("tummyTimeHistory", JSON.stringify(updated));
+    if (session?.access_token) saveData("tummyTimeHistory", updated, session.access_token);
+  };
+
   const todayStart = new Date().setHours(0, 0, 0, 0);
   const todaySessions = tummyTimeHistory.filter((t) => t.startTime > todayStart && t.endTime);
   const todayTotal = todaySessions.reduce((acc, s) => acc + (s.endTime! - s.startTime), 0);
@@ -165,9 +184,10 @@ export function TummyTime() {
                 <p className="text-6xl text-blue-600 dark:text-blue-400 mb-2">
                   {formatDurationMs(elapsedTime)}
                 </p>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
                   Started at {safeFormat(currentSession?.startTime, "h:mm a")}
                 </p>
+                <TimeAdjustButtons onAdjust={adjustActiveTime} className="justify-center" />
               </div>
               <Button onClick={stopSession} className="w-full" variant="destructive" size="lg">
                 <Square className="w-5 h-5 mr-2" />
@@ -208,15 +228,16 @@ export function TummyTime() {
                 .slice(-10)
                 .reverse()
                 .map((s) => (
-                  <div key={s.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <div key={s.id} className="flex justify-between items-start p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div>
                       <p className="dark:text-white">{safeFormat(s?.startTime, "MMM d")}</p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">{safeFormat(s?.startTime, "h:mm a")}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="flex flex-col items-end gap-1">
                       <p className="text-blue-600 dark:text-blue-400">
                         {s.endTime && formatDurationMs(s.endTime - s.startTime)}
                       </p>
+                      <TimeAdjustButtons onAdjust={(min) => adjustHistoryTime(s.id, min)} />
                     </div>
                   </div>
                 ))}

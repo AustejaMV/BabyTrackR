@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Navigation } from "../components/Navigation";
 import { Button } from "../components/ui/button";
+import { TimeAdjustButtons } from "../components/TimeAdjustButtons";
 import { Input } from "../components/ui/input";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { addHours } from "date-fns";
@@ -286,6 +287,27 @@ export function FeedingTracking() {
     toast.success(`Feeding logged: ${totalMins} min total (${segments.length} segment${segments.length === 1 ? "" : "s"}).`);
   };
 
+  const adjustActiveFeedingTime = (mins: number) => {
+    if (!session) return;
+    const delta = mins * 60_000;
+    const updated = { ...session, sessionStartTime: session.sessionStartTime - delta };
+    lastLocalActionAt.current = Date.now();
+    setSession(updated);
+    setTotalElapsedMs((t) => t + delta);
+  };
+
+  const adjustFeedingHistoryTime = (id: string, mins: number) => {
+    const delta = mins * 60_000;
+    const updated = feedingHistory.map((f) =>
+      f.id === id
+        ? { ...f, startTime: f.startTime - delta, durationMs: (f.durationMs ?? 0) + delta }
+        : f,
+    );
+    setFeedingHistory(updated);
+    localStorage.setItem("feedingHistory", JSON.stringify(updated));
+    if (authSession?.access_token) saveData("feedingHistory", updated, authSession.access_token);
+  };
+
   const getNextFeedingTime = () => {
     if (feedingHistory.length === 0) return null;
     const lastFeeding = feedingHistory[feedingHistory.length - 1];
@@ -412,9 +434,12 @@ export function FeedingTracking() {
             <div className="space-y-4">
               <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg">
                 <p className="text-sm text-gray-500 dark:text-gray-400">Total time {isPaused && "(paused)"}</p>
-                <p className="text-3xl font-mono text-green-600 dark:text-green-400">
-                  {formatDurationMs(totalElapsedMs)}
-                </p>
+                <div className="flex items-center gap-3">
+                  <p className="text-3xl font-mono text-green-600 dark:text-green-400">
+                    {formatDurationMs(totalElapsedMs)}
+                  </p>
+                  <TimeAdjustButtons onAdjust={adjustActiveFeedingTime} />
+                </div>
               </div>
               {session.segments.length > 1 && (
                 <div className="text-sm">
@@ -539,9 +564,12 @@ export function FeedingTracking() {
                           {feeding.durationMs != null && ` · ${formatDurationMs(feeding.durationMs)}`}
                         </p>
                       </div>
-                      {totalMl > 0 && (
-                        <p className="text-green-600 dark:text-green-400 font-medium">{totalMl} ml</p>
-                      )}
+                      <div className="flex flex-col items-end gap-1">
+                        {totalMl > 0 && (
+                          <p className="text-green-600 dark:text-green-400 font-medium">{totalMl} ml</p>
+                        )}
+                        <TimeAdjustButtons onAdjust={(min) => adjustFeedingHistoryTime(feeding.id, min)} />
+                      </div>
                     </div>
                     {hasSegments && feeding.segments!.length > 0 && (
                       <ul className="text-xs text-gray-600 dark:text-gray-400 mt-1 space-y-0.5">
