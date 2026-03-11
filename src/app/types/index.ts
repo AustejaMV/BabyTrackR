@@ -79,3 +79,9 @@ export interface PainkillerDose {
   id: string;
   timestamp: number;
 }
+
+export interface ShoppingItem {
+  id: string;
+  name: string;
+  checked: boolean;
+}

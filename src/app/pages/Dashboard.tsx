@@ -1,4 +1,4 @@
-import { Baby, Utensils, Droplet, Clock, Pill } from "lucide-react";
+import { Baby, Utensils, Droplet, Clock, Pill, ShoppingCart, Plus, Trash2, Check } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { Navigation } from "../components/Navigation";
 import { WarningIndicators } from "../components/WarningIndicators";
@@ -12,9 +12,38 @@ import { getTimeSince } from "../utils/dateUtils";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
 import { toast } from "sonner";
 import { Button } from "../components/ui/button";
-import type { SleepRecord, FeedingRecord, DiaperRecord, PainkillerDose, ActiveFeedingSession } from "../types";
+import { Input } from "../components/ui/input";
+import type { SleepRecord, FeedingRecord, DiaperRecord, PainkillerDose, ActiveFeedingSession, ShoppingItem } from "../types";
 
 const VISIBILITY_REFETCH_MIN_MS = 2_000;
+
+const QUICK_ADD_ITEMS = [
+  { emoji: "🧷", label: "Diapers" },
+  { emoji: "🧻", label: "Wipes" },
+  { emoji: "🍼", label: "Formula" },
+  { emoji: "🧴", label: "Diaper Cream" },
+  { emoji: "🧴", label: "Baby Shampoo" },
+  { emoji: "🧴", label: "Baby Lotion" },
+  { emoji: "🛁", label: "Baby Wash" },
+  { emoji: "🧣", label: "Burp Cloths" },
+  { emoji: "👕", label: "Onesies" },
+  { emoji: "🧦", label: "Baby Socks" },
+  { emoji: "🛏️", label: "Swaddle Blankets" },
+  { emoji: "😴", label: "Sleep Sack" },
+  { emoji: "🤱", label: "Nursing Pads" },
+  { emoji: "🍶", label: "Breast Pump Bags" },
+  { emoji: "🌡️", label: "Thermometer" },
+  { emoji: "💨", label: "Nasal Aspirator" },
+  { emoji: "💧", label: "Gripe Water" },
+  { emoji: "💊", label: "Gas Drops" },
+  { emoji: "☀️", label: "Vitamin D Drops" },
+  { emoji: "✂️", label: "Nail Clippers" },
+  { emoji: "🧸", label: "Pacifier" },
+  { emoji: "🎵", label: "White Noise Machine" },
+  { emoji: "🛡️", label: "Changing Pads" },
+  { emoji: "🎽", label: "Baby Mittens" },
+  { emoji: "🧺", label: "Baby Detergent" },
+];
 
 function hasActiveSession(data: Record<string, unknown>): boolean {
   return data?.feedingActiveSession != null || data?.currentSleep != null || data?.currentTummyTime != null;
@@ -28,6 +57,8 @@ export function Dashboard() {
   const [lastPainkiller, setLastPainkiller] = useState<PainkillerDose | null>(null);
   const [lastDataDebug, setLastDataDebug] = useState<{ familyId: string | null; rowsReturned?: number } | null>(null);
   const [, setFeedingTick] = useState(0);
+  const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([]);
+  const [shoppingInput, setShoppingInput] = useState("");
 
   const { user, session, loading, familyId } = useAuth();
   const prevFamilyIdRef = useRef<string | null>(null);
@@ -79,6 +110,11 @@ export function Dashboard() {
       const diapers = JSON.parse(diaperHistory);
       const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
       setRecentDiapers(diapers.filter((d: DiaperRecord) => d.timestamp > oneDayAgo));
+    }
+
+    const shoppingData = localStorage.getItem("shoppingList");
+    if (shoppingData) {
+      try { setShoppingList(JSON.parse(shoppingData)); } catch { /* ignore */ }
     }
 
     const painkillerHistory = localStorage.getItem("painkillerHistory");
@@ -185,6 +221,38 @@ export function Dashboard() {
   }, [user, session?.access_token, familyId]);
 
   // ─── Actions ─────────────────────────────────────────────────────────────────
+
+  const persistShoppingList = (list: ShoppingItem[]) => {
+    localStorage.setItem("shoppingList", JSON.stringify(list));
+    if (session?.access_token) saveData("shoppingList", list, session.access_token);
+  };
+
+  const addShoppingItem = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const updated = [...shoppingList, { id: Date.now().toString(), name: trimmed, checked: false }];
+    setShoppingList(updated);
+    persistShoppingList(updated);
+  };
+
+  const toggleShoppingItem = (id: string) => {
+    const updated = shoppingList.map((item) =>
+      item.id === id ? { ...item, checked: !item.checked } : item
+    );
+    setShoppingList(updated);
+    persistShoppingList(updated);
+  };
+
+  const removeShoppingItem = (id: string) => {
+    const updated = shoppingList.filter((item) => item.id !== id);
+    setShoppingList(updated);
+    persistShoppingList(updated);
+  };
+
+  const handleShoppingInputAdd = () => {
+    addShoppingItem(shoppingInput);
+    setShoppingInput("");
+  };
 
   const logPainkiller = () => {
     const history: PainkillerDose[] = JSON.parse(localStorage.getItem("painkillerHistory") || "[]");
@@ -389,6 +457,113 @@ export function Dashboard() {
               </Button>
             </div>
           </div>
+        </div>
+
+        {/* Nursery Essentials Shopping List */}
+        <div className="mt-4 bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="flex items-center gap-2 mb-4">
+            <ShoppingCart className="w-5 h-5 text-pink-500 dark:text-pink-400" />
+            <h2 className="text-base sm:text-lg font-medium dark:text-white">Nursery Essentials</h2>
+            {shoppingList.filter((i) => !i.checked).length > 0 && (
+              <span className="ml-auto text-xs bg-pink-100 dark:bg-pink-900/40 text-pink-600 dark:text-pink-300 rounded-full px-2 py-0.5">
+                {shoppingList.filter((i) => !i.checked).length} left
+              </span>
+            )}
+          </div>
+
+          {/* Quick-add chips */}
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-4 -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
+            {QUICK_ADD_ITEMS.map(({ emoji, label }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => addShoppingItem(label)}
+                className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-200 hover:border-pink-400 hover:bg-pink-50 dark:hover:border-pink-500 dark:hover:bg-pink-900/30 transition-colors"
+              >
+                <span>{emoji}</span>
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Custom input */}
+          <div className="flex gap-2 mb-4">
+            <Input
+              value={shoppingInput}
+              onChange={(e) => setShoppingInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleShoppingInputAdd(); }}
+              placeholder="Add a custom item…"
+              className="flex-1"
+            />
+            <Button
+              onClick={handleShoppingInputAdd}
+              size="icon"
+              variant="outline"
+              className="shrink-0 border-pink-300 text-pink-600 hover:bg-pink-50 dark:border-pink-700 dark:text-pink-400 dark:hover:bg-pink-900/30"
+              disabled={!shoppingInput.trim()}
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+
+          {/* List */}
+          {shoppingList.length === 0 ? (
+            <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-3">
+              Tap a chip above or type a custom item to start your list.
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {shoppingList.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 group transition-colors"
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleShoppingItem(item.id)}
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                      item.checked
+                        ? "bg-pink-500 border-pink-500"
+                        : "border-gray-300 dark:border-gray-500 hover:border-pink-400"
+                    }`}
+                  >
+                    {item.checked && <Check className="w-3 h-3 text-white" />}
+                  </button>
+                  <span
+                    className={`flex-1 text-sm transition-colors ${
+                      item.checked
+                        ? "line-through text-gray-400 dark:text-gray-500"
+                        : "text-gray-800 dark:text-gray-200"
+                    }`}
+                  >
+                    {item.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeShoppingItem(item.id)}
+                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-all p-0.5 rounded"
+                    aria-label="Remove"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {shoppingList.some((i) => i.checked) && (
+            <button
+              type="button"
+              onClick={() => {
+                const updated = shoppingList.filter((i) => !i.checked);
+                setShoppingList(updated);
+                persistShoppingList(updated);
+              }}
+              className="mt-3 text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+            >
+              Clear checked items
+            </button>
+          )}
         </div>
       </div>
 

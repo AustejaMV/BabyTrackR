@@ -12,6 +12,7 @@ export const SYNCED_DATA_KEYS = [
   'feedingActiveSession',
   'painkillerHistory',
   'notes',
+  'shoppingList',
 ] as const;
 
 /** Default value when server doesn't return a key. Use these so inputs never get "[]" (e.g. feedingInterval must be "3" not []). */
@@ -26,6 +27,7 @@ export const SYNCED_DATA_DEFAULTS: Record<(typeof SYNCED_DATA_KEYS)[number], unk
   feedingActiveSession: null,
   painkillerHistory: [],
   notes: [],
+  shoppingList: [],
 };
 
 /** Poll interval when any live session is active (feeding, sleep, tummy time). */

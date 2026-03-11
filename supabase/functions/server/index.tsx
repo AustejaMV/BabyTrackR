@@ -209,6 +209,7 @@ const DATA_TYPES = [
   "feedingActiveSession",
   "painkillerHistory",
   "notes",
+  "shoppingList",
 ];
 
 // Session-like keys: server sets canonical serverStartTime on first save so all devices show same elapsed; first write wins
