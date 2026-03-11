@@ -3,13 +3,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { Navigation } from '../components/Navigation';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { ArrowLeft, UserPlus, LogOut, Download, Users, CheckCircle2, Circle, Trash2, Lock, Globe, Mail, X } from 'lucide-react';
+import { ArrowLeft, UserPlus, LogOut, Download, Users, CheckCircle2, Circle, Trash2, Lock, Globe, Mail, X, AlertTriangle, CloudUpload } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { serverUrl, supabaseAnonKey } from '../utils/supabase';
 import { generatePediatricReport } from '../utils/pdfExport';
 import { toast } from 'sonner';
-import { saveData, syncDataToServer, SYNCED_DATA_KEYS, loadAllDataFromServer, clearSyncedDataFromLocalStorage } from '../utils/dataSync';
-import { CloudUpload } from 'lucide-react';
+import { saveData, syncDataToServer, SYNCED_DATA_KEYS, SYNCED_DATA_DEFAULTS, loadAllDataFromServer, clearSyncedDataFromLocalStorage } from '../utils/dataSync';
 
 interface FamilyMember {
   id: string;
@@ -35,6 +34,8 @@ export function Settings() {
   const [pendingInvites, setPendingInvites] = useState<{ id: string; familyId: string; familyName?: string }[]>([]);
   const [inviteActionLoading, setInviteActionLoading] = useState<string | null>(null);
   const [syncingToCloud, setSyncingToCloud] = useState(false);
+  const [wipePending, setWipePending] = useState(false);
+  const [wiping, setWiping] = useState(false);
 
   useEffect(() => {
     if (session?.access_token && familyId) {
@@ -256,6 +257,36 @@ export function Settings() {
       toast.error('Failed to send invitation');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleWipeAllData = async () => {
+    if (!wipePending) {
+      setWipePending(true);
+      return;
+    }
+    setWiping(true);
+    setWipePending(false);
+    try {
+      // Reset localStorage to defaults
+      clearSyncedDataFromLocalStorage();
+      for (const key of SYNCED_DATA_KEYS) {
+        const def = SYNCED_DATA_DEFAULTS[key];
+        localStorage.setItem(key, JSON.stringify(def));
+      }
+      // Push defaults to server so every family member also gets wiped
+      if (session?.access_token) {
+        await Promise.all(
+          SYNCED_DATA_KEYS.map((key) =>
+            syncDataToServer(key, SYNCED_DATA_DEFAULTS[key], session.access_token!)
+          )
+        );
+      }
+      toast.success('All baby data has been wiped. Family account and members are untouched.');
+    } catch {
+      toast.error('Wipe failed. Try again.');
+    } finally {
+      setWiping(false);
     }
   };
 
@@ -520,6 +551,50 @@ export function Settings() {
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
             Generates a summary of the last 7 days of tracking data
           </p>
+        </div>
+
+        {/* Danger Zone */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-4 border border-red-200 dark:border-red-900">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="w-5 h-5 text-red-500" />
+            <h2 className="text-lg dark:text-white">Danger Zone</h2>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Permanently deletes all tracking data (feeds, sleeps, diapers, tummy time, notes) for the entire family. Your account and family members are kept.
+          </p>
+          {wipePending ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                Are you sure? This cannot be undone.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  disabled={wiping}
+                  onClick={handleWipeAllData}
+                >
+                  {wiping ? 'Wiping…' : 'Yes, wipe everything'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setWipePending(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              className="w-full border-red-300 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/40"
+              onClick={handleWipeAllData}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Wipe all baby data
+            </Button>
+          )}
         </div>
 
         {/* Sign Out */}
