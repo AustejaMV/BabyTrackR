@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Navigation } from "../components/Navigation";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { TimeAdjustButtons } from "../components/TimeAdjustButtons";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { ArrowLeft } from "lucide-react";
@@ -12,6 +13,85 @@ import { useGracePeriod } from "../hooks/useGracePeriod";
 import type { SleepRecord } from "../types";
 
 const POSITIONS = ["Back", "Left Side", "Right Side"];
+
+function SleepManualEntry({
+  positions,
+  onSave,
+}: {
+  positions: string[];
+  onSave: (record: SleepRecord) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [durH, setDurH] = useState("0");
+  const [durM, setDurM] = useState("");
+  const [position, setPosition] = useState(positions[0]);
+
+  const save = () => {
+    if (!date || !time || !durM) return;
+    const startTime = new Date(`${date}T${time}`).getTime();
+    const durationMs = (parseInt(durH || "0") * 60 + parseInt(durM)) * 60_000;
+    onSave({ id: `manual-${Date.now()}`, position, startTime, endTime: startTime + durationMs });
+    setOpen(false);
+    setDate(""); setTime(""); setDurH("0"); setDurM("");
+  };
+
+  if (!open) return (
+    <button type="button" onClick={() => setOpen(true)} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+      + Log a past session
+    </button>
+  );
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium dark:text-white">Log past sleep session</p>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-xs text-gray-500 dark:text-gray-400">Date</label>
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 dark:text-gray-400">Start time</label>
+          <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-xs text-gray-500 dark:text-gray-400">Hours</label>
+          <Input type="number" value={durH} onChange={(e) => setDurH(e.target.value)} min={0} placeholder="0" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 dark:text-gray-400">Minutes</label>
+          <Input type="number" value={durM} onChange={(e) => setDurM(e.target.value)} min={0} max={59} placeholder="e.g. 45" />
+        </div>
+      </div>
+      <div>
+        <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Position</label>
+        <div className="flex gap-2 flex-wrap">
+          {positions.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setPosition(p)}
+              className={`px-3 py-1.5 rounded-lg border text-sm transition-all ${
+                position === p
+                  ? "border-blue-600 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/40 dark:text-white"
+                  : "border-gray-200 dark:border-gray-600 dark:text-gray-300"
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <Button size="sm" onClick={save} disabled={!date || !time || !durM}>Save</Button>
+        <Button size="sm" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
 
 export function SleepTracking() {
   const [currentSleep, setCurrentSleep] = useState<SleepRecord | null>(null);
@@ -187,7 +267,9 @@ export function SleepTracking() {
           {currentSleep ? (
             <div className="space-y-4">
               <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg">
-                <p className="text-sm text-gray-600 dark:text-gray-400">Tracking</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+                  Started {safeFormat(currentSleep.startTime, "HH:mm")}
+                </p>
                 <p className="text-2xl text-blue-600 dark:text-blue-400">{currentSleep?.position ?? "Sleep"}</p>
                 <div className="flex items-center gap-3 mt-1">
                   <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -232,12 +314,15 @@ export function SleepTracking() {
                 <div key={sleep?.id ?? `sleep-${i}`} className="flex justify-between items-start p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                   <div>
                     <p className="dark:text-white">{sleep?.position ?? "—"}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {safeFormat(sleep?.startTime, "MMM d, h:mm a")}
+                    <p className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                      {safeFormat(sleep?.startTime, "MMM d")}
+                      {"  "}
+                      {safeFormat(sleep?.startTime, "HH:mm")}
+                      {sleep.endTime && ` → ${safeFormat(sleep.endTime, "HH:mm")}`}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <p className="text-blue-600 dark:text-blue-400">
+                    <p className="text-blue-600 dark:text-blue-400 text-sm">
                       {sleep.endTime && getDuration(sleep.startTime, sleep.endTime)}
                     </p>
                     <TimeAdjustButtons onAdjust={(min) => adjustSleepHistoryTime(sleep.id, min)} />
@@ -246,6 +331,18 @@ export function SleepTracking() {
               ))}
             </div>
           )}
+
+          <div className="mt-4 border-t border-gray-100 dark:border-gray-700 pt-4">
+            <SleepManualEntry
+              positions={POSITIONS}
+              onSave={(record) => {
+                const updated = [...sleepHistory, record].sort((a, b) => a.startTime - b.startTime);
+                setSleepHistory(updated);
+                localStorage.setItem("sleepHistory", JSON.stringify(updated));
+                if (session?.access_token) saveData("sleepHistory", updated, session.access_token);
+              }}
+            />
+          </div>
         </div>
       </div>
 

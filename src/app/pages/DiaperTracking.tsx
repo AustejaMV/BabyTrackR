@@ -171,7 +171,7 @@ export function DiaperTracking() {
                     <div>
                       <p className="text-lg dark:text-white">{typeInfo?.label}</p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {safeFormat(diaper?.timestamp, "MMM d, h:mm a")}
+                        {safeFormat(diaper?.timestamp, "MMM d, HH:mm")}
                       </p>
                     </div>
                   </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Navigation } from "../components/Navigation";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { TimeAdjustButtons } from "../components/TimeAdjustButtons";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
@@ -12,6 +13,52 @@ import { safeFormat, formatDurationMs } from "../utils/dateUtils";
 import { useGracePeriod } from "../hooks/useGracePeriod";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
 import type { TummyTimeRecord } from "../types";
+
+function TummyManualEntry({ onSave }: { onSave: (record: TummyTimeRecord) => void }) {
+  const [open, setOpen] = useState(false);
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [durM, setDurM] = useState("");
+
+  const save = () => {
+    if (!date || !time || !durM) return;
+    const startTime = new Date(`${date}T${time}`).getTime();
+    const durationMs = parseInt(durM) * 60_000;
+    onSave({ id: `manual-${Date.now()}`, startTime, endTime: startTime + durationMs });
+    setOpen(false);
+    setDate(""); setTime(""); setDurM("");
+  };
+
+  if (!open) return (
+    <button type="button" onClick={() => setOpen(true)} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+      + Log a past session
+    </button>
+  );
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium dark:text-white">Log past tummy time</p>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-xs text-gray-500 dark:text-gray-400">Date</label>
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 dark:text-gray-400">Start time</label>
+          <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+        </div>
+      </div>
+      <div>
+        <label className="text-xs text-gray-500 dark:text-gray-400">Duration (minutes)</label>
+        <Input type="number" value={durM} onChange={(e) => setDurM(e.target.value)} min={1} placeholder="e.g. 15" />
+      </div>
+      <div className="flex gap-2">
+        <Button size="sm" onClick={save} disabled={!date || !time || !durM}>Save</Button>
+        <Button size="sm" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
 
 export function TummyTime() {
   const [currentSession, setCurrentSession] = useState<TummyTimeRecord | null>(null);
@@ -185,7 +232,7 @@ export function TummyTime() {
                   {formatDurationMs(elapsedTime)}
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                  Started at {safeFormat(currentSession?.startTime, "h:mm a")}
+                  Started at {safeFormat(currentSession?.startTime, "HH:mm")}
                 </p>
                 <TimeAdjustButtons onAdjust={adjustActiveTime} className="justify-center" />
               </div>
@@ -230,19 +277,32 @@ export function TummyTime() {
                 .map((s) => (
                   <div key={s.id} className="flex justify-between items-start p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div>
-                      <p className="dark:text-white">{safeFormat(s?.startTime, "MMM d")}</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{safeFormat(s?.startTime, "h:mm a")}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <p className="text-blue-600 dark:text-blue-400">
+                      <p className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                        {safeFormat(s?.startTime, "MMM d")}
+                        {"  "}
+                        {safeFormat(s?.startTime, "HH:mm")}
+                        {s.endTime && ` → ${safeFormat(s.endTime, "HH:mm")}`}
+                      </p>
+                      <p className="text-blue-600 dark:text-blue-400 mt-0.5">
                         {s.endTime && formatDurationMs(s.endTime - s.startTime)}
                       </p>
-                      <TimeAdjustButtons onAdjust={(min) => adjustHistoryTime(s.id, min)} />
                     </div>
+                    <TimeAdjustButtons onAdjust={(min) => adjustHistoryTime(s.id, min)} />
                   </div>
                 ))}
             </div>
           )}
+
+          <div className="mt-4 border-t border-gray-100 dark:border-gray-700 pt-4">
+            <TummyManualEntry
+              onSave={(record) => {
+                const updated = [...tummyTimeHistory, record].sort((a, b) => a.startTime - b.startTime);
+                setTummyTimeHistory(updated);
+                localStorage.setItem("tummyTimeHistory", JSON.stringify(updated));
+                if (session?.access_token) saveData("tummyTimeHistory", updated, session.access_token);
+              }}
+            />
+          </div>
         </div>
       </div>
 

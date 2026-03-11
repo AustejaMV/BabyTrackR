@@ -164,17 +164,22 @@ export function FeedingTracking() {
     }
   }, []);
 
-  // Live timers: total session + current segment (paused time excluded)
+  // Live timers: current segment + derive total from segment sum
   useEffect(() => {
     if (!session || isPaused) return;
     const interval = setInterval(() => {
       const now = Date.now();
-      setTotalElapsedMs(now - session.sessionStartTime - totalPausedMs);
       const last = session.segments[session.segments.length - 1];
-      if (last?.startTime != null) setCurrentSegmentElapsedMs(now - (last.endTime ?? last.startTime));
+      const currentSegMs = last?.startTime != null ? now - (last.endTime ?? last.startTime) : 0;
+      setCurrentSegmentElapsedMs(currentSegMs);
+      // Total = completed segment wall-clock durations + current segment elapsed
+      const completedMs = session.segments
+        .slice(0, -1)
+        .reduce((sum, seg) => sum + ((seg.endTime ?? 0) - seg.startTime), 0);
+      setTotalElapsedMs(completedMs + currentSegMs);
     }, 1000);
     return () => clearInterval(interval);
-  }, [session, isPaused, totalPausedMs]);
+  }, [session, isPaused]);
 
   // Sync active session to server when a LOCAL action changed the state
   useEffect(() => {
@@ -259,7 +264,8 @@ export function FeedingTracking() {
       durationMs: s.endTime! - s.startTime,
       amount: s.amount,
     }));
-    const totalDurationMs = now - session.sessionStartTime - totalPausedMs;
+    // Sum segment wall-clock durations — immune to any sessionStartTime drift
+    const totalDurationMs = segments.reduce((sum, seg) => sum + (seg.endTime! - seg.startTime), 0);
     const newFeeding: FeedingRecord = {
       id: now.toString(),
       timestamp: now,
@@ -288,24 +294,64 @@ export function FeedingTracking() {
   };
 
   const adjustActiveFeedingTime = (mins: number) => {
-    if (!session) return;
+    if (!session || session.segments.length === 0) return;
     const delta = mins * 60_000;
-    const updated = { ...session, sessionStartTime: session.sessionStartTime - delta };
+    const segs = [...session.segments];
+    segs[0] = { ...segs[0], startTime: segs[0].startTime - delta };
+    const updated = { ...session, sessionStartTime: segs[0].startTime, segments: segs };
     lastLocalActionAt.current = Date.now();
     setSession(updated);
-    setTotalElapsedMs((t) => t + delta);
+    // totalElapsedMs is recomputed from segments on next timer tick
   };
 
   const adjustFeedingHistoryTime = (id: string, mins: number) => {
     const delta = mins * 60_000;
-    const updated = feedingHistory.map((f) =>
-      f.id === id
-        ? { ...f, startTime: f.startTime - delta, durationMs: (f.durationMs ?? 0) + delta }
-        : f,
-    );
+    const updated = feedingHistory.map((f) => {
+      if (f.id !== id) return f;
+      const segs = f.segments
+        ? f.segments.map((seg, i) =>
+            i === 0
+              ? { ...seg, startTime: seg.startTime - delta, durationMs: (seg.durationMs ?? 0) + delta }
+              : seg,
+          )
+        : [];
+      const newDurationMs = segs.length > 0
+        ? segs.reduce((sum, seg) => sum + (seg.durationMs ?? 0), 0)
+        : (f.durationMs ?? 0) + delta;
+      return { ...f, startTime: f.startTime - delta, segments: segs, durationMs: newDurationMs };
+    });
     setFeedingHistory(updated);
     localStorage.setItem("feedingHistory", JSON.stringify(updated));
     if (authSession?.access_token) saveData("feedingHistory", updated, authSession.access_token);
+  };
+
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [manualDate, setManualDate] = useState("");
+  const [manualTime, setManualTime] = useState("");
+  const [manualDurH, setManualDurH] = useState("0");
+  const [manualDurM, setManualDurM] = useState("");
+  const [manualType, setManualType] = useState(FEEDING_TYPES[0]);
+
+  const saveManualFeeding = () => {
+    if (!manualDate || !manualTime || !manualDurM) return;
+    const startTime = new Date(`${manualDate}T${manualTime}`).getTime();
+    const durationMs = (parseInt(manualDurH || "0") * 60 + parseInt(manualDurM)) * 60_000;
+    const endTime = startTime + durationMs;
+    const seg: FeedingSegment = { type: manualType, startTime, endTime, durationMs };
+    const entry: FeedingRecord = {
+      id: `manual-${Date.now()}`,
+      timestamp: endTime,
+      startTime,
+      endTime,
+      durationMs,
+      segments: [seg],
+    };
+    const updated = [...feedingHistory, entry].sort((a, b) => a.startTime - b.startTime);
+    setFeedingHistory(updated);
+    localStorage.setItem("feedingHistory", JSON.stringify(updated));
+    if (authSession?.access_token) saveData("feedingHistory", updated, authSession.access_token);
+    setShowManualEntry(false);
+    setManualDate(""); setManualTime(""); setManualDurH("0"); setManualDurM(""); setManualType(FEEDING_TYPES[0]);
   };
 
   const getNextFeedingTime = () => {
@@ -358,7 +404,7 @@ export function FeedingTracking() {
               <h2 className="text-lg">Next Feeding</h2>
             </div>
             <p className="text-3xl mb-1">
-              {nextFeedingTime && safeFormat(nextFeedingTime.getTime(), "h:mm a")}
+              {nextFeedingTime && safeFormat(nextFeedingTime.getTime(), "HH:mm")}
             </p>
             <p className="text-green-100">in {getTimeUntilNext()}</p>
             <div className="mt-3 flex items-center gap-2">
@@ -433,8 +479,11 @@ export function FeedingTracking() {
           ) : (
             <div className="space-y-4">
               <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+                  Started {safeFormat(session.sessionStartTime, "HH:mm")}
+                </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Total time {isPaused && "(paused)"}</p>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 mt-1">
                   <p className="text-3xl font-mono text-green-600 dark:text-green-400">
                     {formatDurationMs(totalElapsedMs)}
                   </p>
@@ -552,21 +601,20 @@ export function FeedingTracking() {
                   <div key={feeding.id} className="flex flex-col gap-1 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div className="flex justify-between items-start">
                       <div>
-                        {hasSegments ? (
-                          <p className="dark:text-white font-medium">
-                            {formatDurationShort(feeding.durationMs ?? 0)} total
-                          </p>
-                        ) : (
-                          <p className="dark:text-white font-medium">{feeding.type ?? "Feeding"}</p>
-                        )}
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {safeFormat(endTime, "MMM d, h:mm a")}
-                          {feeding.durationMs != null && ` · ${formatDurationMs(feeding.durationMs)}`}
+                        <p className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                          {safeFormat(feeding.startTime ?? feeding.timestamp, "MMM d")}
+                          {"  "}
+                          {safeFormat(feeding.startTime ?? feeding.timestamp, "HH:mm")}
+                          {" → "}
+                          {safeFormat(endTime, "HH:mm")}
+                        </p>
+                        <p className="dark:text-white font-medium mt-0.5">
+                          {feeding.durationMs != null ? formatDurationMs(feeding.durationMs) : "—"} total
                         </p>
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         {totalMl > 0 && (
-                          <p className="text-green-600 dark:text-green-400 font-medium">{totalMl} ml</p>
+                          <p className="text-green-600 dark:text-green-400 font-medium text-sm">{totalMl} ml</p>
                         )}
                         <TimeAdjustButtons onAdjust={(min) => adjustFeedingHistoryTime(feeding.id, min)} />
                       </div>
@@ -586,6 +634,69 @@ export function FeedingTracking() {
               })}
             </div>
           )}
+
+          <div className="mt-4 border-t border-gray-100 dark:border-gray-700 pt-4">
+            {!showManualEntry ? (
+              <button
+                type="button"
+                onClick={() => setShowManualEntry(true)}
+                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                + Log a past feeding
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm font-medium dark:text-white">Log past feeding</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-500 dark:text-gray-400">Date</label>
+                    <Input type="date" value={manualDate} onChange={(e) => setManualDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 dark:text-gray-400">Start time</label>
+                    <Input type="time" value={manualTime} onChange={(e) => setManualTime(e.target.value)} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-500 dark:text-gray-400">Hours</label>
+                    <Input type="number" value={manualDurH} onChange={(e) => setManualDurH(e.target.value)} min={0} placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 dark:text-gray-400">Minutes</label>
+                    <Input type="number" value={manualDurM} onChange={(e) => setManualDurM(e.target.value)} min={0} max={59} placeholder="e.g. 30" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Type</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {FEEDING_TYPES.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setManualType(t)}
+                        className={`p-2 rounded-lg border text-sm transition-all ${
+                          manualType === t
+                            ? "border-green-600 bg-green-50 dark:border-green-500 dark:bg-green-900/40 dark:text-white"
+                            : "border-gray-200 dark:border-gray-600 dark:text-gray-300"
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={saveManualFeeding} disabled={!manualDate || !manualTime || !manualDurM}>
+                    Save
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setShowManualEntry(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
