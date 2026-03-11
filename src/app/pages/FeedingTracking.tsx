@@ -7,58 +7,18 @@ import { addHours } from "date-fns";
 import { ArrowLeft, Clock, Pause, Play, Square } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
-import { saveData, syncDataToServer, loadAllDataFromServer } from "../utils/dataSync";
-import { safeFormat } from "../utils/dateUtils";
+import { saveData, syncDataToServer, loadAllDataFromServer, POLL_MS_ACTIVE, POLL_MS_IDLE } from "../utils/dataSync";
+import { safeFormat, formatDurationMs, formatDurationShort } from "../utils/dateUtils";
+import { useGracePeriod } from "../hooks/useGracePeriod";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
 import { toast } from "sonner";
-
-export interface FeedingSegment {
-  type: string;
-  startTime: number;
-  endTime: number;
-  durationMs: number;
-  amount?: number;
-}
-
-export interface FeedingRecord {
-  id: string;
-  /** Single type for backward compat when no segments (legacy or simple feed). */
-  type?: string;
-  timestamp: number;
-  amount?: number;
-  startTime?: number;
-  endTime?: number;
-  durationMs?: number;
-  /** When present, one feeding session with multiple segments (e.g. 30m left, 10m right, 20m formula 60ml). */
-  segments?: FeedingSegment[];
-}
+import type { FeedingRecord, FeedingSegment, ActiveSession, ActiveFeedingSession } from "../types";
 
 const FEEDING_TYPES = ["Left breast", "Right breast", "Formula", "Solids"];
-
 const ACTIVE_SESSION_KEY = "feedingActiveSession";
-const FEEDING_POLL_MS = 4 * 1000; // same as Dashboard so we see them start/stop while on this tab
 
 function getLastFeedingEndTime(f: FeedingRecord): number {
   return f.endTime ?? f.timestamp;
-}
-
-function formatDuration(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
-
-function formatDurationShort(ms: number): string {
-  const minutes = Math.floor(ms / 60000);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h ${minutes % 60}m`;
-}
-
-interface ActiveSession {
-  sessionStartTime: number;
-  segments: { type: string; startTime: number; endTime?: number; amount?: number }[];
 }
 
 export function FeedingTracking() {
@@ -73,46 +33,58 @@ export function FeedingTracking() {
   const [totalPausedMs, setTotalPausedMs] = useState(0);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
   const { session: authSession, familyId } = useAuth();
-  const GRACE_MS = 5000;
-  const lastStartedAtRef = useRef(0);  // set on start — prevents null from server clearing it
-  const lastStoppedAtRef = useRef(0);  // set on stop  — prevents old session from restoring
-  const lastLocalActionAtRef = useRef(0); // set on any action — gates persistActiveSession sync
 
-  // Poll when on this tab so we see the other person start/stop feeding (like same screen)
+  const grace = useGracePeriod();
+  // Tracks the last time a local action was taken; gates the persistActiveSession server sync.
+  const lastLocalActionAt = useRef(0);
+  const SYNC_GRACE_MS = 5_000;
+
+  // Poll for family data with dynamic rate
   useEffect(() => {
     if (!authSession?.access_token || !familyId) return;
+
+    const pollMsRef = { current: POLL_MS_IDLE };
+    const timerRef = { current: 0 as unknown as ReturnType<typeof setInterval> };
+
+    const reschedule = () => {
+      clearInterval(timerRef.current);
+      timerRef.current = setInterval(refetch, pollMsRef.current);
+    };
+
     const refetch = () => {
       loadAllDataFromServer(authSession.access_token).then(({ ok, data: serverData }) => {
         if (!ok || !serverData) return;
-        const remote = serverData.feedingActiveSession as typeof session | null | undefined;
+
+        const remote = serverData.feedingActiveSession as ActiveFeedingSession | null | undefined;
+
         // Always persist history so it survives tab navigation
         if (serverData.feedingHistory != null) {
-          try {
-            localStorage.setItem("feedingHistory", JSON.stringify(serverData.feedingHistory));
-          } catch {
-            // ignore
-          }
+          try { localStorage.setItem("feedingHistory", JSON.stringify(serverData.feedingHistory)); } catch { /* ignore */ }
         }
+
         if (remote != null && remote.session?.segments) {
-          // Server says active — skip if WE just stopped (our stop save may not have arrived yet)
-          if (Date.now() - lastStoppedAtRef.current < GRACE_MS) return;
+          // Server says active — skip if WE just stopped (save may not have arrived yet)
+          if (grace.isInStopGrace()) return;
           try { localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(remote)); } catch { /* ignore */ }
           const now = Date.now();
-          const r = remote as { session: ActiveSession; isPaused?: boolean; totalPausedMs?: number; pausedAt?: number | null };
-          let totalPaused = r.totalPausedMs ?? 0;
-          if (r.isPaused && r.pausedAt != null) totalPaused += now - r.pausedAt;
-          const start = (r as { serverStartTime?: number }).serverStartTime ?? r.session.sessionStartTime;
-          setSession({ ...r.session, sessionStartTime: start });
-          setIsPaused(!!r.isPaused);
+          let totalPaused = remote.totalPausedMs ?? 0;
+          if (remote.isPaused && remote.pausedAt != null) totalPaused += now - remote.pausedAt;
+          // Use session.sessionStartTime (set by the originating client at the moment the
+          // session was created). serverStartTime is set by the server when it RECEIVES the
+          // first save, so it can be minutes late if there was a network delay — using it
+          // would shorten the displayed/stored duration by that delay.
+          const start = remote.session.sessionStartTime;
+          setSession({ sessionStartTime: start, segments: remote.session.segments });
+          setIsPaused(!!remote.isPaused);
           setTotalPausedMs(totalPaused);
-          setPausedAt(r.isPaused ? now : null);
+          setPausedAt(remote.isPaused ? now : null);
           setTotalElapsedMs(now - start - totalPaused);
-          const last = r.session.segments[r.session.segments.length - 1];
+          const last = remote.session.segments[remote.session.segments.length - 1];
           setCurrentSegmentElapsedMs(last ? now - (last.endTime ?? last.startTime) : 0);
           setFeedingHistory(JSON.parse(localStorage.getItem("feedingHistory") || "[]"));
         } else {
-          // Server says null — skip if WE just started (our start save may not have arrived yet)
-          if (Date.now() - lastStartedAtRef.current < GRACE_MS) return;
+          // Server says null — skip if WE just started (save may not have arrived yet)
+          if (grace.isInStartGrace()) return;
           try { localStorage.removeItem(ACTIVE_SESSION_KEY); } catch { /* ignore */ }
           setSession(null);
           setIsPaused(false);
@@ -120,38 +92,41 @@ export function FeedingTracking() {
           setPausedAt(null);
           setFeedingHistory(JSON.parse(localStorage.getItem("feedingHistory") || "[]"));
         }
+
+        const next = remote != null ? POLL_MS_ACTIVE : POLL_MS_IDLE;
+        if (next !== pollMsRef.current) { pollMsRef.current = next; reschedule(); }
       });
     };
+
     refetch();
-    const id = setInterval(refetch, FEEDING_POLL_MS);
-    return () => clearInterval(id);
+    timerRef.current = setInterval(refetch, pollMsRef.current);
+    return () => clearInterval(timerRef.current);
   }, [authSession?.access_token, familyId]);
 
-  // Persist active session so it survives leaving the tab (no cancel/pause on navigate away)
-  const persistActiveSession = (s: ActiveSession | null, paused: boolean, pausedMs: number, pausedAtVal: number | null) => {
+  // Persist active session to localStorage so it survives tab navigation
+  const persistActiveSession = (
+    s: ActiveSession | null,
+    paused: boolean,
+    pausedMs: number,
+    pausedAtVal: number | null,
+  ) => {
     if (!s) {
-      try {
-        localStorage.removeItem(ACTIVE_SESSION_KEY);
-      } catch {
-        // ignore
-      }
+      try { localStorage.removeItem(ACTIVE_SESSION_KEY); } catch { /* ignore */ }
       return;
     }
     try {
       localStorage.setItem(
         ACTIVE_SESSION_KEY,
-        JSON.stringify({ session: s, isPaused: paused, totalPausedMs: pausedMs, pausedAt: pausedAtVal })
+        JSON.stringify({ session: s, isPaused: paused, totalPausedMs: pausedMs, pausedAt: pausedAtVal }),
       );
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   };
 
+  // Load from localStorage on mount
   useEffect(() => {
     const historyData = localStorage.getItem("feedingHistory");
-    if (historyData) {
-      setFeedingHistory(JSON.parse(historyData));
-    }
+    if (historyData) setFeedingHistory(JSON.parse(historyData));
+
     const intervalData = localStorage.getItem("feedingInterval");
     if (intervalData && intervalData !== "[]") {
       try {
@@ -162,24 +137,23 @@ export function FeedingTracking() {
         setFeedingInterval(intervalData);
       }
     }
-    // Restore active feeding session if user left the tab and came back
+
     const saved = localStorage.getItem(ACTIVE_SESSION_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        const { session: savedSession, isPaused: savedPaused, totalPausedMs: savedTotalPausedMs, pausedAt: savedPausedAt, serverStartTime } = parsed;
+        const { session: savedSession, isPaused: savedPaused, totalPausedMs: savedTotalPausedMs, pausedAt: savedPausedAt } = parsed;
         if (savedSession?.sessionStartTime != null && Array.isArray(savedSession?.segments)) {
           const now = Date.now();
           let totalPaused = savedTotalPausedMs ?? 0;
-          if (savedPaused && savedPausedAt != null) {
-            totalPaused += now - savedPausedAt;
-          }
-          const canonicalStart = typeof serverStartTime === "number" ? serverStartTime : savedSession.sessionStartTime;
-          setSession({ ...savedSession, sessionStartTime: canonicalStart });
+          if (savedPaused && savedPausedAt != null) totalPaused += now - savedPausedAt;
+          // Always use sessionStartTime (client-set at session creation) — never serverStartTime
+          const start = savedSession.sessionStartTime;
+          setSession({ sessionStartTime: start, segments: savedSession.segments });
           setIsPaused(!!savedPaused);
           setTotalPausedMs(totalPaused);
-          setPausedAt(savedPaused ? now : null); // "paused since" we returned to the tab
-          setTotalElapsedMs(now - canonicalStart - totalPaused);
+          setPausedAt(savedPaused ? now : null);
+          setTotalElapsedMs(now - start - totalPaused);
           const last = savedSession.segments[savedSession.segments.length - 1];
           setCurrentSegmentElapsedMs(last ? now - (last.endTime ?? last.startTime) : 0);
         }
@@ -189,30 +163,29 @@ export function FeedingTracking() {
     }
   }, []);
 
-  // Timers: total session + current segment (paused time excluded)
+  // Live timers: total session + current segment (paused time excluded)
   useEffect(() => {
     if (!session || isPaused) return;
     const interval = setInterval(() => {
       const now = Date.now();
       setTotalElapsedMs(now - session.sessionStartTime - totalPausedMs);
       const last = session.segments[session.segments.length - 1];
-      if (last && last.startTime != null) {
-        setCurrentSegmentElapsedMs(now - (last.endTime ?? last.startTime));
-      }
+      if (last?.startTime != null) setCurrentSegmentElapsedMs(now - (last.endTime ?? last.startTime));
     }, 1000);
     return () => clearInterval(interval);
   }, [session, isPaused, totalPausedMs]);
 
+  // Sync active session to server when a LOCAL action changed the state
   useEffect(() => {
     persistActiveSession(session, isPaused, totalPausedMs, pausedAt);
-    // Only sync when the state change came from a local action (within grace window).
-    // State changes from polls must not be written back — that would resurrect a stopped session.
-    if (Date.now() - lastLocalActionAtRef.current > GRACE_MS) return;
+    // Only sync when the state change came from a local action (within sync grace window).
+    // Polls must not write back — that would resurrect a stopped session.
+    if (Date.now() - lastLocalActionAt.current > SYNC_GRACE_MS) return;
     if (authSession?.access_token && session) {
       syncDataToServer(
         "feedingActiveSession",
         { session, isPaused, totalPausedMs, pausedAt },
-        authSession.access_token
+        authSession.access_token,
       );
     }
   }, [session, isPaused, totalPausedMs, pausedAt, authSession?.access_token]);
@@ -220,18 +193,14 @@ export function FeedingTracking() {
   const startFeeding = () => {
     const now = Date.now();
     const amount = selectedType === "Formula" && formulaAmount ? parseFloat(formulaAmount) : undefined;
-    lastStartedAtRef.current = Date.now();
-    lastLocalActionAtRef.current = Date.now();
-    setSession({
-      sessionStartTime: now,
-      segments: [{ type: selectedType, startTime: now, amount }],
-    });
+    grace.markStarted();
+    lastLocalActionAt.current = now;
+    setSession({ sessionStartTime: now, segments: [{ type: selectedType, startTime: now, amount }] });
     setTotalElapsedMs(0);
     setCurrentSegmentElapsedMs(0);
     setIsPaused(false);
     setTotalPausedMs(0);
     setPausedAt(null);
-    // End sleep only when user actually starts feeding (not when just visiting the tab)
     const ended = endCurrentSleepIfActive((sleepHistory) => {
       if (authSession?.access_token) {
         saveData("sleepHistory", sleepHistory, authSession.access_token);
@@ -245,11 +214,10 @@ export function FeedingTracking() {
     if (!session || session.segments.length === 0) return;
     const now = Date.now();
     const segs = [...session.segments];
-    const last = segs[segs.length - 1];
-    segs[segs.length - 1] = { ...last, endTime: now };
+    segs[segs.length - 1] = { ...segs[segs.length - 1], endTime: now };
     const amount = type === "Formula" && formulaAmount ? parseFloat(formulaAmount) : undefined;
     segs.push({ type, startTime: now, amount });
-    lastLocalActionAtRef.current = Date.now();
+    lastLocalActionAt.current = now;
     setSession({ ...session, segments: segs });
     setCurrentSegmentElapsedMs(0);
     if (type === "Formula") setFormulaAmount("");
@@ -259,20 +227,20 @@ export function FeedingTracking() {
     if (!session || session.segments.length === 0) return;
     const segs = [...session.segments];
     segs[segs.length - 1].amount = ml;
-    lastLocalActionAtRef.current = Date.now();
+    lastLocalActionAt.current = Date.now();
     setSession({ ...session, segments: segs });
   };
 
   const pauseFeeding = () => {
     if (!session || isPaused) return;
-    lastLocalActionAtRef.current = Date.now();
+    lastLocalActionAt.current = Date.now();
     setPausedAt(Date.now());
     setIsPaused(true);
   };
 
   const resumeFeeding = () => {
     if (!session || !isPaused || pausedAt == null) return;
-    lastLocalActionAtRef.current = Date.now();
+    lastLocalActionAt.current = Date.now();
     setTotalPausedMs((prev) => prev + (Date.now() - pausedAt));
     setPausedAt(null);
     setIsPaused(false);
@@ -281,11 +249,8 @@ export function FeedingTracking() {
   const endFeeding = () => {
     if (!session || session.segments.length === 0) return;
     const now = Date.now();
-    const segs = session.segments.map((s, i) => ({
-      ...s,
-      endTime: s.endTime ?? now,
-    }));
-    if (segs.length > 0) segs[segs.length - 1] = { ...segs[segs.length - 1], endTime: now };
+    const segs = session.segments.map((s) => ({ ...s, endTime: s.endTime ?? now }));
+    segs[segs.length - 1] = { ...segs[segs.length - 1], endTime: now };
     const segments: FeedingSegment[] = segs.map((s) => ({
       type: s.type,
       startTime: s.startTime,
@@ -303,8 +268,8 @@ export function FeedingTracking() {
       segments,
     };
     const updated = [...feedingHistory, newFeeding];
-    lastStoppedAtRef.current = Date.now();
-    lastLocalActionAtRef.current = Date.now();
+    grace.markStopped();
+    lastLocalActionAt.current = now;
     setFeedingHistory(updated);
     localStorage.setItem("feedingHistory", JSON.stringify(updated));
     setSession(null);
@@ -312,11 +277,7 @@ export function FeedingTracking() {
     setIsPaused(false);
     setTotalPausedMs(0);
     setPausedAt(null);
-    try {
-      localStorage.removeItem(ACTIVE_SESSION_KEY);
-    } catch {
-      // ignore
-    }
+    try { localStorage.removeItem(ACTIVE_SESSION_KEY); } catch { /* ignore */ }
     if (authSession?.access_token) {
       syncDataToServer("feedingActiveSession", null, authSession.access_token);
       saveData("feedingHistory", updated, authSession.access_token);
@@ -328,9 +289,8 @@ export function FeedingTracking() {
   const getNextFeedingTime = () => {
     if (feedingHistory.length === 0) return null;
     const lastFeeding = feedingHistory[feedingHistory.length - 1];
-    const lastEnd = getLastFeedingEndTime(lastFeeding);
     const interval = parseInt(feedingInterval, 10) || 3;
-    return addHours(new Date(lastEnd), interval);
+    return addHours(new Date(getLastFeedingEndTime(lastFeeding)), interval);
   };
 
   const getTimeUntilNext = () => {
@@ -343,19 +303,16 @@ export function FeedingTracking() {
     return `${hours}h ${minutes}m`;
   };
 
-  // Chart: total ml per feeding (sum of segment amounts)
-  const chartData = feedingHistory
-    .slice(-20)
-    .map((feeding, index) => {
-      const totalMl = feeding.segments
-        ? feeding.segments.reduce((sum, s) => sum + (s.amount ?? 0), 0)
-        : feeding.amount ?? 0;
-      return {
-        index: index + 1,
-        time: safeFormat(getLastFeedingEndTime(feeding), "HH:mm", ""),
-        amount: totalMl,
-      };
-    });
+  const chartData = feedingHistory.slice(-20).map((feeding, index) => {
+    const totalMl = feeding.segments
+      ? feeding.segments.reduce((sum, s) => sum + (s.amount ?? 0), 0)
+      : feeding.amount ?? 0;
+    return {
+      index: index + 1,
+      time: safeFormat(getLastFeedingEndTime(feeding), "HH:mm", ""),
+      amount: totalMl,
+    };
+  });
 
   const nextFeedingTime = getNextFeedingTime();
   const currentSegment = session?.segments[session.segments.length - 1];
@@ -393,9 +350,7 @@ export function FeedingTracking() {
                   const valueToSave = (!val || val < 1) ? "1" : e.target.value;
                   setFeedingInterval(valueToSave);
                   localStorage.setItem("feedingInterval", valueToSave);
-                  if (authSession?.access_token) {
-                    saveData("feedingInterval", valueToSave, authSession.access_token);
-                  }
+                  if (authSession?.access_token) saveData("feedingInterval", valueToSave, authSession.access_token);
                 }}
                 className="w-16 bg-white dark:bg-gray-800 text-black dark:text-white border dark:border-gray-600"
                 min={1}
@@ -458,7 +413,7 @@ export function FeedingTracking() {
               <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg">
                 <p className="text-sm text-gray-500 dark:text-gray-400">Total time {isPaused && "(paused)"}</p>
                 <p className="text-3xl font-mono text-green-600 dark:text-green-400">
-                  {formatDuration(totalElapsedMs)}
+                  {formatDurationMs(totalElapsedMs)}
                 </p>
               </div>
               {session.segments.length > 1 && (
@@ -479,7 +434,7 @@ export function FeedingTracking() {
                 <p className="text-xs text-gray-500 dark:text-gray-400">Current</p>
                 <p className="text-xl font-medium dark:text-white">{currentSegment?.type}</p>
                 <p className="text-2xl font-mono text-green-600 dark:text-green-400 mt-1">
-                  {formatDuration(currentSegmentElapsedMs)}
+                  {formatDurationMs(currentSegmentElapsedMs)}
                 </p>
                 {currentSegment?.type === "Formula" && (
                   <div className="mt-2 flex items-center gap-2">
@@ -503,13 +458,7 @@ export function FeedingTracking() {
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Switch to</p>
                 <div className="grid grid-cols-2 gap-2">
                   {FEEDING_TYPES.filter((t) => t !== currentSegment?.type).map((type) => (
-                    <Button
-                      key={type}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => switchType(type)}
-                    >
+                    <Button key={type} type="button" variant="outline" size="sm" onClick={() => switchType(type)}>
                       {type}
                     </Button>
                   ))}
@@ -532,18 +481,15 @@ export function FeedingTracking() {
               <div className="flex gap-2">
                 {isPaused ? (
                   <Button onClick={resumeFeeding} className="flex-1" size="lg" variant="outline">
-                    <Play className="w-5 h-5 mr-2" />
-                    Resume
+                    <Play className="w-5 h-5 mr-2" />Resume
                   </Button>
                 ) : (
                   <Button onClick={pauseFeeding} className="flex-1" size="lg" variant="outline">
-                    <Pause className="w-5 h-5 mr-2" />
-                    Pause
+                    <Pause className="w-5 h-5 mr-2" />Pause
                   </Button>
                 )}
                 <Button onClick={endFeeding} className="flex-1" size="lg" variant="default">
-                  <Square className="w-5 h-5 mr-2" />
-                  Feeding ended
+                  <Square className="w-5 h-5 mr-2" />Feeding ended
                 </Button>
               </div>
             </div>
@@ -571,52 +517,45 @@ export function FeedingTracking() {
             <p className="text-gray-500 dark:text-gray-400 text-center py-4">No feedings recorded yet</p>
           ) : (
             <div className="space-y-3">
-              {feedingHistory
-                .slice(-10)
-                .reverse()
-                .map((feeding) => {
-                  const endTime = getLastFeedingEndTime(feeding);
-                  const duration = feeding.durationMs != null ? formatDuration(feeding.durationMs) : null;
-                  const hasSegments = feeding.segments && feeding.segments.length > 0;
-                  const totalMl = hasSegments
-                    ? feeding.segments!.reduce((s, seg) => s + (seg.amount ?? 0), 0)
-                    : feeding.amount ?? 0;
-                  return (
-                    <div
-                      key={feeding.id}
-                      className="flex flex-col gap-1 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          {hasSegments ? (
-                            <p className="dark:text-white font-medium">
-                              {formatDurationShort(feeding.durationMs ?? 0)} total
-                            </p>
-                          ) : (
-                            <p className="dark:text-white font-medium">{feeding.type ?? "Feeding"}</p>
-                          )}
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {safeFormat(endTime, "MMM d, h:mm a")}
-                            {duration != null && ` · ${duration}`}
+              {feedingHistory.slice(-10).reverse().map((feeding) => {
+                const endTime = getLastFeedingEndTime(feeding);
+                const hasSegments = feeding.segments && feeding.segments.length > 0;
+                const totalMl = hasSegments
+                  ? feeding.segments!.reduce((s, seg) => s + (seg.amount ?? 0), 0)
+                  : feeding.amount ?? 0;
+                return (
+                  <div key={feeding.id} className="flex flex-col gap-1 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        {hasSegments ? (
+                          <p className="dark:text-white font-medium">
+                            {formatDurationShort(feeding.durationMs ?? 0)} total
                           </p>
-                        </div>
-                        {totalMl > 0 && (
-                          <p className="text-green-600 dark:text-green-400 font-medium">{totalMl} ml</p>
+                        ) : (
+                          <p className="dark:text-white font-medium">{feeding.type ?? "Feeding"}</p>
                         )}
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {safeFormat(endTime, "MMM d, h:mm a")}
+                          {feeding.durationMs != null && ` · ${formatDurationMs(feeding.durationMs)}`}
+                        </p>
                       </div>
-                      {hasSegments && feeding.segments!.length > 0 && (
-                        <ul className="text-xs text-gray-600 dark:text-gray-400 mt-1 space-y-0.5">
-                          {feeding.segments!.map((seg, i) => (
-                            <li key={i}>
-                              {seg.type}: {formatDurationShort(seg.durationMs)}
-                              {seg.amount != null && seg.amount > 0 && ` · ${seg.amount} ml`}
-                            </li>
-                          ))}
-                        </ul>
+                      {totalMl > 0 && (
+                        <p className="text-green-600 dark:text-green-400 font-medium">{totalMl} ml</p>
                       )}
                     </div>
-                  );
-                })}
+                    {hasSegments && feeding.segments!.length > 0 && (
+                      <ul className="text-xs text-gray-600 dark:text-gray-400 mt-1 space-y-0.5">
+                        {feeding.segments!.map((seg, i) => (
+                          <li key={i}>
+                            {seg.type}: {formatDurationShort(seg.durationMs)}
+                            {seg.amount != null && seg.amount > 0 && ` · ${seg.amount} ml`}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

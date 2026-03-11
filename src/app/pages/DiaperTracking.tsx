@@ -1,21 +1,13 @@
 import { useState, useEffect } from "react";
 import { Navigation } from "../components/Navigation";
 import { Button } from "../components/ui/button";
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
-import { saveData, loadAllDataFromServer } from "../utils/dataSync";
+import { saveData, loadAllDataFromServer, POLL_MS_IDLE } from "../utils/dataSync";
 import { safeFormat } from "../utils/dateUtils";
-
-const DIAPER_POLL_MS = 4 * 1000;
-
-interface DiaperRecord {
-  id: string;
-  type: "pee" | "poop" | "both";
-  timestamp: number;
-  notes?: string;
-}
+import type { DiaperRecord } from "../types";
 
 const DIAPER_TYPES: Array<{ value: "pee" | "poop" | "both"; label: string; color: string }> = [
   { value: "pee", label: "💧 Pee", color: "#3b82f6" },
@@ -34,19 +26,17 @@ export function DiaperTracking() {
     const refetch = () => {
       loadAllDataFromServer(session.access_token).then(({ ok, data }) => {
         if (!ok || !data) return;
-        if (document.visibilityState !== "visible") return;
         if (data.diaperHistory != null && Array.isArray(data.diaperHistory)) {
           try {
             localStorage.setItem("diaperHistory", JSON.stringify(data.diaperHistory));
             setDiaperHistory(data.diaperHistory as DiaperRecord[]);
-          } catch {
-            // ignore
-          }
+          } catch { /* ignore */ }
         }
       });
     };
     refetch();
-    const id = setInterval(refetch, DIAPER_POLL_MS);
+    // Diapers have no live timer so idle poll rate is sufficient
+    const id = setInterval(refetch, POLL_MS_IDLE);
     return () => clearInterval(id);
   }, [session?.access_token, familyId]);
 

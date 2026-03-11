@@ -1,49 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
-
-interface SleepRecord {
-  id: string;
-  position: string;
-  startTime: number;
-  endTime?: number;
-}
-
-interface FeedingSegment {
-  type: string;
-  durationMs: number;
-  amount?: number;
-}
-
-interface FeedingRecord {
-  id: string;
-  type?: string;
-  timestamp: number;
-  amount?: number;
-  endTime?: number;
-  durationMs?: number;
-  segments?: FeedingSegment[];
-}
-
-interface DiaperRecord {
-  id: string;
-  type: 'pee' | 'poop' | 'both';
-  timestamp: number;
-}
-
-interface TummyTimeRecord {
-  id: string;
-  startTime: number;
-  endTime?: number;
-}
-
-interface Note {
-  id: string;
-  text: string;
-  createdAt: number;
-  done: boolean;
-  isPublic?: boolean;
-}
+import type { SleepRecord, FeedingRecord, DiaperRecord, TummyTimeRecord, Note } from '../types';
 
 export function generatePediatricReport() {
   const doc = new jsPDF();

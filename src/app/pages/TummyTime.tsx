@@ -6,91 +6,84 @@ import { format } from "date-fns";
 import { ArrowLeft, Play, Square } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
-import { saveData, loadAllDataFromServer } from "../utils/dataSync";
-import { safeFormat } from "../utils/dateUtils";
+import { saveData, loadAllDataFromServer, POLL_MS_ACTIVE, POLL_MS_IDLE } from "../utils/dataSync";
+import { safeFormat, formatDurationMs } from "../utils/dateUtils";
+import { useGracePeriod } from "../hooks/useGracePeriod";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
-
-const TUMMY_POLL_MS = 4 * 1000;
-
-interface TummyTimeRecord {
-  id: string;
-  startTime: number;
-  endTime?: number;
-}
+import type { TummyTimeRecord } from "../types";
 
 export function TummyTime() {
   const [currentSession, setCurrentSession] = useState<TummyTimeRecord | null>(null);
   const [tummyTimeHistory, setTummyTimeHistory] = useState<TummyTimeRecord[]>([]);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
   const { session, familyId } = useAuth();
-  const GRACE_MS = 5000;
-  const lastStartedAtRef = useRef(0);
-  const lastStoppedAtRef = useRef(0);
+  const grace = useGracePeriod();
 
+  // Poll for family data with dynamic rate
   useEffect(() => {
     if (!session?.access_token || !familyId) return;
+
+    const pollMsRef = { current: POLL_MS_IDLE };
+    const timerRef = { current: 0 as unknown as ReturnType<typeof setInterval> };
+
+    const reschedule = () => {
+      clearInterval(timerRef.current);
+      timerRef.current = setInterval(refetch, pollMsRef.current);
+    };
+
     const refetch = () => {
       loadAllDataFromServer(session.access_token).then(({ ok, data }) => {
         if (!ok || !data) return;
+
         if (data.currentTummyTime != null) {
-          if (Date.now() - lastStoppedAtRef.current < GRACE_MS) return;
+          if (grace.isInStopGrace()) return;
           try {
             localStorage.setItem("currentTummyTime", JSON.stringify(data.currentTummyTime));
             setCurrentSession(data.currentTummyTime as TummyTimeRecord);
-          } catch {
-            // ignore
-          }
+          } catch { /* ignore */ }
         } else {
-          if (Date.now() - lastStartedAtRef.current < GRACE_MS) return;
+          if (grace.isInStartGrace()) return;
           try {
             localStorage.removeItem("currentTummyTime");
             setCurrentSession(null);
-          } catch {
-            // ignore
-          }
+          } catch { /* ignore */ }
         }
+
         if (data.tummyTimeHistory != null) {
           try {
             localStorage.setItem("tummyTimeHistory", JSON.stringify(data.tummyTimeHistory));
             setTummyTimeHistory(data.tummyTimeHistory as TummyTimeRecord[]);
-          } catch {
-            // ignore
-          }
+          } catch { /* ignore */ }
         }
+
+        const next = data.currentTummyTime != null ? POLL_MS_ACTIVE : POLL_MS_IDLE;
+        if (next !== pollMsRef.current) { pollMsRef.current = next; reschedule(); }
       });
     };
+
     refetch();
-    const id = setInterval(refetch, TUMMY_POLL_MS);
-    return () => clearInterval(id);
+    timerRef.current = setInterval(refetch, pollMsRef.current);
+    return () => clearInterval(timerRef.current);
   }, [session?.access_token, familyId]);
 
+  // Load from localStorage on mount
   useEffect(() => {
     const currentData = localStorage.getItem("currentTummyTime");
     if (currentData) {
-      try {
-        setCurrentSession(JSON.parse(currentData));
-      } catch {
-        // ignore
-      }
+      try { setCurrentSession(JSON.parse(currentData)); } catch { /* ignore */ }
     }
     const historyData = localStorage.getItem("tummyTimeHistory");
     if (historyData) {
-      try {
-        setTummyTimeHistory(JSON.parse(historyData));
-      } catch {
-        // ignore
-      }
+      try { setTummyTimeHistory(JSON.parse(historyData)); } catch { /* ignore */ }
     }
   }, []);
 
-  // Update elapsed time every second when session is active
+  // Live elapsed timer
   useEffect(() => {
     if (!currentSession) return;
-
     const interval = setInterval(() => {
       setElapsedTime(Date.now() - currentSession.startTime);
     }, 1000);
-
     return () => clearInterval(interval);
   }, [currentSession]);
 
@@ -101,24 +94,18 @@ export function TummyTime() {
         saveData("currentSleep", null, session.access_token);
       }
     });
-    const newSession: TummyTimeRecord = {
-      id: Date.now().toString(),
-      startTime: Date.now(),
-    };
-    lastStartedAtRef.current = Date.now();
+    const newSession: TummyTimeRecord = { id: Date.now().toString(), startTime: Date.now() };
+    grace.markStarted();
     setCurrentSession(newSession);
     localStorage.setItem("currentTummyTime", JSON.stringify(newSession));
-    if (session?.access_token) {
-      saveData("currentTummyTime", newSession, session.access_token);
-    }
+    if (session?.access_token) saveData("currentTummyTime", newSession, session.access_token);
   };
 
   const stopSession = () => {
     if (!currentSession) return;
-
     const completedSession = { ...currentSession, endTime: Date.now() };
     const updatedHistory = [...tummyTimeHistory, completedSession];
-    lastStoppedAtRef.current = Date.now();
+    grace.markStopped();
     setTummyTimeHistory(updatedHistory);
     localStorage.setItem("tummyTimeHistory", JSON.stringify(updatedHistory));
     localStorage.removeItem("currentTummyTime");
@@ -130,29 +117,10 @@ export function TummyTime() {
     }
   };
 
-  const getDuration = (start: number, end?: number) => {
-    const duration = (end || Date.now()) - start;
-    const totalSeconds = Math.floor(duration / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-  };
-
-  const formatDuration = (ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-  };
-
-  // Get today's total tummy time
   const todayStart = new Date().setHours(0, 0, 0, 0);
-  const todaySessions = tummyTimeHistory.filter(t => t.startTime > todayStart && t.endTime);
-  const todayTotal = todaySessions.reduce((acc, session) => {
-    return acc + (session.endTime! - session.startTime);
-  }, 0);
+  const todaySessions = tummyTimeHistory.filter((t) => t.startTime > todayStart && t.endTime);
+  const todayTotal = todaySessions.reduce((acc, s) => acc + (s.endTime! - s.startTime), 0);
 
-  // Prepare chart data - last 7 days
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const date = new Date();
     date.setDate(date.getDate() - (6 - i));
@@ -163,17 +131,10 @@ export function TummyTime() {
   const chartData = last7Days.map((date) => {
     const dayStart = date.getTime();
     const dayEnd = dayStart + 24 * 60 * 60 * 1000;
-    const daySessions = tummyTimeHistory.filter(
-      t => t.startTime >= dayStart && t.startTime < dayEnd && t.endTime
-    );
-    const totalMinutes = daySessions.reduce((acc, session) => {
-      return acc + (session.endTime! - session.startTime) / 60000;
-    }, 0);
-
-    return {
-      date: format(date, "EEE"),
-      minutes: Math.round(totalMinutes),
-    };
+    const totalMinutes = tummyTimeHistory
+      .filter((t) => t.startTime >= dayStart && t.startTime < dayEnd && t.endTime)
+      .reduce((acc, t) => acc + (t.endTime! - t.startTime) / 60000, 0);
+    return { date: format(date, "EEE"), minutes: Math.round(totalMinutes) };
   });
 
   return (
@@ -188,26 +149,21 @@ export function TummyTime() {
           <h1 className="text-2xl dark:text-white">Tummy Time</h1>
         </div>
 
-        {/* Daily Goal */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-6">
           <h2 className="text-lg mb-2 dark:text-white">Today's Total</h2>
           <p className="text-4xl text-blue-600 dark:text-blue-400 mb-1">
             {Math.floor(todayTotal / 60000)} min
           </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Goal: 15-30 minutes per day
-          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Goal: 15-30 minutes per day</p>
         </div>
 
-        {/* Active Session */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-6">
           <h2 className="text-lg mb-4 dark:text-white">Current Session</h2>
-
           {currentSession ? (
             <div className="space-y-4">
               <div className="bg-blue-50 dark:bg-blue-900/30 p-6 rounded-lg text-center">
                 <p className="text-6xl text-blue-600 dark:text-blue-400 mb-2">
-                  {formatDuration(elapsedTime)}
+                  {formatDurationMs(elapsedTime)}
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-300">
                   Started at {safeFormat(currentSession?.startTime, "h:mm a")}
@@ -226,7 +182,6 @@ export function TummyTime() {
           )}
         </div>
 
-        {/* Chart */}
         {tummyTimeHistory.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-6">
             <h2 className="text-lg mb-4 dark:text-white">Last 7 Days</h2>
@@ -242,35 +197,25 @@ export function TummyTime() {
           </div>
         )}
 
-        {/* Recent History */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
           <h2 className="text-lg mb-4 dark:text-white">Recent Sessions</h2>
           {tummyTimeHistory.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-center py-4">
-              No tummy time sessions yet
-            </p>
+            <p className="text-gray-500 dark:text-gray-400 text-center py-4">No tummy time sessions yet</p>
           ) : (
             <div className="space-y-3">
               {tummyTimeHistory
-                .filter(t => t.endTime)
+                .filter((t) => t.endTime)
                 .slice(-10)
                 .reverse()
-                .map((session) => (
-                  <div
-                    key={session.id}
-                    className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                  >
+                .map((s) => (
+                  <div key={s.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div>
-                      <p className="dark:text-white">
-                        {safeFormat(session?.startTime, "MMM d")}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {safeFormat(session?.startTime, "h:mm a")}
-                      </p>
+                      <p className="dark:text-white">{safeFormat(s?.startTime, "MMM d")}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{safeFormat(s?.startTime, "h:mm a")}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-blue-600 dark:text-blue-400">
-                        {session.endTime && getDuration(session.startTime, session.endTime)}
+                        {s.endTime && formatDurationMs(s.endTime - s.startTime)}
                       </p>
                     </div>
                   </div>

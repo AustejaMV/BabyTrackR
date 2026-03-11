@@ -5,17 +5,10 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
-import { saveData, loadAllDataFromServer } from "../utils/dataSync";
-import { safeFormat } from "../utils/dateUtils";
-
-const SLEEP_POLL_MS = 4 * 1000;
-
-interface SleepRecord {
-  id: string;
-  position: string;
-  startTime: number;
-  endTime?: number;
-}
+import { saveData, loadAllDataFromServer, POLL_MS_ACTIVE, POLL_MS_IDLE } from "../utils/dataSync";
+import { safeFormat, formatLiveDuration, formatDurationShort } from "../utils/dateUtils";
+import { useGracePeriod } from "../hooks/useGracePeriod";
+import type { SleepRecord } from "../types";
 
 const POSITIONS = ["Back", "Left Side", "Right Side"];
 
@@ -25,61 +18,69 @@ export function SleepTracking() {
   const [selectedPosition, setSelectedPosition] = useState<string>("Back");
   const [, setTick] = useState(0);
   const { session, familyId } = useAuth();
-  // Grace periods to prevent race conditions where a poll fires before a save reaches the server.
-  // Each ref only guards its own transition so the OTHER transition always propagates immediately.
-  const GRACE_MS = 5000;
-  const lastStartedAtRef = useRef(0); // set when WE start — prevents null from server clearing it
-  const lastStoppedAtRef = useRef(0); // set when WE stop  — prevents old session from restoring
+  const grace = useGracePeriod();
 
-  // Tick every second while a sleep session is active so the duration updates live
+  // Live timer tick
   useEffect(() => {
     if (!currentSleep) return;
     const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
   }, [currentSleep]);
 
+  // Poll for family data with dynamic rate (fast when session active, slow when idle)
   useEffect(() => {
     if (!session?.access_token || !familyId) return;
+
+    const pollMsRef = { current: POLL_MS_IDLE };
+    const timerRef = { current: 0 as unknown as ReturnType<typeof setInterval> };
+
+    const reschedule = () => {
+      clearInterval(timerRef.current);
+      timerRef.current = setInterval(refetch, pollMsRef.current);
+    };
+
     const refetch = () => {
       loadAllDataFromServer(session.access_token).then(({ ok, data }) => {
         if (!ok || !data) return;
+
         if (data.currentSleep != null) {
-          // Server says active — skip only if WE just stopped (our stop save may not have arrived yet)
-          if (Date.now() - lastStoppedAtRef.current < GRACE_MS) return;
+          // Server says active — skip only if WE just stopped (save may not have arrived yet)
+          if (grace.isInStopGrace()) return;
           try {
             const s = data.currentSleep as SleepRecord;
             if (s?.position != null) {
               localStorage.setItem("currentSleep", JSON.stringify(s));
               setCurrentSleep(s);
             }
-          } catch {
-            // ignore
-          }
+          } catch { /* ignore */ }
         } else {
-          // Server says null — skip only if WE just started (our start save may not have arrived yet)
-          if (Date.now() - lastStartedAtRef.current < GRACE_MS) return;
+          // Server says null — skip only if WE just started (save may not have arrived yet)
+          if (grace.isInStartGrace()) return;
           try {
             localStorage.removeItem("currentSleep");
             setCurrentSleep(null);
-          } catch {
-            // ignore
-          }
+          } catch { /* ignore */ }
         }
+
         if (data.sleepHistory != null) {
           try {
             localStorage.setItem("sleepHistory", JSON.stringify(data.sleepHistory));
             setSleepHistory(data.sleepHistory as SleepRecord[]);
-          } catch {
-            // ignore
-          }
+          } catch { /* ignore */ }
         }
+
+        // Dynamic rate: fast while a session is live, slow otherwise
+        const next = data.currentSleep != null ? POLL_MS_ACTIVE : POLL_MS_IDLE;
+        if (next !== pollMsRef.current) { pollMsRef.current = next; reschedule(); }
       });
     };
+
     refetch();
-    const id = setInterval(refetch, SLEEP_POLL_MS);
-    return () => clearInterval(id);
+    timerRef.current = setInterval(refetch, pollMsRef.current);
+    return () => clearInterval(timerRef.current);
   }, [session?.access_token, familyId]);
 
+  // Load from localStorage on mount
   useEffect(() => {
     const currentData = localStorage.getItem("currentSleep");
     if (currentData) {
@@ -89,17 +90,11 @@ export function SleepTracking() {
           setCurrentSleep(saved);
           setSelectedPosition(saved.position);
         }
-      } catch {
-        // ignore
-      }
+      } catch { /* ignore */ }
     }
     const historyData = localStorage.getItem("sleepHistory");
     if (historyData) {
-      try {
-        setSleepHistory(JSON.parse(historyData));
-      } catch {
-        // ignore
-      }
+      try { setSleepHistory(JSON.parse(historyData)); } catch { /* ignore */ }
     }
   }, []);
 
@@ -109,25 +104,21 @@ export function SleepTracking() {
       position: selectedPosition,
       startTime: Date.now(),
     };
-    lastStartedAtRef.current = Date.now();
+    grace.markStarted();
     setCurrentSleep(newSleep);
     localStorage.setItem("currentSleep", JSON.stringify(newSleep));
-    if (session?.access_token) {
-      saveData("currentSleep", newSleep, session.access_token);
-    }
+    if (session?.access_token) saveData("currentSleep", newSleep, session.access_token);
   };
 
   const stopTracking = () => {
     if (!currentSleep) return;
-
     const completedSleep = { ...currentSleep, endTime: Date.now() };
     const updatedHistory = [...sleepHistory, completedSleep];
-    lastStoppedAtRef.current = Date.now();
+    grace.markStopped();
     setSleepHistory(updatedHistory);
     localStorage.setItem("sleepHistory", JSON.stringify(updatedHistory));
     localStorage.removeItem("currentSleep");
     setCurrentSleep(null);
-
     if (session?.access_token) {
       saveData("sleepHistory", updatedHistory, session.access_token);
       saveData("currentSleep", null, session.access_token);
@@ -135,22 +126,10 @@ export function SleepTracking() {
   };
 
   const getDuration = (start: number, end?: number) => {
-    const duration = (end ?? Date.now()) - start;
-    const totalSeconds = Math.floor(duration / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    if (end != null) {
-      // Completed session — no seconds needed
-      if (hours > 0) return `${hours}h ${minutes}m`;
-      return `${minutes}m`;
-    }
-    // Ongoing — show seconds
-    if (hours > 0) return `${hours}h ${minutes}m ${seconds.toString().padStart(2, "0")}s`;
-    return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
+    const ms = (end ?? Date.now()) - start;
+    return end != null ? formatDurationShort(ms) : formatLiveDuration(ms);
   };
 
-  // Prepare chart data - count by position
   const chartData = POSITIONS.map((position) => ({
     position,
     count: sleepHistory.filter((s) => s.position === position).length,
@@ -168,10 +147,8 @@ export function SleepTracking() {
           <h1 className="text-2xl dark:text-white">Sleep Position Tracking</h1>
         </div>
 
-        {/* Current Position Tracker */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-6 border border-gray-100 dark:border-gray-700">
           <h2 className="text-lg mb-4 dark:text-white">Current Position</h2>
-          
           <div className="grid grid-cols-2 gap-3 mb-4">
             {POSITIONS.map((position) => (
               <button
@@ -209,7 +186,6 @@ export function SleepTracking() {
           )}
         </div>
 
-        {/* Chart */}
         {sleepHistory.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-6 border border-gray-100 dark:border-gray-700">
             <h2 className="text-lg mb-4 dark:text-white">Position History</h2>
@@ -225,7 +201,6 @@ export function SleepTracking() {
           </div>
         )}
 
-        {/* Recent History */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
           <h2 className="text-lg mb-4 dark:text-white">Recent Sessions</h2>
           {sleepHistory.length === 0 ? (

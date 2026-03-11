@@ -1,36 +1,7 @@
 import { AlertCircle, Baby, Utensils, Droplet, Clock, Pill } from "lucide-react";
 import { useEffect, useState } from "react";
 import { maybeNotifyForWarning } from "../utils/notifications";
-
-interface SleepRecord {
-  id: string;
-  position: string;
-  startTime: number;
-  endTime?: number;
-}
-
-interface FeedingRecord {
-  id: string;
-  type?: string;
-  timestamp: number;
-  amount?: number;
-  startTime?: number;
-  endTime?: number;
-  durationMs?: number;
-  segments?: { type: string; durationMs: number; amount?: number }[];
-}
-
-interface DiaperRecord {
-  id: string;
-  type: "pee" | "poop" | "both";
-  timestamp: number;
-}
-
-interface TummyTimeRecord {
-  id: string;
-  startTime: number;
-  endTime?: number;
-}
+import type { SleepRecord, FeedingRecord, DiaperRecord, TummyTimeRecord } from "../types";
 
 const PAINKILLER_INTERVAL_HOURS = 8;
 

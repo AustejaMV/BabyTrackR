@@ -254,6 +254,35 @@ app.post("/data/save", async (c) => {
   return c.json({ success: true });
 });
 
+/** Batch save — replaces N sequential POST /data/save calls with a single request. */
+app.post("/data/save-many", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  const familyId = await kv.get(`user:${user!.id}:family`);
+  if (!familyId) return c.json({ error: "no_family" }, 400);
+  let body: any = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const updates: { dataType: string; data: unknown }[] = body?.updates ?? [];
+  if (!Array.isArray(updates) || updates.length === 0) return c.json({ error: "missing_updates" }, 400);
+  const now = Date.now();
+  await Promise.all(
+    updates.map(async ({ dataType, data: rawData }) => {
+      let data = rawData;
+      if (SESSION_DATA_TYPES.includes(dataType)) {
+        const existing = await kv.get(`data:${familyId}:${dataType}`) as { data?: unknown } | null;
+        data = normalizeSessionPayload(dataType, data, existing);
+      }
+      await kv.set(`data:${familyId}:${dataType}`, { data, updatedBy: user!.id, updatedAt: now });
+    })
+  );
+  console.log("[data/save-many]", { familyId, userId: user!.id, count: updates.length });
+  return c.json({ success: true });
+});
+
 // Register /data/all BEFORE /data/:dataType so "all" is not treated as a dataType param
 app.get("/data/all", async (c) => {
   const { user, error } = await verifyUser(c.req.header("Authorization"));
@@ -283,16 +312,6 @@ app.get("/data/all", async (c) => {
   });
 });
 
-app.get("/data/:dataType", async (c) => {
-  const { user, error } = await verifyUser(c.req.header("Authorization"));
-  if (error) return c.json({ error }, 401);
-  const familyId = await kv.get(`user:${user!.id}:family`);
-  if (!familyId) return c.json({ data: null });
-  const dataType = c.req.param("dataType");
-  const row = await kv.get(`data:${familyId}:${dataType}`);
-  return c.json({ data: row?.data ?? null });
-});
-
 const registeredRoutes = [
   "GET /health",
   "GET /family",
@@ -303,7 +322,7 @@ const registeredRoutes = [
   "POST /family/accept-invite",
   "POST /family/decline-invite",
   "POST /data/save",
-  "GET /data/:dataType",
+  "POST /data/save-many",
   "GET /data/all",
 ];
 

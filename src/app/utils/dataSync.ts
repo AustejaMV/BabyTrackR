@@ -28,7 +28,13 @@ export const SYNCED_DATA_DEFAULTS: Record<(typeof SYNCED_DATA_KEYS)[number], unk
   notes: [],
 };
 
-export async function syncDataToServer(dataType: string, data: any, accessToken: string) {
+/** Poll interval when any live session is active (feeding, sleep, tummy time). */
+export const POLL_MS_ACTIVE = 4_000;
+
+/** Poll interval when nothing is active. Slower to reduce server cost. */
+export const POLL_MS_IDLE = 20_000;
+
+export async function syncDataToServer(dataType: string, data: unknown, accessToken: string) {
   try {
     const response = await fetch(`${serverUrl}/data/save`, {
       method: 'POST',
@@ -39,7 +45,6 @@ export async function syncDataToServer(dataType: string, data: any, accessToken:
       },
       body: JSON.stringify({ dataType, data }),
     });
-    
     if (!response.ok) {
       console.error(`Error syncing ${dataType}:`, await response.text());
     }
@@ -48,20 +53,26 @@ export async function syncDataToServer(dataType: string, data: any, accessToken:
   }
 }
 
-export async function loadDataFromServer(dataType: string, accessToken: string) {
+/** Save multiple data keys in a single request. Much cheaper than N sequential saves. */
+export async function saveManyToServer(
+  updates: { dataType: string; data: unknown }[],
+  accessToken: string,
+) {
   try {
-    const response = await fetch(`${serverUrl}/data/${dataType}`, {
+    const response = await fetch(`${serverUrl}/data/save-many`, {
+      method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         'apikey': supabaseAnonKey,
         'Authorization': `Bearer ${accessToken}`,
       },
+      body: JSON.stringify({ updates }),
     });
-    
-    const result = await response.json();
-    return result.data;
+    if (!response.ok) {
+      console.error('Error in saveManyToServer:', await response.text());
+    }
   } catch (error) {
-    console.error(`Error loading ${dataType}:`, error);
-    return null;
+    console.error('Error in saveManyToServer:', error);
   }
 }
 
@@ -117,28 +128,12 @@ export async function loadAllDataFromServer(accessToken: string): Promise<LoadAl
   }
 }
 
-// Helper to save to both localStorage and server
-export function saveData(key: string, value: any, accessToken?: string) {
+/** Save to both localStorage and server. */
+export function saveData(key: string, value: unknown, accessToken?: string) {
   localStorage.setItem(key, JSON.stringify(value));
-  
   if (accessToken) {
     syncDataToServer(key, value, accessToken);
   }
-}
-
-// Helper to load from localStorage first, then sync from server
-export async function loadData(key: string, accessToken?: string) {
-  const localData = localStorage.getItem(key);
-  
-  if (accessToken) {
-    const serverData = await loadDataFromServer(key, accessToken);
-    if (serverData !== null) {
-      localStorage.setItem(key, JSON.stringify(serverData));
-      return serverData;
-    }
-  }
-  
-  return localData ? JSON.parse(localData) : null;
 }
 
 /** Clear all synced family data from localStorage (e.g. before loading a different family). */

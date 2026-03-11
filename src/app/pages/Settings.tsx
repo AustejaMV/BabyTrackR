@@ -8,20 +8,14 @@ import { Link, useNavigate } from 'react-router';
 import { serverUrl, supabaseAnonKey } from '../utils/supabase';
 import { generatePediatricReport } from '../utils/pdfExport';
 import { toast } from 'sonner';
-import { saveData, syncDataToServer, SYNCED_DATA_KEYS, SYNCED_DATA_DEFAULTS, loadAllDataFromServer, clearSyncedDataFromLocalStorage } from '../utils/dataSync';
+import { saveData, saveManyToServer, SYNCED_DATA_KEYS, SYNCED_DATA_DEFAULTS, loadAllDataFromServer, clearSyncedDataFromLocalStorage } from '../utils/dataSync';
+import type { Note } from '../types';
 
 interface FamilyMember {
   id: string;
   email?: string;
 }
 
-interface Note {
-  id: string;
-  text: string;
-  createdAt: number;
-  done: boolean;
-  isPublic?: boolean;
-}
 
 export function Settings() {
   const navigate = useNavigate();
@@ -152,17 +146,12 @@ export function Settings() {
     if (!session?.access_token) return;
     setSyncingToCloud(true);
     try {
-      for (const key of SYNCED_DATA_KEYS) {
+      const updates = SYNCED_DATA_KEYS.flatMap((key) => {
         const raw = localStorage.getItem(key);
-        if (raw) {
-          try {
-            const value = JSON.parse(raw);
-            await syncDataToServer(key, value, session.access_token);
-          } catch {
-            // skip invalid json
-          }
-        }
-      }
+        if (!raw) return [];
+        try { return [{ dataType: key, data: JSON.parse(raw) }]; } catch { return []; }
+      });
+      await saveManyToServer(updates, session.access_token);
       toast.success('Your local data has been synced to the family. Other members will see it when they refresh.');
     } catch {
       toast.error('Sync failed. Try again.');
@@ -276,11 +265,8 @@ export function Settings() {
       }
       // Push defaults to server so every family member also gets wiped
       if (session?.access_token) {
-        await Promise.all(
-          SYNCED_DATA_KEYS.map((key) =>
-            syncDataToServer(key, SYNCED_DATA_DEFAULTS[key], session.access_token!)
-          )
-        );
+        const updates = SYNCED_DATA_KEYS.map((key) => ({ dataType: key, data: SYNCED_DATA_DEFAULTS[key] }));
+        await saveManyToServer(updates, session.access_token);
       }
       toast.success('All baby data has been wiped. Family account and members are untouched.');
     } catch {
