@@ -1,6 +1,7 @@
 import { Home, Baby, Utensils, Droplet, Settings } from "lucide-react";
 import { Link, useLocation } from "react-router";
 import { VoiceControl } from "./VoiceControl";
+import { APP_VERSION } from "../version";
 
 export function Navigation() {
   const location = useLocation();
@@ -16,6 +17,9 @@ export function Navigation() {
   return (
     <>
       <VoiceControl />
+      <span className="fixed bottom-[4.25rem] right-2 text-[9px] text-gray-300 dark:text-gray-600 select-none z-40">
+        v{APP_VERSION}
+      </span>
       <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-50">
         <div className="max-w-lg mx-auto flex justify-around items-center h-16">
           {navItems.map((item) => {
