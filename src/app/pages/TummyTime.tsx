@@ -83,24 +83,25 @@ export function TummyTime() {
       loadAllDataFromServer(session.access_token).then(({ ok, data }) => {
         if (!ok || !data) return;
 
+        // History: guard against overwriting a recent local adjustment
+        if (data.tummyTimeHistory != null && !grace.isInActionGrace()) {
+          try {
+            localStorage.setItem("tummyTimeHistory", JSON.stringify(data.tummyTimeHistory));
+            setTummyTimeHistory(data.tummyTimeHistory as TummyTimeRecord[]);
+          } catch { /* ignore */ }
+        }
+
         if (data.currentTummyTime != null) {
-          if (grace.isInStopGrace()) return;
+          if (grace.isInStopGrace() || grace.isInActionGrace()) return;
           try {
             localStorage.setItem("currentTummyTime", JSON.stringify(data.currentTummyTime));
             setCurrentSession(data.currentTummyTime as TummyTimeRecord);
           } catch { /* ignore */ }
         } else {
-          if (grace.isInStartGrace()) return;
+          if (grace.isInStartGrace() || grace.isInActionGrace()) return;
           try {
             localStorage.removeItem("currentTummyTime");
             setCurrentSession(null);
-          } catch { /* ignore */ }
-        }
-
-        if (data.tummyTimeHistory != null) {
-          try {
-            localStorage.setItem("tummyTimeHistory", JSON.stringify(data.tummyTimeHistory));
-            setTummyTimeHistory(data.tummyTimeHistory as TummyTimeRecord[]);
           } catch { /* ignore */ }
         }
 
@@ -167,6 +168,7 @@ export function TummyTime() {
 
   const adjustActiveTime = (mins: number) => {
     if (!currentSession) return;
+    grace.markAction();
     const updated = { ...currentSession, startTime: currentSession.startTime - mins * 60_000 };
     setCurrentSession(updated);
     setElapsedTime((t) => t + mins * 60_000);
@@ -175,6 +177,7 @@ export function TummyTime() {
   };
 
   const adjustHistoryTime = (id: string, mins: number) => {
+    grace.markAction();
     const updated = tummyTimeHistory.map((t) =>
       t.id === id ? { ...t, startTime: t.startTime - mins * 60_000 } : t,
     );

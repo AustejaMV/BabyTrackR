@@ -124,9 +124,17 @@ export function SleepTracking() {
       loadAllDataFromServer(session.access_token).then(({ ok, data }) => {
         if (!ok || !data) return;
 
+        // History: don't overwrite during the action grace window (e.g. time adjust)
+        if (data.sleepHistory != null && !grace.isInActionGrace()) {
+          try {
+            localStorage.setItem("sleepHistory", JSON.stringify(data.sleepHistory));
+            setSleepHistory(data.sleepHistory as SleepRecord[]);
+          } catch { /* ignore */ }
+        }
+
         if (data.currentSleep != null) {
-          // Server says active — skip only if WE just stopped (save may not have arrived yet)
-          if (grace.isInStopGrace()) return;
+          // Skip if WE just stopped or took any local action (e.g. adjusted start time)
+          if (grace.isInStopGrace() || grace.isInActionGrace()) return;
           try {
             const s = data.currentSleep as SleepRecord;
             if (s?.position != null) {
@@ -135,18 +143,11 @@ export function SleepTracking() {
             }
           } catch { /* ignore */ }
         } else {
-          // Server says null — skip only if WE just started (save may not have arrived yet)
-          if (grace.isInStartGrace()) return;
+          // Skip if WE just started or took any local action
+          if (grace.isInStartGrace() || grace.isInActionGrace()) return;
           try {
             localStorage.removeItem("currentSleep");
             setCurrentSleep(null);
-          } catch { /* ignore */ }
-        }
-
-        if (data.sleepHistory != null) {
-          try {
-            localStorage.setItem("sleepHistory", JSON.stringify(data.sleepHistory));
-            setSleepHistory(data.sleepHistory as SleepRecord[]);
           } catch { /* ignore */ }
         }
 
@@ -213,6 +214,7 @@ export function SleepTracking() {
 
   const adjustActiveSleepTime = (mins: number) => {
     if (!currentSleep) return;
+    grace.markAction();
     const updated = { ...currentSleep, startTime: currentSleep.startTime - mins * 60_000 };
     setCurrentSleep(updated);
     localStorage.setItem("currentSleep", JSON.stringify(updated));
@@ -220,6 +222,7 @@ export function SleepTracking() {
   };
 
   const adjustSleepHistoryTime = (id: string, mins: number) => {
+    grace.markAction();
     const updated = sleepHistory.map((s) =>
       s.id === id ? { ...s, startTime: s.startTime - mins * 60_000 } : s,
     );

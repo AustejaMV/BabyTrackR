@@ -212,19 +212,30 @@ const DATA_TYPES = [
   "shoppingList",
 ];
 
-// Session-like keys: server sets canonical serverStartTime on first save so all devices show same elapsed; first write wins
-const SESSION_DATA_TYPES = ["feedingActiveSession", "currentSleep", "currentTummyTime"];
+/**
+ * Stored row format: { data, updatedBy, updatedAt, clientUpdatedAt }
+ *
+ * clientUpdatedAt: Unix-ms timestamp set by the client at the moment the user
+ * took the action. Used for conflict detection — an incoming write with an older
+ * clientUpdatedAt is rejected (409) so a slow retry from one device can never
+ * silently overwrite a more-recent action from another device.
+ */
+type StoredRow = {
+  data: unknown;
+  updatedBy: string;
+  updatedAt: number;     // server receipt time
+  clientUpdatedAt: number; // client action time
+};
 
-function normalizeSessionPayload(dataType: string, data: unknown, existingRow: { data?: unknown } | null): unknown {
-  if (data == null) return null;
-  if (!SESSION_DATA_TYPES.includes(dataType)) return data;
-  const existing = existingRow?.data as Record<string, unknown> | null | undefined;
-  const existingStart = existing && typeof existing.serverStartTime === "number" ? existing.serverStartTime : null;
-  const out = typeof data === "object" && data !== null ? { ...data } : data;
-  if (typeof out === "object" && out !== null && !Array.isArray(out)) {
-    (out as Record<string, unknown>).serverStartTime = existingStart ?? Date.now();
-  }
-  return out;
+/**
+ * Returns true if the incoming write should be rejected because the server
+ * already has a more-recent change.
+ */
+function isConflict(existing: StoredRow | null | undefined, incomingClientUpdatedAt: number | undefined): boolean {
+  if (existing == null) return false;
+  if (incomingClientUpdatedAt == null) return false; // legacy client — allow through
+  // Strict less-than: equal timestamps are allowed (idempotent retry)
+  return incomingClientUpdatedAt < existing.clientUpdatedAt;
 }
 
 app.post("/data/save", async (c) => {
@@ -239,20 +250,37 @@ app.post("/data/save", async (c) => {
     return c.json({ error: "invalid_json" }, 400);
   }
   const dataType = body?.dataType;
-  let data = body?.data;
+  const data = body?.data;
+  const clientUpdatedAt: number | undefined = typeof body?.clientUpdatedAt === "number"
+    ? body.clientUpdatedAt
+    : undefined;
+
   if (!dataType) return c.json({ error: "missing_dataType" }, 400);
-  if (SESSION_DATA_TYPES.includes(dataType)) {
-    const existing = await kv.get(`data:${familyId}:${dataType}`) as { data?: unknown } | null;
-    data = normalizeSessionPayload(dataType, data, existing);
+
+  // Conflict detection: reject if stored data is newer than what the client is sending
+  const existing = await kv.get(`data:${familyId}:${dataType}`) as StoredRow | null;
+  if (isConflict(existing, clientUpdatedAt)) {
+    console.log("[data/save] conflict rejected", {
+      familyId, dataType,
+      incomingAt: clientUpdatedAt,
+      storedAt: existing?.clientUpdatedAt,
+    });
+    return c.json({
+      conflict: true,
+      storedClientUpdatedAt: existing!.clientUpdatedAt,
+    }, 409);
   }
+
+  const now = Date.now();
   await kv.set(`data:${familyId}:${dataType}`, {
     data,
     updatedBy: user!.id,
-    updatedAt: Date.now(),
-  });
-  const size = Array.isArray(data) ? data.length : (data && typeof data === "object" ? Object.keys(data).length : 0);
-  console.log("[data/save]", { familyId, dataType, userId: user!.id, size });
-  return c.json({ success: true });
+    updatedAt: now,
+    clientUpdatedAt: clientUpdatedAt ?? now,
+  } satisfies StoredRow);
+
+  console.log("[data/save]", { familyId, dataType, userId: user!.id, clientUpdatedAt });
+  return c.json({ ok: true });
 });
 
 /** Batch save — replaces N sequential POST /data/save calls with a single request. */
@@ -267,21 +295,32 @@ app.post("/data/save-many", async (c) => {
   } catch {
     return c.json({ error: "invalid_json" }, 400);
   }
-  const updates: { dataType: string; data: unknown }[] = body?.updates ?? [];
+  const updates: { dataType: string; data: unknown; clientUpdatedAt?: number }[] = body?.updates ?? [];
   if (!Array.isArray(updates) || updates.length === 0) return c.json({ error: "missing_updates" }, 400);
-  const now = Date.now();
-  await Promise.all(
-    updates.map(async ({ dataType, data: rawData }) => {
-      let data = rawData;
-      if (SESSION_DATA_TYPES.includes(dataType)) {
-        const existing = await kv.get(`data:${familyId}:${dataType}`) as { data?: unknown } | null;
-        data = normalizeSessionPayload(dataType, data, existing);
+
+  const serverNow = Date.now();
+  const results = await Promise.all(
+    updates.map(async ({ dataType, data, clientUpdatedAt }) => {
+      const existing = await kv.get(`data:${familyId}:${dataType}`) as StoredRow | null;
+      if (isConflict(existing, clientUpdatedAt)) {
+        return { dataType, conflict: true, storedClientUpdatedAt: existing!.clientUpdatedAt };
       }
-      await kv.set(`data:${familyId}:${dataType}`, { data, updatedBy: user!.id, updatedAt: now });
+      await kv.set(`data:${familyId}:${dataType}`, {
+        data,
+        updatedBy: user!.id,
+        updatedAt: serverNow,
+        clientUpdatedAt: clientUpdatedAt ?? serverNow,
+      } satisfies StoredRow);
+      return { dataType, ok: true };
     })
   );
-  console.log("[data/save-many]", { familyId, userId: user!.id, count: updates.length });
-  return c.json({ success: true });
+
+  const conflicts = results.filter((r) => r.conflict);
+  console.log("[data/save-many]", {
+    familyId, userId: user!.id, count: updates.length,
+    conflicts: conflicts.length,
+  });
+  return c.json({ ok: true, results });
 });
 
 // Register /data/all BEFORE /data/:dataType so "all" is not treated as a dataType param

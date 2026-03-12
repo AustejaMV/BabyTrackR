@@ -7,6 +7,7 @@ import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import { saveData, loadAllDataFromServer, POLL_MS_IDLE } from "../utils/dataSync";
 import { safeFormat } from "../utils/dateUtils";
+import { useGracePeriod } from "../hooks/useGracePeriod";
 import type { DiaperRecord } from "../types";
 
 const DIAPER_TYPES: Array<{ value: "pee" | "poop" | "both"; label: string; color: string }> = [
@@ -20,12 +21,15 @@ const CHART_COLORS = ["#3b82f6", "#f59e0b"];
 export function DiaperTracking() {
   const [diaperHistory, setDiaperHistory] = useState<DiaperRecord[]>([]);
   const { session, familyId } = useAuth();
+  const grace = useGracePeriod();
 
   useEffect(() => {
     if (!session?.access_token || !familyId) return;
     const refetch = () => {
       loadAllDataFromServer(session.access_token).then(({ ok, data }) => {
         if (!ok || !data) return;
+        // Guard: skip server overwrite if a local action happened recently
+        if (grace.isInActionGrace()) return;
         if (data.diaperHistory != null && Array.isArray(data.diaperHistory)) {
           try {
             localStorage.setItem("diaperHistory", JSON.stringify(data.diaperHistory));
@@ -57,7 +61,7 @@ export function DiaperTracking() {
       type,
       timestamp: Date.now(),
     };
-
+    grace.markAction();
     const updatedHistory = [...diaperHistory, newDiaper];
     setDiaperHistory(updatedHistory);
     localStorage.setItem("diaperHistory", JSON.stringify(updatedHistory));

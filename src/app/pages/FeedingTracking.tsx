@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Navigation } from "../components/Navigation";
 import { Button } from "../components/ui/button";
 import { TimeAdjustButtons } from "../components/TimeAdjustButtons";
@@ -36,9 +36,6 @@ export function FeedingTracking() {
   const { session: authSession, familyId } = useAuth();
 
   const grace = useGracePeriod();
-  // Tracks the last time a local action was taken; gates the persistActiveSession server sync.
-  const lastLocalActionAt = useRef(0);
-  const SYNC_GRACE_MS = 5_000;
 
   // Poll for family data with dynamic rate
   useEffect(() => {
@@ -58,40 +55,45 @@ export function FeedingTracking() {
 
         const remote = serverData.feedingActiveSession as ActiveFeedingSession | null | undefined;
 
-        // Always persist history so it survives tab navigation
-        if (serverData.feedingHistory != null) {
+        // --- History ---
+        // Only update history from server if we haven't taken a local action recently.
+        // Without this guard, a poll arriving before the server receives our save would
+        // overwrite our just-added/adjusted history entry.
+        if (serverData.feedingHistory != null && !grace.isInActionGrace()) {
+          try {
+            localStorage.setItem("feedingHistory", JSON.stringify(serverData.feedingHistory));
+            setFeedingHistory(serverData.feedingHistory as typeof feedingHistory);
+          } catch { /* ignore */ }
+        } else if (serverData.feedingHistory != null) {
+          // Always keep localStorage in sync even during grace so other tabs benefit
           try { localStorage.setItem("feedingHistory", JSON.stringify(serverData.feedingHistory)); } catch { /* ignore */ }
         }
 
+        // --- Active session ---
         if (remote != null && remote.session?.segments) {
-          // Server says active — skip if WE just stopped (save may not have arrived yet)
-          if (grace.isInStopGrace()) return;
+          // Skip if WE just stopped OR took any local action (pause/resume/switch/adjust)
+          // — server may not have received our latest state yet.
+          if (grace.isInStopGrace() || grace.isInActionGrace()) return;
+
           try { localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(remote)); } catch { /* ignore */ }
           const now = Date.now();
           let totalPaused = remote.totalPausedMs ?? 0;
           if (remote.isPaused && remote.pausedAt != null) totalPaused += now - remote.pausedAt;
-          // Use session.sessionStartTime (set by the originating client at the moment the
-          // session was created). serverStartTime is set by the server when it RECEIVES the
-          // first save, so it can be minutes late if there was a network delay — using it
-          // would shorten the displayed/stored duration by that delay.
           const start = remote.session.sessionStartTime;
           setSession({ sessionStartTime: start, segments: remote.session.segments });
           setIsPaused(!!remote.isPaused);
           setTotalPausedMs(totalPaused);
           setPausedAt(remote.isPaused ? now : null);
-          setTotalElapsedMs(now - start - totalPaused);
           const last = remote.session.segments[remote.session.segments.length - 1];
           setCurrentSegmentElapsedMs(last ? now - (last.endTime ?? last.startTime) : 0);
-          setFeedingHistory(JSON.parse(localStorage.getItem("feedingHistory") || "[]"));
         } else {
-          // Server says null — skip if WE just started (save may not have arrived yet)
-          if (grace.isInStartGrace()) return;
+          // Server says null — skip if WE just started or did any action recently
+          if (grace.isInStartGrace() || grace.isInActionGrace()) return;
           try { localStorage.removeItem(ACTIVE_SESSION_KEY); } catch { /* ignore */ }
           setSession(null);
           setIsPaused(false);
           setTotalPausedMs(0);
           setPausedAt(null);
-          setFeedingHistory(JSON.parse(localStorage.getItem("feedingHistory") || "[]"));
         }
 
         const next = remote != null ? POLL_MS_ACTIVE : POLL_MS_IDLE;
@@ -181,12 +183,12 @@ export function FeedingTracking() {
     return () => clearInterval(interval);
   }, [session, isPaused]);
 
-  // Sync active session to server when a LOCAL action changed the state
+  // Sync active session to server when a LOCAL action changed the state.
+  // isInActionGrace() is true for 5 s after any markAction/markStarted/markStopped call.
+  // Polls do NOT call those, so they never trigger a server write-back.
   useEffect(() => {
     persistActiveSession(session, isPaused, totalPausedMs, pausedAt);
-    // Only sync when the state change came from a local action (within sync grace window).
-    // Polls must not write back — that would resurrect a stopped session.
-    if (Date.now() - lastLocalActionAt.current > SYNC_GRACE_MS) return;
+    if (!grace.isInActionGrace()) return;
     if (authSession?.access_token && session) {
       syncDataToServer(
         "feedingActiveSession",
@@ -199,8 +201,7 @@ export function FeedingTracking() {
   const startFeeding = () => {
     const now = Date.now();
     const amount = selectedType === "Formula" && formulaAmount ? parseFloat(formulaAmount) : undefined;
-    grace.markStarted();
-    lastLocalActionAt.current = now;
+    grace.markStarted(); // also marks action grace
     setSession({ sessionStartTime: now, segments: [{ type: selectedType, startTime: now, amount }] });
     setTotalElapsedMs(0);
     setCurrentSegmentElapsedMs(0);
@@ -223,7 +224,7 @@ export function FeedingTracking() {
     segs[segs.length - 1] = { ...segs[segs.length - 1], endTime: now };
     const amount = type === "Formula" && formulaAmount ? parseFloat(formulaAmount) : undefined;
     segs.push({ type, startTime: now, amount });
-    lastLocalActionAt.current = now;
+    grace.markAction();
     setSession({ ...session, segments: segs });
     setCurrentSegmentElapsedMs(0);
     if (type === "Formula") setFormulaAmount("");
@@ -233,20 +234,20 @@ export function FeedingTracking() {
     if (!session || session.segments.length === 0) return;
     const segs = [...session.segments];
     segs[segs.length - 1].amount = ml;
-    lastLocalActionAt.current = Date.now();
+    grace.markAction();
     setSession({ ...session, segments: segs });
   };
 
   const pauseFeeding = () => {
     if (!session || isPaused) return;
-    lastLocalActionAt.current = Date.now();
+    grace.markAction();
     setPausedAt(Date.now());
     setIsPaused(true);
   };
 
   const resumeFeeding = () => {
     if (!session || !isPaused || pausedAt == null) return;
-    lastLocalActionAt.current = Date.now();
+    grace.markAction();
     setTotalPausedMs((prev) => prev + (Date.now() - pausedAt));
     setPausedAt(null);
     setIsPaused(false);
@@ -275,8 +276,7 @@ export function FeedingTracking() {
       segments,
     };
     const updated = [...feedingHistory, newFeeding];
-    grace.markStopped();
-    lastLocalActionAt.current = now;
+    grace.markStopped(); // also marks action grace
     setFeedingHistory(updated);
     localStorage.setItem("feedingHistory", JSON.stringify(updated));
     setSession(null);
@@ -299,9 +299,8 @@ export function FeedingTracking() {
     const segs = [...session.segments];
     segs[0] = { ...segs[0], startTime: segs[0].startTime - delta };
     const updated = { ...session, sessionStartTime: segs[0].startTime, segments: segs };
-    lastLocalActionAt.current = Date.now();
+    grace.markAction();
     setSession(updated);
-    // totalElapsedMs is recomputed from segments on next timer tick
   };
 
   const adjustFeedingHistoryTime = (id: string, mins: number) => {
@@ -320,6 +319,7 @@ export function FeedingTracking() {
         : (f.durationMs ?? 0) + delta;
       return { ...f, startTime: f.startTime - delta, segments: segs, durationMs: newDurationMs };
     });
+    grace.markAction();
     setFeedingHistory(updated);
     localStorage.setItem("feedingHistory", JSON.stringify(updated));
     if (authSession?.access_token) saveData("feedingHistory", updated, authSession.access_token);
@@ -347,6 +347,7 @@ export function FeedingTracking() {
       segments: [seg],
     };
     const updated = [...feedingHistory, entry].sort((a, b) => a.startTime - b.startTime);
+    grace.markAction();
     setFeedingHistory(updated);
     localStorage.setItem("feedingHistory", JSON.stringify(updated));
     if (authSession?.access_token) saveData("feedingHistory", updated, authSession.access_token);

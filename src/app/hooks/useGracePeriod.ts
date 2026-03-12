@@ -1,27 +1,43 @@
 import { useRef } from 'react';
 
 /**
- * Provides grace-period guards to prevent polling race conditions.
+ * Grace-period guards to prevent server-poll race conditions.
  *
- * When you start a session, mark it with `markStarted()`. For the next
- * `graceMs`, `isInStartGrace()` returns true — the poll won't apply a
- * server null that arrived before the save reached the server.
+ * Problem: when the user takes a local action (start, stop, pause, resume,
+ * adjust time, etc.) the server doesn't receive the save instantly. A poll
+ * that fires in the gap will get stale server data and overwrite the fresh
+ * local state, making the UI look like the action was ignored.
  *
- * When you stop a session, mark it with `markStopped()`. For the next
- * `graceMs`, `isInStopGrace()` returns true — the poll won't restore
- * a stale active session from before the stop reached the server.
+ * Solution: call `markAction()` (or the specialised `markStarted` /
+ * `markStopped`) immediately in every user-action handler. Poll handlers
+ * must check `isInActionGrace()` before applying any server state.
  *
- * Each guard is independent, so a stop from ANOTHER user always propagates
- * immediately to watchers (they never called `markStarted`/`markStopped`).
+ *   markStarted / markStopped  – also mark the action window, so the
+ *     directional guards (isInStartGrace / isInStopGrace) stay as a
+ *     second layer of specificity.
  */
 export function useGracePeriod(graceMs = 5_000) {
   const lastStartedAt = useRef(0);
   const lastStoppedAt = useRef(0);
+  const lastActionAt  = useRef(0);   // ANY local action
 
   return {
-    markStarted: () => { lastStartedAt.current = Date.now(); },
-    markStopped: () => { lastStoppedAt.current = Date.now(); },
-    isInStartGrace: () => Date.now() - lastStartedAt.current < graceMs,
-    isInStopGrace:  () => Date.now() - lastStoppedAt.current < graceMs,
+    markStarted: () => {
+      lastStartedAt.current = Date.now();
+      lastActionAt.current  = Date.now();
+    },
+    markStopped: () => {
+      lastStoppedAt.current = Date.now();
+      lastActionAt.current  = Date.now();
+    },
+    /** Call for any local action that isn't a full start/stop (pause, resume, adjust, etc.) */
+    markAction: () => {
+      lastActionAt.current = Date.now();
+    },
+
+    isInStartGrace:  () => Date.now() - lastStartedAt.current < graceMs,
+    isInStopGrace:   () => Date.now() - lastStoppedAt.current < graceMs,
+    /** True for `graceMs` after ANY local action. Use to block polls from overwriting local state. */
+    isInActionGrace: () => Date.now() - lastActionAt.current  < graceMs,
   };
 }

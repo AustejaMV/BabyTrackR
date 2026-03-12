@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase, serverUrl, supabaseAnonKey } from '../utils/supabase';
+import { flushPendingSaves } from '../utils/dataSync';
 
 interface AuthContextType {
   user: User | null;
@@ -45,6 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const cached = localStorage.getItem(FAMILY_ID_CACHE_KEY(uid));
         if (cached) setFamilyId(cached);
         await loadFamily(session.access_token, uid);
+        // Replay any saves that didn't reach the server before the last tab close
+        flushPendingSaves(session.access_token);
       }
       setLoading(false);
     });
