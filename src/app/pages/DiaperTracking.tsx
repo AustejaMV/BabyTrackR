@@ -64,7 +64,7 @@ export function DiaperTracking() {
     grace.markAction();
     const updatedHistory = [...diaperHistory, newDiaper];
     setDiaperHistory(updatedHistory);
-    localStorage.setItem("diaperHistory", JSON.stringify(updatedHistory));
+    try { localStorage.setItem("diaperHistory", JSON.stringify(updatedHistory)); } catch { /* quota/security */ }
     if (session?.access_token) {
       saveData("diaperHistory", updatedHistory, session.access_token);
     }

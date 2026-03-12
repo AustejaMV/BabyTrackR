@@ -84,7 +84,7 @@ export function Dashboard() {
 
   const loadLocalData = () => {
     const sleepData = localStorage.getItem("currentSleep");
-    setCurrentSleep(sleepData ? JSON.parse(sleepData) : null);
+    try { setCurrentSleep(sleepData ? JSON.parse(sleepData) : null); } catch { setCurrentSleep(null); }
 
     let activeFeeding: ActiveFeedingSession | null = null;
     try {
@@ -99,36 +99,42 @@ export function Dashboard() {
     } catch { /* ignore */ }
     setActiveFeedingSession(activeFeeding);
 
-    const feedingHistory = localStorage.getItem("feedingHistory");
-    if (feedingHistory) {
-      const feedings: FeedingRecord[] = JSON.parse(feedingHistory);
-      if (feedings.length > 0) setLastFeeding(feedings[feedings.length - 1]);
-    }
+    try {
+      const feedingHistory = localStorage.getItem("feedingHistory");
+      if (feedingHistory) {
+        const feedings: FeedingRecord[] = JSON.parse(feedingHistory);
+        if (feedings.length > 0) setLastFeeding(feedings[feedings.length - 1]);
+      }
+    } catch { /* corrupt data — skip */ }
 
-    const diaperHistory = localStorage.getItem("diaperHistory");
-    if (diaperHistory) {
-      const diapers = JSON.parse(diaperHistory);
-      const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-      setRecentDiapers(diapers.filter((d: DiaperRecord) => d.timestamp > oneDayAgo));
-    }
+    try {
+      const diaperHistory = localStorage.getItem("diaperHistory");
+      if (diaperHistory) {
+        const diapers = JSON.parse(diaperHistory);
+        const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+        setRecentDiapers(diapers.filter((d: DiaperRecord) => d.timestamp > oneDayAgo));
+      }
+    } catch { /* corrupt data — skip */ }
 
     const shoppingData = localStorage.getItem("shoppingList");
     if (shoppingData) {
       try { setShoppingList(JSON.parse(shoppingData)); } catch { /* ignore */ }
     }
 
-    const painkillerHistory = localStorage.getItem("painkillerHistory");
-    if (painkillerHistory) {
-      const doses: PainkillerDose[] = JSON.parse(painkillerHistory);
-      if (doses.length > 0) {
-        const last = doses[doses.length - 1];
-        setLastPainkiller(last);
-        const remaining = 8 * 60 * 60 * 1000 - (Date.now() - last.timestamp);
-        if (remaining > 0) {
-          scheduleNotification("Painkiller reminder", "It has been 8 hours since your last painkiller dose.", remaining);
+    try {
+      const painkillerHistory = localStorage.getItem("painkillerHistory");
+      if (painkillerHistory) {
+        const doses: PainkillerDose[] = JSON.parse(painkillerHistory);
+        if (doses.length > 0) {
+          const last = doses[doses.length - 1];
+          setLastPainkiller(last);
+          const remaining = 8 * 60 * 60 * 1000 - (Date.now() - last.timestamp);
+          if (remaining > 0) {
+            scheduleNotification("Painkiller reminder", "It has been 8 hours since your last painkiller dose.", remaining);
+          }
         }
       }
-    }
+    } catch { /* corrupt data — skip */ }
   };
   loadLocalDataRef.current = loadLocalData;
 
@@ -255,7 +261,8 @@ export function Dashboard() {
   };
 
   const logPainkiller = () => {
-    const history: PainkillerDose[] = JSON.parse(localStorage.getItem("painkillerHistory") || "[]");
+    let history: PainkillerDose[] = [];
+    try { history = JSON.parse(localStorage.getItem("painkillerHistory") || "[]"); } catch { /* start fresh */ }
     const now = Date.now();
     const newDose: PainkillerDose = { id: now.toString(), timestamp: now };
     history.push(newDose);
@@ -273,7 +280,8 @@ export function Dashboard() {
         saveData("currentSleep", null, session.access_token);
       }
     });
-    const diaperHistory = JSON.parse(localStorage.getItem("diaperHistory") || "[]");
+    let diaperHistory: DiaperRecord[] = [];
+    try { diaperHistory = JSON.parse(localStorage.getItem("diaperHistory") || "[]"); } catch { /* start fresh */ }
     const newDiaper: DiaperRecord = { id: Date.now().toString(), type, timestamp: Date.now() };
     diaperHistory.push(newDiaper);
     localStorage.setItem("diaperHistory", JSON.stringify(diaperHistory));

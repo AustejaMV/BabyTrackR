@@ -59,6 +59,22 @@ describe('formatDurationMs', () => {
     // 2 min 59 s 999 ms → should show 2:59 (floor, not round)
     expect(formatDurationMs(2 * 60_000 + 59_000 + 999)).toBe('2:59');
   });
+
+  it('returns "—" for NaN (guard against broken subtraction)', () => {
+    expect(formatDurationMs(NaN)).toBe('—');
+  });
+
+  it('returns "—" for negative values (end before start)', () => {
+    expect(formatDurationMs(-1_000)).toBe('—');
+  });
+
+  it('returns "—" for Infinity', () => {
+    expect(formatDurationMs(Infinity)).toBe('—');
+  });
+
+  it('returns "—" for -Infinity', () => {
+    expect(formatDurationMs(-Infinity)).toBe('—');
+  });
 });
 
 // ─── formatDurationShort ────────────────────────────────────────────────────

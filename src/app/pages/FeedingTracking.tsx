@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigation } from "../components/Navigation";
 import { Button } from "../components/ui/button";
 import { TimeAdjustButtons } from "../components/TimeAdjustButtons";
@@ -12,6 +12,7 @@ import { saveData, syncDataToServer, loadAllDataFromServer, POLL_MS_ACTIVE, POLL
 import { safeFormat, formatDurationMs, formatDurationShort } from "../utils/dateUtils";
 import { useGracePeriod } from "../hooks/useGracePeriod";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
+import { buildTimestamp, buildDurationMs, isManualEntryValid } from "../utils/manualEntryUtils";
 import { toast } from "sonner";
 import type { FeedingRecord, FeedingSegment, ActiveSession, ActiveFeedingSession } from "../types";
 
@@ -127,8 +128,10 @@ export function FeedingTracking() {
 
   // Load from localStorage on mount
   useEffect(() => {
-    const historyData = localStorage.getItem("feedingHistory");
-    if (historyData) setFeedingHistory(JSON.parse(historyData));
+    try {
+      const historyData = localStorage.getItem("feedingHistory");
+      if (historyData) setFeedingHistory(JSON.parse(historyData));
+    } catch { /* corrupt data — start empty */ }
 
     const intervalData = localStorage.getItem("feedingInterval");
     if (intervalData && intervalData !== "[]") {
@@ -200,7 +203,8 @@ export function FeedingTracking() {
 
   const startFeeding = () => {
     const now = Date.now();
-    const amount = selectedType === "Formula" && formulaAmount ? parseFloat(formulaAmount) : undefined;
+    const parsedAmt = parseFloat(formulaAmount);
+    const amount = selectedType === "Formula" && formulaAmount && Number.isFinite(parsedAmt) ? parsedAmt : undefined;
     grace.markStarted(); // also marks action grace
     setSession({ sessionStartTime: now, segments: [{ type: selectedType, startTime: now, amount }] });
     setTotalElapsedMs(0);
@@ -327,15 +331,17 @@ export function FeedingTracking() {
 
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualDate, setManualDate] = useState("");
-  const [manualTime, setManualTime] = useState("");
+  const [manualTimeH, setManualTimeH] = useState("");
+  const [manualTimeM, setManualTimeM] = useState("0");
   const [manualDurH, setManualDurH] = useState("0");
   const [manualDurM, setManualDurM] = useState("");
   const [manualType, setManualType] = useState(FEEDING_TYPES[0]);
+  const manualEntryRef = useRef<HTMLDivElement>(null);
 
   const saveManualFeeding = () => {
-    if (!manualDate || !manualTime || !manualDurM) return;
-    const startTime = new Date(`${manualDate}T${manualTime}`).getTime();
-    const durationMs = (parseInt(manualDurH || "0") * 60 + parseInt(manualDurM)) * 60_000;
+    if (!isManualEntryValid(manualDate, manualTimeH, manualDurH, manualDurM)) return;
+    const startTime = buildTimestamp(manualDate, manualTimeH, manualTimeM);
+    const durationMs = buildDurationMs(manualDurH, manualDurM);
     const endTime = startTime + durationMs;
     const seg: FeedingSegment = { type: manualType, startTime, endTime, durationMs };
     const entry: FeedingRecord = {
@@ -352,8 +358,14 @@ export function FeedingTracking() {
     localStorage.setItem("feedingHistory", JSON.stringify(updated));
     if (authSession?.access_token) saveData("feedingHistory", updated, authSession.access_token);
     setShowManualEntry(false);
-    setManualDate(""); setManualTime(""); setManualDurH("0"); setManualDurM(""); setManualType(FEEDING_TYPES[0]);
+    setManualDate(""); setManualTimeH(""); setManualTimeM("0"); setManualDurH("0"); setManualDurM(""); setManualType(FEEDING_TYPES[0]);
   };
+
+  useEffect(() => {
+    if (showManualEntry) {
+      setTimeout(() => manualEntryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+    }
+  }, [showManualEntry]);
 
   const getNextFeedingTime = () => {
     if (feedingHistory.length === 0) return null;
@@ -518,7 +530,8 @@ export function FeedingTracking() {
                       type="number"
                       value={currentSegment.amount ?? ""}
                       onChange={(e) => {
-                        const v = e.target.value === "" ? undefined : parseFloat(e.target.value);
+                        const parsed = parseFloat(e.target.value);
+                        const v = e.target.value === "" || !Number.isFinite(parsed) ? undefined : parsed;
                         setCurrentSegmentAmount(v);
                       }}
                       placeholder="e.g. 60"
@@ -592,7 +605,7 @@ export function FeedingTracking() {
             <p className="text-gray-500 dark:text-gray-400 text-center py-4">No feedings recorded yet</p>
           ) : (
             <div className="space-y-3">
-              {feedingHistory.slice(-10).reverse().map((feeding) => {
+              {[...new Map(feedingHistory.map((f) => [f.id, f])).values()].slice(-10).reverse().map((feeding) => {
                 const endTime = getLastFeedingEndTime(feeding);
                 const hasSegments = feeding.segments && feeding.segments.length > 0;
                 const totalMl = hasSegments
@@ -624,7 +637,7 @@ export function FeedingTracking() {
                       <ul className="text-xs text-gray-600 dark:text-gray-400 mt-1 space-y-0.5">
                         {feeding.segments!.map((seg, i) => (
                           <li key={i}>
-                            {seg.type}: {formatDurationShort(seg.durationMs)}
+                            {seg.type}: {seg.durationMs != null ? formatDurationShort(seg.durationMs) : "—"}
                             {seg.amount != null && seg.amount > 0 && ` · ${seg.amount} ml`}
                           </li>
                         ))}
@@ -646,7 +659,7 @@ export function FeedingTracking() {
                 + Log a past feeding
               </button>
             ) : (
-              <div className="space-y-3">
+              <div ref={manualEntryRef} className="space-y-3">
                 <p className="text-sm font-medium dark:text-white">Log past feeding</p>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -654,18 +667,22 @@ export function FeedingTracking() {
                     <Input type="date" value={manualDate} onChange={(e) => setManualDate(e.target.value)} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 dark:text-gray-400">Start time</label>
-                    <Input type="time" value={manualTime} onChange={(e) => setManualTime(e.target.value)} />
+                    <label className="text-xs text-gray-500 dark:text-gray-400">Start time (24h)</label>
+                    <div className="flex items-center gap-1">
+                      <Input type="number" min={0} max={23} placeholder="HH" value={manualTimeH} onChange={(e) => setManualTimeH(e.target.value)} className="text-center" />
+                      <span className="text-gray-400">:</span>
+                      <Input type="number" min={0} max={59} placeholder="MM" value={manualTimeM} onChange={(e) => setManualTimeM(e.target.value)} className="text-center" />
+                    </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs text-gray-500 dark:text-gray-400">Hours</label>
+                    <label className="text-xs text-gray-500 dark:text-gray-400">Duration hours</label>
                     <Input type="number" value={manualDurH} onChange={(e) => setManualDurH(e.target.value)} min={0} placeholder="0" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 dark:text-gray-400">Minutes</label>
-                    <Input type="number" value={manualDurM} onChange={(e) => setManualDurM(e.target.value)} min={0} max={59} placeholder="e.g. 30" />
+                    <label className="text-xs text-gray-500 dark:text-gray-400">Duration min (optional)</label>
+                    <Input type="number" value={manualDurM} onChange={(e) => setManualDurM(e.target.value)} min={0} max={59} placeholder="0" />
                   </div>
                 </div>
                 <div>
@@ -688,7 +705,7 @@ export function FeedingTracking() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={saveManualFeeding} disabled={!manualDate || !manualTime || !manualDurM}>
+                  <Button size="sm" onClick={saveManualFeeding} disabled={!isManualEntryValid(manualDate, manualTimeH, manualDurH, manualDurM)}>
                     Save
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setShowManualEntry(false)}>

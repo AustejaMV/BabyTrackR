@@ -192,7 +192,7 @@ export function syncDataToServer(dataType: string, data: unknown, accessToken: s
   enqueue(dataType, data, clientUpdatedAt);
 
   doSave(dataType, data, accessToken, clientUpdatedAt).catch(() => {
-    scheduleRetry(dataType, data, accessToken, clientUpdatedAt, 1);
+    scheduleRetry(dataType, data, accessToken, clientUpdatedAt, 0);
   });
 }
 
@@ -215,14 +215,19 @@ export function flushPendingSaves(accessToken: string) {
       retrySlots.delete(dataType);
     }
     doSave(dataType, data, accessToken, clientUpdatedAt).catch(() => {
-      scheduleRetry(dataType, data, accessToken, clientUpdatedAt, 1);
+      scheduleRetry(dataType, data, accessToken, clientUpdatedAt, 0);
     });
   }
 }
 
 /** Save to both localStorage and server (with retry). */
 export function saveData(key: string, value: unknown, accessToken?: string) {
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    // QuotaExceededError (disk full) or SecurityError (private browsing sandbox)
+    console.warn(`[BabyTracker] localStorage.setItem("${key}") failed:`, e);
+  }
   if (accessToken) {
     syncDataToServer(key, value, accessToken);
   }

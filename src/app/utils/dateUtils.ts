@@ -20,6 +20,7 @@ export function safeFormat(ts: number | null | undefined, pattern: string, fallb
  * - Without seconds:        "3m" or "1h 2m"
  */
 export function formatDurationMs(ms: number, showSeconds = true): string {
+  if (!Number.isFinite(ms) || ms < 0) return '—';
   const totalSeconds = Math.floor(ms / 1000);
   const hours   = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);

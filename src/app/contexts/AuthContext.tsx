@@ -82,8 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       });
       
-      const result = await response.json();
-      
+      const result = await response.json().catch(() => ({}));
+
       if (result.family) {
         setFamilyIdAndCache(result.family.id, userId, setFamilyId);
         createdFamilyIdRef.current = null;
@@ -146,7 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({ familyName: 'My Family' }),
         });
         
-        const createResult = await createResponse.json();
+        const createResult = await createResponse.json().catch(() => ({}));
         // Use familyId even when server returned 500 (e.g. read-back failed but family was created)
         if (createResult?.familyId) {
           createdFamilyIdRef.current = createResult.familyId;

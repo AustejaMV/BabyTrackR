@@ -279,8 +279,12 @@ export function Settings() {
   };
 
   const handleExportPDF = () => {
-    generatePediatricReport();
-    toast.success('Report downloaded!');
+    try {
+      generatePediatricReport();
+      toast.success('Report downloaded!');
+    } catch {
+      toast.error('Could not generate PDF — some data may be corrupted.');
+    }
   };
 
   const persistNotes = (updated: Note[]) => {

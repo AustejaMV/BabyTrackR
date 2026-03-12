@@ -52,7 +52,7 @@ function makeRetryEngine() {
       if (result === 'conflict') log.push({ type: 'conflict', key });
       else log.push({ type: 'success', key });
     }).catch(() => {
-      scheduleRetry(key, 1, task);
+      scheduleRetry(key, 0, task);
     });
   }
 
@@ -99,8 +99,8 @@ describe('retry back-off schedule', () => {
     });
     await vi.runAllTimersAsync();
     const delays = log.filter((e) => e.type === 'schedule').map((e) => e.delay);
-    // attempt=0 is the immediate call; first retry is attempt=1 → delay index 1 = 2000
-    expect(delays).toEqual([2_000, 4_000, 8_000, 16_000]);
+    // attempt=0 is the immediate call; first retry uses RETRY_DELAYS_MS[0] = 1000
+    expect(delays).toEqual([1_000, 2_000, 4_000, 8_000]);
   });
 
   it('caps retry delay at 60 s for subsequent attempts', async () => {
@@ -139,7 +139,9 @@ describe('retry cancellation (new save supersedes old)', () => {
       firstCalls++;
       return Promise.reject(new Error('network'));
     });
-    // The .catch() that calls scheduleRetry is a microtask — flush it before checking
+    // .then().catch() on a rejected promise is a two-tick chain:
+    // tick 1: .then() propagates the rejection; tick 2: .catch() runs scheduleRetry.
+    await Promise.resolve();
     await Promise.resolve();
     // Now the retry is scheduled
     expect(retrySlots.has('key')).toBe(true);

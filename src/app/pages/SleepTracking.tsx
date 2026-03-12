@@ -9,6 +9,7 @@ import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import { saveData, loadAllDataFromServer, POLL_MS_ACTIVE, POLL_MS_IDLE } from "../utils/dataSync";
 import { safeFormat, formatLiveDuration, formatDurationShort } from "../utils/dateUtils";
+import { buildTimestamp, buildDurationMs, isManualEntryValid } from "../utils/manualEntryUtils";
 import { useGracePeriod } from "../hooks/useGracePeriod";
 import type { SleepRecord } from "../types";
 
@@ -23,18 +24,19 @@ function SleepManualEntry({
 }) {
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
+  const [timeH, setTimeH] = useState("");
+  const [timeM, setTimeM] = useState("0");
   const [durH, setDurH] = useState("0");
   const [durM, setDurM] = useState("");
   const [position, setPosition] = useState(positions[0]);
 
   const save = () => {
-    if (!date || !time || !durM) return;
-    const startTime = new Date(`${date}T${time}`).getTime();
-    const durationMs = (parseInt(durH || "0") * 60 + parseInt(durM)) * 60_000;
+    if (!isManualEntryValid(date, timeH, durH, durM)) return;
+    const startTime = buildTimestamp(date, timeH, timeM);
+    const durationMs = buildDurationMs(durH, durM);
     onSave({ id: `manual-${Date.now()}`, position, startTime, endTime: startTime + durationMs });
     setOpen(false);
-    setDate(""); setTime(""); setDurH("0"); setDurM("");
+    setDate(""); setTimeH(""); setTimeM("0"); setDurH("0"); setDurM("");
   };
 
   if (!open) return (
@@ -52,8 +54,12 @@ function SleepManualEntry({
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
         <div>
-          <label className="text-xs text-gray-500 dark:text-gray-400">Start time</label>
-          <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+          <label className="text-xs text-gray-500 dark:text-gray-400">Start time (24h)</label>
+          <div className="flex items-center gap-1">
+            <Input type="number" min={0} max={23} placeholder="HH" value={timeH} onChange={(e) => setTimeH(e.target.value)} className="text-center" />
+            <span className="text-gray-400">:</span>
+            <Input type="number" min={0} max={59} placeholder="MM" value={timeM} onChange={(e) => setTimeM(e.target.value)} className="text-center" />
+          </div>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -62,8 +68,8 @@ function SleepManualEntry({
           <Input type="number" value={durH} onChange={(e) => setDurH(e.target.value)} min={0} placeholder="0" />
         </div>
         <div>
-          <label className="text-xs text-gray-500 dark:text-gray-400">Minutes</label>
-          <Input type="number" value={durM} onChange={(e) => setDurM(e.target.value)} min={0} max={59} placeholder="e.g. 45" />
+          <label className="text-xs text-gray-500 dark:text-gray-400">Minutes (optional)</label>
+          <Input type="number" value={durM} onChange={(e) => setDurM(e.target.value)} min={0} max={59} placeholder="0" />
         </div>
       </div>
       <div>
@@ -86,7 +92,7 @@ function SleepManualEntry({
         </div>
       </div>
       <div className="flex gap-2">
-        <Button size="sm" onClick={save} disabled={!date || !time || !durM}>Save</Button>
+        <Button size="sm" onClick={save} disabled={!isManualEntryValid(date, timeH, durH, durM)}>Save</Button>
         <Button size="sm" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
       </div>
     </div>
@@ -208,7 +214,9 @@ export function SleepTracking() {
   };
 
   const getDuration = (start: number, end?: number) => {
+    if (!start || !Number.isFinite(start)) return '—';
     const ms = (end ?? Date.now()) - start;
+    if (!Number.isFinite(ms) || ms < 0) return '—';
     return end != null ? formatDurationShort(ms) : formatLiveDuration(ms);
   };
 
@@ -313,25 +321,32 @@ export function SleepTracking() {
             <p className="text-gray-500 dark:text-gray-400 text-center py-4">No sleep sessions recorded yet</p>
           ) : (
             <div className="space-y-3">
-              {sleepHistory.slice(-10).reverse().map((sleep, i) => (
-                <div key={sleep?.id ?? `sleep-${i}`} className="flex justify-between items-start p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                  <div>
-                    <p className="dark:text-white">{sleep?.position ?? "—"}</p>
-                    <p className="text-xs font-mono text-gray-500 dark:text-gray-400">
-                      {safeFormat(sleep?.startTime, "MMM d")}
-                      {"  "}
-                      {safeFormat(sleep?.startTime, "HH:mm")}
-                      {sleep.endTime && ` → ${safeFormat(sleep.endTime, "HH:mm")}`}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <p className="text-blue-600 dark:text-blue-400 text-sm">
-                      {sleep.endTime && getDuration(sleep.startTime, sleep.endTime)}
-                    </p>
-                    <TimeAdjustButtons onAdjust={(min) => adjustSleepHistoryTime(sleep.id, min)} />
-                  </div>
-                </div>
-              ))}
+              {[...new Map(sleepHistory.map((s) => [s.id, s])).values()]
+                .slice(-10)
+                .reverse()
+                .map((sleep) => {
+                  // Legacy records had no startTime — fall back to the id (which was Date.now().toString())
+                  const start = sleep.startTime || parseInt(sleep.id) || 0;
+                  return (
+                    <div key={sleep.id} className="flex justify-between items-start p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div>
+                        <p className="dark:text-white">{sleep?.position ?? "—"}</p>
+                        <p className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                          {safeFormat(start, "MMM d")}
+                          {"  "}
+                          {safeFormat(start, "HH:mm")}
+                          {sleep.endTime && ` → ${safeFormat(sleep.endTime, "HH:mm")}`}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <p className="text-blue-600 dark:text-blue-400 text-sm">
+                          {sleep.endTime && getDuration(start, sleep.endTime)}
+                        </p>
+                        <TimeAdjustButtons onAdjust={(min) => adjustSleepHistoryTime(sleep.id, min)} />
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           )}
 

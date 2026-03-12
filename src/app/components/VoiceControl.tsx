@@ -83,6 +83,7 @@ function parseCommand(raw: string): VoiceCommand | null {
 type Executor = (cmd: VoiceCommand, token: string) => string;
 
 const execute: Executor = (cmd, token) => {
+  try {
   const now = Date.now();
   const id = now.toString();
 
@@ -90,7 +91,12 @@ const execute: Executor = (cmd, token) => {
     case 'START_SLEEP': {
       const existing = localStorage.getItem('currentSleep');
       if (existing && existing !== 'null') {
-        return `Sleep is already running (${JSON.parse(existing).position}).`;
+        try {
+          const pos = JSON.parse(existing)?.position ?? 'unknown';
+          return `Sleep is already running (${pos}).`;
+        } catch {
+          return 'Sleep is already running.';
+        }
       }
       const record = { id, position: cmd.position, startTime: now };
       saveData('currentSleep', record, token);
@@ -106,7 +112,7 @@ const execute: Executor = (cmd, token) => {
       history.push(completed);
       saveData('sleepHistory', history, token);
       saveData('currentSleep', null, token);
-      const mins = Math.round((now - current.startTime) / 60000);
+      const mins = Math.round((now - (current.startTime ?? now)) / 60000);
       return `Sleep stopped. Duration: ${mins} min.`;
     }
 
@@ -210,7 +216,7 @@ const execute: Executor = (cmd, token) => {
       history.push(completed);
       saveData('tummyTimeHistory', history, token);
       saveData('currentTummyTime', null, token);
-      const mins = Math.round((now - current.startTime) / 60000);
+      const mins = Math.round((now - (current.startTime ?? now)) / 60000);
       return `Tummy time stopped. Duration: ${mins} min.`;
     }
 
@@ -238,6 +244,10 @@ const execute: Executor = (cmd, token) => {
       saveData('shoppingList', list, token);
       return `"${cmd.item}" added to shopping list.`;
     }
+  }
+  } catch (e) {
+    console.error('[BabyTracker] VoiceControl execute error:', e);
+    return 'Something went wrong. Please try again.';
   }
 };
 
@@ -326,7 +336,14 @@ export function VoiceControl() {
       setState((s) => (s === 'listening' ? 'idle' : s));
     };
 
-    recognition.start();
+    try {
+      recognition.start();
+    } catch (e) {
+      // InvalidStateError if already active, or other browser-specific errors
+      console.warn('[BabyTracker] recognition.start() failed:', e);
+      setState('idle');
+      return;
+    }
   }, [SpeechRec, session?.access_token, navigate]);
 
   // Cleanup on unmount
