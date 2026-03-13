@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { Navigation } from "../components/Navigation";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { TimeAdjustButtons } from "../components/TimeAdjustButtons";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
 import { ArrowLeft, Play, Square } from "lucide-react";
@@ -11,6 +10,8 @@ import { useAuth } from "../contexts/AuthContext";
 import { saveData, loadAllDataFromServer, POLL_MS_ACTIVE, POLL_MS_IDLE } from "../utils/dataSync";
 import { safeFormat, formatDurationMs } from "../utils/dateUtils";
 import { buildTimestamp, buildDurationMs, isManualEntryValid } from "../utils/manualEntryUtils";
+import { adjustActiveTummyItem, adjustTummyHistoryItem, setActiveTummyDisplayedDuration, setTummyHistoryDisplayedDuration, tummyDisplayedDurationMs } from "../utils/tummyUtils";
+import { DurationPicker, MAX_DURATION_HISTORY_MS } from "../components/DurationPicker";
 import { useGracePeriod } from "../hooks/useGracePeriod";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
 import type { TummyTimeRecord } from "../types";
@@ -77,6 +78,7 @@ export function TummyTime() {
   const [currentSession, setCurrentSession] = useState<TummyTimeRecord | null>(null);
   const [tummyTimeHistory, setTummyTimeHistory] = useState<TummyTimeRecord[]>([]);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const currentTimerRef = useRef<HTMLDivElement>(null);
   const { session, familyId } = useAuth();
   const grace = useGracePeriod();
 
@@ -149,7 +151,15 @@ export function TummyTime() {
     return () => clearInterval(interval);
   }, [currentSession]);
 
+  // When there's an active tummy time session, scroll the duration picker into view
+  useEffect(() => {
+    if (!currentSession || !currentTimerRef.current) return;
+    currentTimerRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [currentSession]);
+
   const startSession = () => {
+    // Guard: ignore double-taps while already running
+    if (currentSession) return;
     endCurrentSleepIfActive((sleepHistory) => {
       if (session?.access_token) {
         saveData("sleepHistory", sleepHistory, session.access_token);
@@ -169,8 +179,8 @@ export function TummyTime() {
     const updatedHistory = [...tummyTimeHistory, completedSession];
     grace.markStopped();
     setTummyTimeHistory(updatedHistory);
-    localStorage.setItem("tummyTimeHistory", JSON.stringify(updatedHistory));
-    localStorage.removeItem("currentTummyTime");
+    try { localStorage.setItem("tummyTimeHistory", JSON.stringify(updatedHistory)); } catch { /* quota/security */ }
+    try { localStorage.removeItem("currentTummyTime"); } catch { /* ignore */ }
     setCurrentSession(null);
     setElapsedTime(0);
     if (session?.access_token) {
@@ -182,26 +192,25 @@ export function TummyTime() {
   const adjustActiveTime = (mins: number) => {
     if (!currentSession) return;
     grace.markAction();
-    const updated = { ...currentSession, startTime: currentSession.startTime - mins * 60_000 };
+    const updated = adjustActiveTummyItem(currentSession, mins);
     setCurrentSession(updated);
-    setElapsedTime((t) => t + mins * 60_000);
-    localStorage.setItem("currentTummyTime", JSON.stringify(updated));
+    // Immediately reflect the new elapsed time before the next tick
+    setElapsedTime(Math.max(0, Date.now() - updated.startTime));
+    try { localStorage.setItem("currentTummyTime", JSON.stringify(updated)); } catch { /* quota/security */ }
     if (session?.access_token) saveData("currentTummyTime", updated, session.access_token);
   };
 
   const adjustHistoryTime = (id: string, mins: number) => {
     grace.markAction();
-    const updated = tummyTimeHistory.map((t) =>
-      t.id === id ? { ...t, startTime: t.startTime - mins * 60_000 } : t,
-    );
+    const updated = tummyTimeHistory.map((t) => t.id === id ? adjustTummyHistoryItem(t, mins) : t);
     setTummyTimeHistory(updated);
-    localStorage.setItem("tummyTimeHistory", JSON.stringify(updated));
+    try { localStorage.setItem("tummyTimeHistory", JSON.stringify(updated)); } catch { /* quota/security */ }
     if (session?.access_token) saveData("tummyTimeHistory", updated, session.access_token);
   };
 
   const todayStart = new Date().setHours(0, 0, 0, 0);
   const todaySessions = tummyTimeHistory.filter((t) => t.startTime > todayStart && t.endTime);
-  const todayTotal = todaySessions.reduce((acc, s) => acc + (s.endTime! - s.startTime), 0);
+  const todayTotal = todaySessions.reduce((acc, s) => acc + tummyDisplayedDurationMs(s), 0);
 
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const date = new Date();
@@ -215,7 +224,7 @@ export function TummyTime() {
     const dayEnd = dayStart + 24 * 60 * 60 * 1000;
     const totalMinutes = tummyTimeHistory
       .filter((t) => t.startTime >= dayStart && t.startTime < dayEnd && t.endTime)
-      .reduce((acc, t) => acc + (t.endTime! - t.startTime) / 60000, 0);
+      .reduce((acc, t) => acc + tummyDisplayedDurationMs(t) / 60000, 0);
     return { date: format(date, "EEE"), minutes: Math.round(totalMinutes) };
   });
 
@@ -242,15 +251,26 @@ export function TummyTime() {
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-6">
           <h2 className="text-lg mb-4 dark:text-white">Current Session</h2>
           {currentSession ? (
-            <div className="space-y-4">
-              <div className="bg-blue-50 dark:bg-blue-900/30 p-6 rounded-lg text-center">
-                <p className="text-6xl text-blue-600 dark:text-blue-400 mb-2">
-                  {formatDurationMs(elapsedTime)}
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+            <div ref={currentTimerRef} className="space-y-4">
+              <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
                   Started at {safeFormat(currentSession?.startTime, "HH:mm")}
                 </p>
-                <TimeAdjustButtons onAdjust={adjustActiveTime} className="justify-center" />
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Scroll to set duration — time updates live</p>
+                <DurationPicker
+                  valueMs={Math.max(0, elapsedTime - (currentSession?.excludedMs ?? 0))}
+                  maxMs={Math.max(elapsedTime, 60 * 1000)}
+                  showSeconds
+                  onChange={(ms) => {
+                    if (!currentSession) return;
+                    grace.markAction();
+                    const updated = setActiveTummyDisplayedDuration(currentSession, ms);
+                    setCurrentSession(updated);
+                    try { localStorage.setItem("currentTummyTime", JSON.stringify(updated)); } catch { /* ignore */ }
+                    if (session?.access_token) saveData("currentTummyTime", updated, session.access_token);
+                  }}
+                  className="min-h-[200px] flex-1"
+                />
               </div>
               <Button onClick={stopSession} className="w-full" variant="destructive" size="lg">
                 <Square className="w-5 h-5 mr-2" />
@@ -292,20 +312,37 @@ export function TummyTime() {
                 .reverse()
                 .map((s) => {
                   const start = s.startTime || parseInt(s.id) || 0;
+                  const displayedMs = tummyDisplayedDurationMs(s);
                   return (
-                    <div key={s.id} className="flex justify-between items-start p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      <div>
-                        <p className="text-xs font-mono text-gray-500 dark:text-gray-400">
-                          {safeFormat(start, "MMM d")}
-                          {"  "}
-                          {safeFormat(start, "HH:mm")}
-                          {s.endTime && ` → ${safeFormat(s.endTime, "HH:mm")}`}
-                        </p>
-                        <p className="text-blue-600 dark:text-blue-400 mt-0.5">
-                          {s.endTime && formatDurationMs(s.endTime - start)}
-                        </p>
+                    <div key={s.id} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                            {safeFormat(start, "d MMM")}
+                            {"  "}
+                            {safeFormat(start, "HH:mm")}
+                            {s.endTime && ` → ${safeFormat(s.endTime, "HH:mm")}`}
+                          </p>
+                          <p className="text-blue-600 dark:text-blue-400 mt-0.5 font-medium">
+                            {formatDurationMs(displayedMs)}
+                          </p>
+                        </div>
                       </div>
-                      <TimeAdjustButtons onAdjust={(min) => adjustHistoryTime(s.id, min)} />
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">Duration:</span>
+                        <DurationPicker
+                          valueMs={displayedMs}
+                          maxMs={MAX_DURATION_HISTORY_MS}
+                          onChange={(ms) => {
+                            grace.markAction();
+                            const updated = tummyTimeHistory.map((t) => t.id === s.id ? setTummyHistoryDisplayedDuration(t, ms) : t);
+                            setTummyTimeHistory(updated);
+                            try { localStorage.setItem("tummyTimeHistory", JSON.stringify(updated)); } catch { /* ignore */ }
+                            if (session?.access_token) saveData("tummyTimeHistory", updated, session.access_token);
+                          }}
+                          className="min-h-[140px] flex-1 max-w-[180px]"
+                        />
+                      </div>
                     </div>
                   );
                 })}

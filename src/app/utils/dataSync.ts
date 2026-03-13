@@ -13,6 +13,8 @@ export const SYNCED_DATA_KEYS = [
   'painkillerHistory',
   'notes',
   'shoppingList',
+  'babyProfile',
+  'milestones',
 ] as const;
 
 /** Default value when server doesn't return a key. */
@@ -28,6 +30,8 @@ export const SYNCED_DATA_DEFAULTS: Record<(typeof SYNCED_DATA_KEYS)[number], unk
   painkillerHistory: [],
   notes: [],
   shoppingList: [],
+  babyProfile: null as { birthDate: number; name?: string } | null,
+  milestones: [] as { id: string; label: string; typicalDaysMin: number; typicalDaysMax: number; achievedAt?: number }[],
 };
 
 /** Poll interval when any live session is active (feeding, sleep, tummy time). */

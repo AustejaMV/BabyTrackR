@@ -1,20 +1,11 @@
+/**
+ * Server-sync protection — after I interact with a tracker, the server cannot
+ * overwrite my change for the next few seconds (grace period).
+ */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
-/**
- * useGracePeriod is a React hook so we test its logic directly by
- * extracting the pure timing functions (no React renderer needed).
- *
- * We import the hook and call it outside React with renderHook from
- * @testing-library/react if available, but for pure-logic coverage we
- * can also test by simulating the ref behaviour.
- */
-
-// Pure grace-period logic extracted for deterministic unit testing
 function makeGrace(graceMs = 5_000) {
-  let lastStartedAt  = 0;
-  let lastStoppedAt  = 0;
-  let lastActionAt   = 0;
-
+  let lastStartedAt = 0, lastStoppedAt = 0, lastActionAt = 0;
   return {
     markStarted:     () => { lastStartedAt = lastActionAt = Date.now(); },
     markStopped:     () => { lastStoppedAt = lastActionAt = Date.now(); },
@@ -25,36 +16,54 @@ function makeGrace(graceMs = 5_000) {
   };
 }
 
-describe('grace period', () => {
-  afterEach(() => vi.useRealTimers());
+afterEach(() => vi.useRealTimers());
 
-  it('starts with all graces inactive', () => {
+describe('Before I do anything', () => {
+  it('the server can update freely — no grace period is active', () => {
     vi.useFakeTimers();
     const g = makeGrace();
+    expect(g.isInActionGrace()).toBe(false);
     expect(g.isInStartGrace()).toBe(false);
     expect(g.isInStopGrace()).toBe(false);
-    expect(g.isInActionGrace()).toBe(false);
   });
+});
 
-  it('markStarted activates start and action graces', () => {
+describe('Right after I start a timer', () => {
+  it('server polls are blocked so they cannot overwrite my new session', () => {
     vi.useFakeTimers();
     const g = makeGrace();
     g.markStarted();
-    expect(g.isInStartGrace()).toBe(true);
     expect(g.isInActionGrace()).toBe(true);
-    expect(g.isInStopGrace()).toBe(false);
+    expect(g.isInStartGrace()).toBe(true);
   });
 
-  it('markStopped activates stop and action graces', () => {
+  it('the stop-grace is NOT active — only start and action are', () => {
+    vi.useFakeTimers();
+    const g = makeGrace();
+    g.markStarted();
+    expect(g.isInStopGrace()).toBe(false);
+  });
+});
+
+describe('Right after I stop a timer', () => {
+  it('server polls are blocked so they cannot restore the stopped session', () => {
     vi.useFakeTimers();
     const g = makeGrace();
     g.markStopped();
-    expect(g.isInStopGrace()).toBe(true);
     expect(g.isInActionGrace()).toBe(true);
-    expect(g.isInStartGrace()).toBe(false);
+    expect(g.isInStopGrace()).toBe(true);
   });
 
-  it('markAction activates only action grace', () => {
+  it('the start-grace is NOT active', () => {
+    vi.useFakeTimers();
+    const g = makeGrace();
+    g.markStopped();
+    expect(g.isInStartGrace()).toBe(false);
+  });
+});
+
+describe('Right after I adjust time or pause/resume', () => {
+  it('server polls are blocked for 5 seconds', () => {
     vi.useFakeTimers();
     const g = makeGrace();
     g.markAction();
@@ -62,46 +71,35 @@ describe('grace period', () => {
     expect(g.isInStartGrace()).toBe(false);
     expect(g.isInStopGrace()).toBe(false);
   });
+});
 
-  it('graces expire after graceMs', () => {
+describe('After the grace period expires', () => {
+  it('server can update normally once 5 seconds have passed', () => {
     vi.useFakeTimers();
-    const GRACE = 5_000;
-    const g = makeGrace(GRACE);
+    const g = makeGrace(5_000);
     g.markStarted();
-    vi.advanceTimersByTime(GRACE);
-    // At exactly graceMs the condition is `elapsed < graceMs` → false
-    expect(g.isInStartGrace()).toBe(false);
+    vi.advanceTimersByTime(5_000);
     expect(g.isInActionGrace()).toBe(false);
+    expect(g.isInStartGrace()).toBe(false);
   });
 
-  it('graces are still active just before expiry', () => {
+  it('protection is still active just before the 5 seconds are up', () => {
     vi.useFakeTimers();
-    const GRACE = 5_000;
-    const g = makeGrace(GRACE);
+    const g = makeGrace(5_000);
     g.markStopped();
-    vi.advanceTimersByTime(GRACE - 1);
+    vi.advanceTimersByTime(4_999);
     expect(g.isInStopGrace()).toBe(true);
-    expect(g.isInActionGrace()).toBe(true);
   });
+});
 
-  it('markAction resets the expiry window', () => {
+describe('Tapping again resets the clock', () => {
+  it('a second tap within the window extends protection for another 5 seconds', () => {
     vi.useFakeTimers();
-    const GRACE = 5_000;
-    const g = makeGrace(GRACE);
+    const g = makeGrace(5_000);
     g.markAction();
     vi.advanceTimersByTime(4_000);
-    g.markAction(); // re-arm
-    vi.advanceTimersByTime(4_000); // 8s total, but only 4s since re-arm
+    g.markAction(); // tap again
+    vi.advanceTimersByTime(4_000); // 8 s total, but only 4 s since last tap
     expect(g.isInActionGrace()).toBe(true);
-  });
-
-  it('stop and start graces are independent', () => {
-    vi.useFakeTimers();
-    const GRACE = 5_000;
-    const g = makeGrace(GRACE);
-    g.markStarted();
-    vi.advanceTimersByTime(GRACE - 1);
-    expect(g.isInStartGrace()).toBe(true);
-    expect(g.isInStopGrace()).toBe(false);
   });
 });

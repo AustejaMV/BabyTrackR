@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Navigation } from "../components/Navigation";
 import { Button } from "../components/ui/button";
-import { TimeAdjustButtons } from "../components/TimeAdjustButtons";
+import { DurationPicker, MAX_DURATION_HISTORY_MS } from "../components/DurationPicker";
 import { Input } from "../components/ui/input";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { addHours } from "date-fns";
@@ -13,15 +13,25 @@ import { safeFormat, formatDurationMs, formatDurationShort } from "../utils/date
 import { useGracePeriod } from "../hooks/useGracePeriod";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
 import { buildTimestamp, buildDurationMs, isManualEntryValid } from "../utils/manualEntryUtils";
+import {
+  computeActiveTimers,
+  adjustCurrentSegment,
+  setSessionTotalDisplayedDuration,
+  switchSegment as switchSegmentUtil,
+  finaliseSession,
+  adjustHistoryRecord as adjustHistoryRecordUtil,
+  setFeedingHistoryDisplayedDuration,
+  createSession,
+  lastFeedingEndTime,
+  displayedDurationMs,
+} from "../utils/feedingUtils";
 import { toast } from "sonner";
 import type { FeedingRecord, FeedingSegment, ActiveSession, ActiveFeedingSession } from "../types";
 
 const FEEDING_TYPES = ["Left breast", "Right breast", "Formula", "Solids"];
 const ACTIVE_SESSION_KEY = "feedingActiveSession";
 
-function getLastFeedingEndTime(f: FeedingRecord): number {
-  return f.endTime ?? f.timestamp;
-}
+const getLastFeedingEndTime = lastFeedingEndTime;
 
 export function FeedingTracking() {
   const [feedingHistory, setFeedingHistory] = useState<FeedingRecord[]>([]);
@@ -34,6 +44,7 @@ export function FeedingTracking() {
   const [isPaused, setIsPaused] = useState(false);
   const [totalPausedMs, setTotalPausedMs] = useState(0);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
+  const currentTimerRef = useRef<HTMLDivElement>(null);
   const { session: authSession, familyId } = useAuth();
 
   const grace = useGracePeriod();
@@ -81,12 +92,14 @@ export function FeedingTracking() {
           let totalPaused = remote.totalPausedMs ?? 0;
           if (remote.isPaused && remote.pausedAt != null) totalPaused += now - remote.pausedAt;
           const start = remote.session.sessionStartTime;
-          setSession({ sessionStartTime: start, segments: remote.session.segments });
+          const sess = { sessionStartTime: start, segments: remote.session.segments };
+          setSession(sess);
           setIsPaused(!!remote.isPaused);
           setTotalPausedMs(totalPaused);
           setPausedAt(remote.isPaused ? now : null);
-          const last = remote.session.segments[remote.session.segments.length - 1];
-          setCurrentSegmentElapsedMs(last ? now - (last.endTime ?? last.startTime) : 0);
+          const { currentSegMs, totalMs } = computeActiveTimers(sess, now);
+          setCurrentSegmentElapsedMs(currentSegMs);
+          setTotalElapsedMs(totalMs);
         } else {
           // Server says null — skip if WE just started or did any action recently
           if (grace.isInStartGrace() || grace.isInActionGrace()) return;
@@ -106,6 +119,12 @@ export function FeedingTracking() {
     timerRef.current = setInterval(refetch, pollMsRef.current);
     return () => clearInterval(timerRef.current);
   }, [authSession?.access_token, familyId]);
+
+  // When there's an active feeding session, scroll the duration picker into view
+  useEffect(() => {
+    if (!session || !currentTimerRef.current) return;
+    currentTimerRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [session]);
 
   // Persist active session to localStorage so it survives tab navigation
   const persistActiveSession = (
@@ -173,15 +192,9 @@ export function FeedingTracking() {
   useEffect(() => {
     if (!session || isPaused) return;
     const interval = setInterval(() => {
-      const now = Date.now();
-      const last = session.segments[session.segments.length - 1];
-      const currentSegMs = last?.startTime != null ? now - (last.endTime ?? last.startTime) : 0;
+      const { currentSegMs, totalMs } = computeActiveTimers(session);
       setCurrentSegmentElapsedMs(currentSegMs);
-      // Total = completed segment wall-clock durations + current segment elapsed
-      const completedMs = session.segments
-        .slice(0, -1)
-        .reduce((sum, seg) => sum + ((seg.endTime ?? 0) - seg.startTime), 0);
-      setTotalElapsedMs(completedMs + currentSegMs);
+      setTotalElapsedMs(totalMs);
     }, 1000);
     return () => clearInterval(interval);
   }, [session, isPaused]);
@@ -202,11 +215,12 @@ export function FeedingTracking() {
   }, [session, isPaused, totalPausedMs, pausedAt, authSession?.access_token]);
 
   const startFeeding = () => {
-    const now = Date.now();
+    // Guard: ignore double-taps while a session is already running
+    if (session) return;
     const parsedAmt = parseFloat(formulaAmount);
     const amount = selectedType === "Formula" && formulaAmount && Number.isFinite(parsedAmt) ? parsedAmt : undefined;
     grace.markStarted(); // also marks action grace
-    setSession({ sessionStartTime: now, segments: [{ type: selectedType, startTime: now, amount }] });
+    setSession(createSession(selectedType, amount));
     setTotalElapsedMs(0);
     setCurrentSegmentElapsedMs(0);
     setIsPaused(false);
@@ -223,13 +237,9 @@ export function FeedingTracking() {
 
   const switchType = (type: string) => {
     if (!session || session.segments.length === 0) return;
-    const now = Date.now();
-    const segs = [...session.segments];
-    segs[segs.length - 1] = { ...segs[segs.length - 1], endTime: now };
     const amount = type === "Formula" && formulaAmount ? parseFloat(formulaAmount) : undefined;
-    segs.push({ type, startTime: now, amount });
     grace.markAction();
-    setSession({ ...session, segments: segs });
+    setSession(switchSegmentUtil(session, type, amount));
     setCurrentSegmentElapsedMs(0);
     if (type === "Formula") setFormulaAmount("");
   };
@@ -237,7 +247,8 @@ export function FeedingTracking() {
   const setCurrentSegmentAmount = (ml: number | undefined) => {
     if (!session || session.segments.length === 0) return;
     const segs = [...session.segments];
-    segs[segs.length - 1].amount = ml;
+    // Immutable update — never mutate the existing segment object
+    segs[segs.length - 1] = { ...segs[segs.length - 1], amount: ml };
     grace.markAction();
     setSession({ ...session, segments: segs });
   };
@@ -260,29 +271,11 @@ export function FeedingTracking() {
   const endFeeding = () => {
     if (!session || session.segments.length === 0) return;
     const now = Date.now();
-    const segs = session.segments.map((s) => ({ ...s, endTime: s.endTime ?? now }));
-    segs[segs.length - 1] = { ...segs[segs.length - 1], endTime: now };
-    const segments: FeedingSegment[] = segs.map((s) => ({
-      type: s.type,
-      startTime: s.startTime,
-      endTime: s.endTime!,
-      durationMs: s.endTime! - s.startTime,
-      amount: s.amount,
-    }));
-    // Sum segment wall-clock durations — immune to any sessionStartTime drift
-    const totalDurationMs = segments.reduce((sum, seg) => sum + (seg.endTime! - seg.startTime), 0);
-    const newFeeding: FeedingRecord = {
-      id: now.toString(),
-      timestamp: now,
-      startTime: session.sessionStartTime,
-      endTime: now,
-      durationMs: totalDurationMs,
-      segments,
-    };
+    const newFeeding = finaliseSession(session, now);
     const updated = [...feedingHistory, newFeeding];
     grace.markStopped(); // also marks action grace
     setFeedingHistory(updated);
-    localStorage.setItem("feedingHistory", JSON.stringify(updated));
+    try { localStorage.setItem("feedingHistory", JSON.stringify(updated)); } catch { /* quota/security */ }
     setSession(null);
     setFormulaAmount("");
     setIsPaused(false);
@@ -293,39 +286,22 @@ export function FeedingTracking() {
       syncDataToServer("feedingActiveSession", null, authSession.access_token);
       saveData("feedingHistory", updated, authSession.access_token);
     }
-    const totalMins = Math.round(totalDurationMs / 60000);
-    toast.success(`Feeding logged: ${totalMins} min total (${segments.length} segment${segments.length === 1 ? "" : "s"}).`);
+    const totalMins = Math.round(newFeeding.durationMs / 60000);
+    const segCount = newFeeding.segments?.length ?? 1;
+    toast.success(`Feeding logged: ${totalMins} min total (${segCount} segment${segCount === 1 ? "" : "s"}).`);
   };
 
   const adjustActiveFeedingTime = (mins: number) => {
     if (!session || session.segments.length === 0) return;
-    const delta = mins * 60_000;
-    const segs = [...session.segments];
-    segs[0] = { ...segs[0], startTime: segs[0].startTime - delta };
-    const updated = { ...session, sessionStartTime: segs[0].startTime, segments: segs };
     grace.markAction();
-    setSession(updated);
+    setSession(adjustCurrentSegment(session, mins));
   };
 
   const adjustFeedingHistoryTime = (id: string, mins: number) => {
-    const delta = mins * 60_000;
-    const updated = feedingHistory.map((f) => {
-      if (f.id !== id) return f;
-      const segs = f.segments
-        ? f.segments.map((seg, i) =>
-            i === 0
-              ? { ...seg, startTime: seg.startTime - delta, durationMs: (seg.durationMs ?? 0) + delta }
-              : seg,
-          )
-        : [];
-      const newDurationMs = segs.length > 0
-        ? segs.reduce((sum, seg) => sum + (seg.durationMs ?? 0), 0)
-        : (f.durationMs ?? 0) + delta;
-      return { ...f, startTime: f.startTime - delta, segments: segs, durationMs: newDurationMs };
-    });
+    const updated = feedingHistory.map((f) => f.id !== id ? f : adjustHistoryRecordUtil(f, mins));
     grace.markAction();
     setFeedingHistory(updated);
-    localStorage.setItem("feedingHistory", JSON.stringify(updated));
+    try { localStorage.setItem("feedingHistory", JSON.stringify(updated)); } catch { /* quota */ }
     if (authSession?.access_token) saveData("feedingHistory", updated, authSession.access_token);
   };
 
@@ -355,7 +331,7 @@ export function FeedingTracking() {
     const updated = [...feedingHistory, entry].sort((a, b) => a.startTime - b.startTime);
     grace.markAction();
     setFeedingHistory(updated);
-    localStorage.setItem("feedingHistory", JSON.stringify(updated));
+    try { localStorage.setItem("feedingHistory", JSON.stringify(updated)); } catch { /* quota/security */ }
     if (authSession?.access_token) saveData("feedingHistory", updated, authSession.access_token);
     setShowManualEntry(false);
     setManualDate(""); setManualTimeH(""); setManualTimeM("0"); setManualDurH("0"); setManualDurM(""); setManualType(FEEDING_TYPES[0]);
@@ -490,30 +466,39 @@ export function FeedingTracking() {
               </Button>
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg">
+            <div ref={currentTimerRef} className="space-y-4">
+              <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-4">
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
-                  Started {safeFormat(session.sessionStartTime, "HH:mm")}
+                  Started {safeFormat(session.sessionStartTime, "HH:mm")} {isPaused && "(paused)"}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Total time {isPaused && "(paused)"}</p>
-                <div className="flex items-center gap-3 mt-1">
-                  <p className="text-3xl font-mono text-green-600 dark:text-green-400">
-                    {formatDurationMs(totalElapsedMs)}
-                  </p>
-                  <TimeAdjustButtons onAdjust={adjustActiveFeedingTime} />
-                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Scroll to set duration — time updates live</p>
+                <DurationPicker
+                  valueMs={totalElapsedMs}
+                  maxMs={Math.max(totalElapsedMs, 60 * 1000)}
+                  showSeconds
+                  onChange={(ms) => {
+                    if (!session) return;
+                    grace.markAction();
+                    setSession(setSessionTotalDisplayedDuration(session, ms));
+                  }}
+                  className="min-h-[200px] flex-1"
+                />
               </div>
               {session.segments.length > 1 && (
                 <div className="text-sm">
                   <p className="text-gray-600 dark:text-gray-400 mb-1">So far:</p>
                   <ul className="space-y-0.5">
-                    {session.segments.slice(0, -1).map((seg, i) => (
-                      <li key={i} className="dark:text-gray-300">
-                        {seg.type}
-                        {seg.endTime != null && ` ${formatDurationShort(seg.endTime - seg.startTime)}`}
-                        {seg.amount != null && seg.amount > 0 && ` · ${seg.amount} ml`}
-                      </li>
-                    ))}
+                    {session.segments.slice(0, -1).map((seg, i) => {
+                      const wall = (seg.endTime ?? seg.startTime) - seg.startTime;
+                      const effective = Math.max(0, wall - (seg.excludedMs ?? 0));
+                      return (
+                        <li key={i} className="dark:text-gray-300">
+                          {seg.type}
+                          {seg.endTime != null && ` ${formatDurationShort(effective)}`}
+                          {seg.amount != null && seg.amount > 0 && ` · ${seg.amount} ml`}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
@@ -611,30 +596,41 @@ export function FeedingTracking() {
                 const totalMl = hasSegments
                   ? feeding.segments!.reduce((s, seg) => s + (seg.amount ?? 0), 0)
                   : feeding.amount ?? 0;
+                const displayedMs = displayedDurationMs(feeding);
                 return (
-                  <div key={feeding.id} className="flex flex-col gap-1 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <div key={feeding.id} className="flex flex-col gap-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="text-xs font-mono text-gray-500 dark:text-gray-400">
-                          {safeFormat(feeding.startTime ?? feeding.timestamp, "MMM d")}
+                          {safeFormat(feeding.startTime ?? feeding.timestamp, "d MMM")}
                           {"  "}
                           {safeFormat(feeding.startTime ?? feeding.timestamp, "HH:mm")}
                           {" → "}
                           {safeFormat(endTime, "HH:mm")}
                         </p>
                         <p className="dark:text-white font-medium mt-0.5">
-                          {feeding.durationMs != null ? formatDurationMs(feeding.durationMs) : "—"} total
+                          {formatDurationMs(displayedMs)} total
+                          {totalMl > 0 && <span className="text-green-600 dark:text-green-400 ml-1">· {totalMl} ml</span>}
                         </p>
                       </div>
-                      <div className="flex flex-col items-end gap-1">
-                        {totalMl > 0 && (
-                          <p className="text-green-600 dark:text-green-400 font-medium text-sm">{totalMl} ml</p>
-                        )}
-                        <TimeAdjustButtons onAdjust={(min) => adjustFeedingHistoryTime(feeding.id, min)} />
-                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">Duration:</span>
+                      <DurationPicker
+                        valueMs={displayedMs}
+                        maxMs={MAX_DURATION_HISTORY_MS}
+                        onChange={(ms) => {
+                          grace.markAction();
+                          const updated = feedingHistory.map((f) => f.id === feeding.id ? setFeedingHistoryDisplayedDuration(f, ms) : f);
+                          setFeedingHistory(updated);
+                          try { localStorage.setItem("feedingHistory", JSON.stringify(updated)); } catch { /* ignore */ }
+                          if (authSession?.access_token) saveData("feedingHistory", updated, authSession.access_token);
+                        }}
+                        className="min-h-[140px] flex-1 max-w-[180px]"
+                      />
                     </div>
                     {hasSegments && feeding.segments!.length > 0 && (
-                      <ul className="text-xs text-gray-600 dark:text-gray-400 mt-1 space-y-0.5">
+                      <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-0.5">
                         {feeding.segments!.map((seg, i) => (
                           <li key={i}>
                             {seg.type}: {seg.durationMs != null ? formatDurationShort(seg.durationMs) : "—"}

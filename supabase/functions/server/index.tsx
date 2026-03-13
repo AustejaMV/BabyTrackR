@@ -210,7 +210,69 @@ const DATA_TYPES = [
   "painkillerHistory",
   "notes",
   "shoppingList",
+  "babyProfile",
+  "milestones",
 ];
+
+const MAX_PHOTO_DATA_URL_LENGTH = 120_000; // ~90 KB base64
+
+/** Validate babyProfile shape; return null if invalid. */
+function validateBabyProfile(data: unknown): unknown {
+  if (data == null) return data;
+  const o = data as Record<string, unknown>;
+  const birthDate = o?.birthDate;
+  if (typeof birthDate !== "number" || !Number.isFinite(birthDate) || birthDate <= 0) return null;
+  const name = o?.name;
+  const photoDataUrl = o?.photoDataUrl;
+  const out: Record<string, unknown> = {
+    birthDate,
+    ...(typeof name === "string" ? { name: name.slice(0, 200) } : {}),
+  };
+  if (typeof photoDataUrl === "string" && photoDataUrl.length > 0) {
+    if (photoDataUrl.length <= MAX_PHOTO_DATA_URL_LENGTH && /^data:image\//i.test(photoDataUrl))
+      out.photoDataUrl = photoDataUrl;
+  }
+  return out;
+}
+
+/** Validate milestones array; return null if invalid. */
+function validateMilestones(data: unknown): unknown {
+  if (data == null) return data;
+  if (!Array.isArray(data)) return null;
+  const out: { id: string; label: string; typicalDaysMin: number; typicalDaysMax: number; achievedAt?: number }[] = [];
+  for (const row of data) {
+    const r = row as Record<string, unknown>;
+    const id = r?.id;
+    const label = r?.label;
+    const typicalDaysMin = r?.typicalDaysMin;
+    const typicalDaysMax = r?.typicalDaysMax;
+    if (typeof id !== "string" || typeof label !== "string" || typeof typicalDaysMin !== "number" || typeof typicalDaysMax !== "number") continue;
+    if (!Number.isFinite(typicalDaysMin) || !Number.isFinite(typicalDaysMax) || typicalDaysMin < 0 || typicalDaysMax < typicalDaysMin) continue;
+    const achievedAt = r?.achievedAt;
+    out.push({
+      id: String(id).slice(0, 100),
+      label: String(label).slice(0, 200),
+      typicalDaysMin,
+      typicalDaysMax,
+      ...(typeof achievedAt === "number" && Number.isFinite(achievedAt) ? { achievedAt } : {}),
+    });
+  }
+  return out;
+}
+
+function validateDataByType(dataType: string, data: unknown): { ok: true; data: unknown } | { ok: false; error: string } {
+  if (dataType === "babyProfile") {
+    const v = validateBabyProfile(data);
+    if (v === null) return { ok: false, error: "invalid_babyProfile" };
+    return { ok: true, data: v };
+  }
+  if (dataType === "milestones") {
+    const v = validateMilestones(data);
+    if (v === null) return { ok: false, error: "invalid_milestones" };
+    return { ok: true, data: v };
+  }
+  return { ok: true, data };
+}
 
 /**
  * Stored row format: { data, updatedBy, updatedAt, clientUpdatedAt }
@@ -301,12 +363,16 @@ app.post("/data/save-many", async (c) => {
   const serverNow = Date.now();
   const results = await Promise.all(
     updates.map(async ({ dataType, data, clientUpdatedAt }) => {
+      const validated = validateDataByType(dataType, data);
+      if (!validated.ok) return { dataType, error: validated.error };
+      const dataToStore = validated.data;
+
       const existing = await kv.get(`data:${familyId}:${dataType}`) as StoredRow | null;
       if (isConflict(existing, clientUpdatedAt)) {
         return { dataType, conflict: true, storedClientUpdatedAt: existing!.clientUpdatedAt };
       }
       await kv.set(`data:${familyId}:${dataType}`, {
-        data,
+        data: dataToStore,
         updatedBy: user!.id,
         updatedAt: serverNow,
         clientUpdatedAt: clientUpdatedAt ?? serverNow,

@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
-import type { SleepRecord, FeedingRecord, DiaperRecord, TummyTimeRecord, Note } from '../types';
+import type { SleepRecord, FeedingRecord, DiaperRecord, TummyTimeRecord, Note, BabyProfile } from '../types';
 
 /** Safely parse a localStorage value; returns `fallback` on any error. */
 function safeParse<T>(key: string, fallback: T): T {
@@ -50,10 +50,27 @@ export function generatePediatricReport() {
     doc.text('Baby Care Summary Report', 14, 20);
 
     doc.setFontSize(10);
-    doc.text(`Generated: ${format(new Date(), 'MMMM d, yyyy')}`, 14, 28);
+    doc.text(`Generated: ${format(new Date(), 'd MMMM yyyy')}`, 14, 28);
     doc.text('Report Period: Last 7 Days', 14, 34);
 
-    let yPos = 45;
+    let yPos = 40;
+    if (babyProfile?.birthDate) {
+      if (babyProfile.name) {
+        doc.text(`Baby: ${babyProfile.name}`, 14, yPos);
+        yPos += 6;
+      }
+      if (babyProfile.photoDataUrl && babyProfile.photoDataUrl.startsWith('data:image')) {
+        try {
+          doc.addImage(babyProfile.photoDataUrl, 'JPEG', 14, yPos, 24, 24);
+          yPos += 28;
+        } catch {
+          yPos += 2;
+        }
+      } else {
+        yPos += 2;
+      }
+    }
+    yPos += 5;
 
     // Summary Statistics
     doc.setFontSize(14);
@@ -175,7 +192,7 @@ export function generatePediatricReport() {
       doc.setFontSize(10);
       recentNotes.slice(0, 12).forEach((note) => {
         const status  = note.done ? '[x]' : '[ ]';
-        const dateStr = safeDate(note.createdAt, 'MMM d, HH:mm');
+        const dateStr = safeDate(note.createdAt, 'd MMM, HH:mm');
         const text    = `${status} ${dateStr} - ${note.text}`;
         doc.text(text, 14, yPos);
         yPos += 6;
@@ -211,7 +228,7 @@ export function generatePediatricReport() {
           ? f.segments.reduce((sum, s) => sum + (s.amount ?? 0), 0)
           : (f.amount ?? 0);
         return [
-          safeDate(et, 'MMM d'),
+          safeDate(et, 'd MMM'),
           safeDate(et, 'HH:mm'),
           typeStr,
           totalMl ? `${totalMl} ml` : '-',
@@ -240,7 +257,7 @@ export function generatePediatricReport() {
         startY: yPos,
         head: [['Date', 'Time', 'Type']],
         body: recentDiaper.slice(-20).reverse().map(d => [
-          safeDate(d.timestamp, 'MMM d'),
+          safeDate(d.timestamp, 'd MMM'),
           safeDate(d.timestamp, 'HH:mm'),
           d.type.charAt(0).toUpperCase() + d.type.slice(1),
         ]),

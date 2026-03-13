@@ -1,5 +1,6 @@
 import { createBrowserRouter } from "react-router";
 import { Dashboard } from "./pages/Dashboard";
+import { Tracking } from "./pages/Tracking";
 import { SleepTracking } from "./pages/SleepTracking";
 import { FeedingTracking } from "./pages/FeedingTracking";
 import { DiaperTracking } from "./pages/DiaperTracking";
@@ -15,6 +16,10 @@ export const router = createBrowserRouter([
   {
     path: "/",
     Component: Dashboard,
+  },
+  {
+    path: "/tracking",
+    Component: Tracking,
   },
   {
     path: "/sleep",

@@ -8,7 +8,8 @@ import { useAuth } from "../contexts/AuthContext";
 import { saveData, loadAllDataFromServer, POLL_MS_IDLE } from "../utils/dataSync";
 import { safeFormat } from "../utils/dateUtils";
 import { useGracePeriod } from "../hooks/useGracePeriod";
-import type { DiaperRecord } from "../types";
+import { calcStats, calcChartData } from "../utils/diaperUtils";
+import type { DiaperRecord, BabyProfile } from "../types";
 
 const DIAPER_TYPES: Array<{ value: "pee" | "poop" | "both"; label: string; color: string }> = [
   { value: "pee", label: "💧 Pee", color: "#3b82f6" },
@@ -20,6 +21,7 @@ const CHART_COLORS = ["#3b82f6", "#f59e0b"];
 
 export function DiaperTracking() {
   const [diaperHistory, setDiaperHistory] = useState<DiaperRecord[]>([]);
+  const [babyProfile, setBabyProfile] = useState<BabyProfile | null>(null);
   const { session, familyId } = useAuth();
   const grace = useGracePeriod();
 
@@ -53,6 +55,12 @@ export function DiaperTracking() {
         // ignore
       }
     }
+    try {
+      const bp = localStorage.getItem("babyProfile");
+      setBabyProfile(bp ? JSON.parse(bp) : null);
+    } catch {
+      setBabyProfile(null);
+    }
   }, []);
 
   const addDiaper = (type: "pee" | "poop" | "both") => {
@@ -70,21 +78,10 @@ export function DiaperTracking() {
     }
   };
 
-  // Get stats for last 24 hours
   const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
   const last24Hours = diaperHistory.filter((d) => d.timestamp > oneDayAgo);
-  
-  const stats = {
-    pee: last24Hours.filter((d) => d.type === "pee" || d.type === "both").length,
-    poop: last24Hours.filter((d) => d.type === "poop" || d.type === "both").length,
-    total: last24Hours.length,
-  };
-
-  // Chart: just Pee and Poop (both counts in each)
-  const chartData = [
-    { name: "Pee", value: diaperHistory.filter((d) => d.type === "pee" || d.type === "both").length },
-    { name: "Poop", value: diaperHistory.filter((d) => d.type === "poop" || d.type === "both").length },
-  ];
+  const stats = calcStats(last24Hours);
+  const chartData = calcChartData(diaperHistory);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 pb-20">
@@ -95,7 +92,14 @@ export function DiaperTracking() {
               <ArrowLeft className="w-5 h-5" />
             </Button>
           </Link>
-          <h1 className="text-2xl dark:text-white">Diaper Tracking</h1>
+          <div className="flex items-center gap-3 min-w-0">
+            {babyProfile?.photoDataUrl && (
+              <img src={babyProfile.photoDataUrl} alt="" className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600 shrink-0" />
+            )}
+            <h1 className="text-2xl dark:text-white truncate">
+              {babyProfile?.name ? `${babyProfile.name}'s diapers` : "Diaper Tracking"}
+            </h1>
+          </div>
         </div>
 
         {/* Stats Card */}
@@ -175,7 +179,7 @@ export function DiaperTracking() {
                     <div>
                       <p className="text-lg dark:text-white">{typeInfo?.label}</p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {safeFormat(diaper?.timestamp, "MMM d, HH:mm")}
+                        {safeFormat(diaper?.timestamp, "d MMM, HH:mm")}
                       </p>
                     </div>
                   </div>

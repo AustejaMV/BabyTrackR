@@ -1,15 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Navigation } from '../components/Navigation';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { ArrowLeft, UserPlus, LogOut, Download, Users, CheckCircle2, Circle, Trash2, Lock, Globe, Mail, X, AlertTriangle, CloudUpload } from 'lucide-react';
+import { ArrowLeft, UserPlus, LogOut, Download, Users, CheckCircle2, Circle, Trash2, Lock, Globe, Mail, X, AlertTriangle, CloudUpload, Camera } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { serverUrl, supabaseAnonKey } from '../utils/supabase';
 import { generatePediatricReport } from '../utils/pdfExport';
 import { toast } from 'sonner';
 import { saveData, saveManyToServer, SYNCED_DATA_KEYS, SYNCED_DATA_DEFAULTS, loadAllDataFromServer, clearSyncedDataFromLocalStorage } from '../utils/dataSync';
-import type { Note } from '../types';
+import type { Note, BabyProfile } from '../types';
+import { getAgeInDays } from '../utils/babyUtils';
+import { compressBabyPhoto } from '../utils/imageCompress';
 import { Mic } from 'lucide-react';
 import { VOICE_COMMAND_EXAMPLES } from '../components/VoiceControl';
 
@@ -32,6 +34,11 @@ export function Settings() {
   const [syncingToCloud, setSyncingToCloud] = useState(false);
   const [wipePending, setWipePending] = useState(false);
   const [wiping, setWiping] = useState(false);
+  const [babyProfile, setBabyProfile] = useState<BabyProfile | null>(null);
+  const [birthDateInput, setBirthDateInput] = useState('');
+  const [babyNameInput, setBabyNameInput] = useState('');
+  const [photoCompressing, setPhotoCompressing] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (session?.access_token && familyId) {
@@ -70,12 +77,25 @@ export function Settings() {
     if (storedNotes) {
       try {
         const parsed: Note[] = JSON.parse(storedNotes);
-        // Newest first
         parsed.sort((a, b) => b.createdAt - a.createdAt);
         setNotes(parsed);
       } catch {
-        // ignore parse errors
+        // ignore
       }
+    }
+    try {
+      const raw = localStorage.getItem('babyProfile');
+      if (raw) {
+        const p = JSON.parse(raw) as BabyProfile | null;
+        setBabyProfile(p);
+        if (p?.birthDate) {
+          const d = new Date(p.birthDate);
+          setBirthDateInput(d.toISOString().slice(0, 10));
+        }
+        setBabyNameInput(p?.name ?? '');
+      }
+    } catch {
+      // ignore
     }
   }, []);
 
@@ -339,6 +359,70 @@ export function Settings() {
     navigate('/');
   };
 
+  const saveBabyProfile = (updates: Partial<BabyProfile> | null) => {
+    const next: BabyProfile | null = updates === null
+      ? null
+      : {
+          birthDate: updates.birthDate ?? babyProfile?.birthDate ?? 0,
+          ...(updates.name !== undefined ? { name: updates.name || undefined } : (babyProfile?.name != null ? { name: babyProfile.name } : {})),
+          ...(updates.photoDataUrl !== undefined ? { photoDataUrl: updates.photoDataUrl || undefined } : (babyProfile?.photoDataUrl != null ? { photoDataUrl: babyProfile.photoDataUrl } : {})),
+        };
+    if (next && !next.birthDate) return;
+    const toSave = next && next.birthDate ? next : null;
+    setBabyProfile(toSave);
+    try { localStorage.setItem('babyProfile', JSON.stringify(toSave)); } catch { /* ignore */ }
+    if (session?.access_token) saveData('babyProfile', toSave, session.access_token);
+  };
+
+  const handleBirthDateChange = (dateStr: string) => {
+    setBirthDateInput(dateStr);
+    if (!dateStr) { saveBabyProfile(null); return; }
+    const ms = new Date(dateStr).setHours(0, 0, 0, 0);
+    if (!Number.isNaN(ms)) saveBabyProfile({ birthDate: ms });
+  };
+
+  const handleBabyNameBlur = () => {
+    const name = babyNameInput.trim().slice(0, 200);
+    setBabyNameInput(name);
+    if (babyProfile?.birthDate) saveBabyProfile({ name: name || undefined });
+  };
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !file.type.startsWith('image/')) return;
+    const existingMs = babyProfile?.birthDate ?? (birthDateInput ? new Date(birthDateInput).setHours(0, 0, 0, 0) : NaN);
+    const birthDateMs = Number.isFinite(existingMs) ? existingMs : (() => {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    })();
+    setPhotoCompressing(true);
+    try {
+      const dataUrl = await compressBabyPhoto(file);
+      if (babyProfile?.birthDate) saveBabyProfile({ photoDataUrl: dataUrl });
+      else {
+        const next: BabyProfile = { birthDate: birthDateMs, photoDataUrl: dataUrl };
+        if (babyNameInput.trim()) next.name = babyNameInput.trim().slice(0, 200);
+        setBabyProfile(next);
+        setBirthDateInput(new Date(birthDateMs).toISOString().slice(0, 10));
+        try { localStorage.setItem('babyProfile', JSON.stringify(next)); } catch { /* ignore */ }
+        if (session?.access_token) saveData('babyProfile', next, session.access_token);
+      }
+      toast.success(Number.isFinite(existingMs) ? 'Photo added' : 'Photo added. Set birth date below for accurate targets.');
+    } catch (err) {
+      toast.error('Could not process photo');
+      console.warn(err);
+    } finally {
+      setPhotoCompressing(false);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    if (babyProfile?.birthDate) saveBabyProfile({ photoDataUrl: undefined });
+    toast.success('Photo removed');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 pb-20">
       <div className="max-w-lg mx-auto px-4 py-6">
@@ -349,6 +433,63 @@ export function Settings() {
             </Button>
           </Link>
           <h1 className="text-2xl dark:text-white">Settings</h1>
+        </div>
+
+        {/* Baby */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-4">
+          <h2 className="text-lg mb-3 dark:text-white">Baby</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Set birth date to see age-appropriate targets and normalcy on the dashboard.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-600 flex items-center justify-center shrink-0 border-2 border-gray-200 dark:border-gray-600">
+                {babyProfile?.photoDataUrl ? (
+                  <img src={babyProfile.photoDataUrl} alt="Baby" className="w-full h-full object-cover" />
+                ) : (
+                  <Camera className="w-8 h-8 text-gray-400 dark:text-gray-500" />
+                )}
+              </div>
+              <div className="flex flex-wrap justify-center gap-2">
+                <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelect} disabled={photoCompressing} />
+                <Button type="button" variant="outline" size="sm" disabled={photoCompressing} onClick={() => photoInputRef.current?.click()}>
+                  {photoCompressing ? 'Compressing…' : 'Upload photo'}
+                </Button>
+                {babyProfile?.photoDataUrl && (
+                  <Button type="button" variant="ghost" size="sm" className="text-gray-500" onClick={handleRemovePhoto}>
+                    Remove
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="flex-1 space-y-3 min-w-0">
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Name</label>
+                <Input
+                  type="text"
+                  placeholder="Baby's name"
+                  value={babyNameInput}
+                  onChange={(e) => setBabyNameInput(e.target.value)}
+                  onBlur={handleBabyNameBlur}
+                  className="max-w-[200px]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Birth date</label>
+                <Input
+                  type="date"
+                  value={birthDateInput}
+                  onChange={(e) => handleBirthDateChange(e.target.value)}
+                  className="max-w-[200px]"
+                />
+                {babyProfile?.birthDate && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                    Age: {getAgeInDays(babyProfile.birthDate)} days
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* User Info */}

@@ -1,5 +1,10 @@
 import { format } from 'date-fns';
 
+/** User-facing short date: dd/mm/yyyy */
+export const DATE_DISPLAY = 'dd/MM/yyyy';
+/** User-facing long date: e.g. 8 March 2025 */
+export const DATE_DISPLAY_LONG = 'd MMMM yyyy';
+
 /**
  * Safely format a timestamp. Returns fallback when the value is
  * null/undefined/NaN/0 so pages never throw "Invalid time value".

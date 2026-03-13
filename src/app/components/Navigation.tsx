@@ -1,18 +1,19 @@
 import React from "react";
-import { Home, Baby, Utensils, Droplet, Settings } from "lucide-react";
+import { Home, Baby, Utensils, Droplet, Clock, BarChart3 } from "lucide-react";
 import { Link, useLocation } from "react-router";
 import { VoiceControl } from "./VoiceControl";
 import { APP_VERSION } from "../version";
 
 export function Navigation() {
   const location = useLocation();
-  
+
   const navItems = [
     { path: "/", icon: Home, label: "Home" },
+    { path: "/tracking", icon: BarChart3, label: "Tracking" },
     { path: "/sleep", icon: Baby, label: "Sleep" },
     { path: "/feeding", icon: Utensils, label: "Feed" },
     { path: "/diapers", icon: Droplet, label: "Diaper" },
-    { path: "/settings", icon: Settings, label: "Settings" },
+    { path: "/tummy-time", icon: Clock, label: "Tummy" },
   ];
 
   return (

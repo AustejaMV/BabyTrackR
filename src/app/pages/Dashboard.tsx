@@ -1,4 +1,4 @@
-import { Baby, Utensils, Droplet, Clock, Pill, ShoppingCart, Plus, Trash2, Check } from "lucide-react";
+import { Baby, Utensils, Droplet, Clock, Pill, ShoppingCart, Plus, Trash2, Check, Settings } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { Navigation } from "../components/Navigation";
 import { WarningIndicators } from "../components/WarningIndicators";
@@ -13,7 +13,8 @@ import { endCurrentSleepIfActive } from "../utils/sleepUtils";
 import { toast } from "sonner";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import type { SleepRecord, FeedingRecord, DiaperRecord, PainkillerDose, ActiveFeedingSession, ShoppingItem } from "../types";
+import type { SleepRecord, FeedingRecord, DiaperRecord, PainkillerDose, ActiveFeedingSession, ShoppingItem, BabyProfile } from "../types";
+import { displayedDurationMs } from "../utils/feedingUtils";
 
 const VISIBILITY_REFETCH_MIN_MS = 2_000;
 
@@ -59,6 +60,7 @@ export function Dashboard() {
   const [, setFeedingTick] = useState(0);
   const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([]);
   const [shoppingInput, setShoppingInput] = useState("");
+  const [babyProfile, setBabyProfile] = useState<BabyProfile | null>(null);
 
   const { user, session, loading, familyId } = useAuth();
   const prevFamilyIdRef = useRef<string | null>(null);
@@ -120,6 +122,10 @@ export function Dashboard() {
     if (shoppingData) {
       try { setShoppingList(JSON.parse(shoppingData)); } catch { /* ignore */ }
     }
+    try {
+      const bp = localStorage.getItem("babyProfile");
+      setBabyProfile(bp ? JSON.parse(bp) : null);
+    } catch { setBabyProfile(null); }
 
     try {
       const painkillerHistory = localStorage.getItem("painkillerHistory");
@@ -318,9 +324,14 @@ export function Dashboard() {
         <div className="mb-6 flex items-start justify-between">
           <div>
             <h1 className="text-3xl mb-2 dark:text-white">Baby Care Tracker</h1>
-            <p className="text-gray-600 dark:text-gray-400">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
+            <p className="text-gray-600 dark:text-gray-400">{format(new Date(), "EEEE, d MMMM yyyy")}</p>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <Link to="/settings" className="rounded-lg p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Settings">
+              <Settings className="w-5 h-5" />
+            </Link>
+            <ThemeToggle />
+          </div>
         </div>
 
         <WarningIndicators />
@@ -395,12 +406,12 @@ export function Dashboard() {
                     <>
                       <p className="text-base sm:text-lg text-green-600 dark:text-green-400 truncate">
                         {lastFeeding.segments?.length
-                          ? `${Math.round((lastFeeding.durationMs ?? 0) / 60000)}m total`
+                          ? `${Math.round(displayedDurationMs(lastFeeding) / 60000)}m total`
                           : (lastFeeding.type ?? "Feeding")}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
                         {getTimeSince(lastFeeding.endTime ?? lastFeeding.timestamp)}
-                        {lastFeeding.durationMs != null && ` · ${Math.round(lastFeeding.durationMs / 60000)}m`}
+                        {` · ${Math.round(displayedDurationMs(lastFeeding) / 60000)}m`}
                       </p>
                     </>
                   ) : (
@@ -573,6 +584,22 @@ export function Dashboard() {
             </button>
           )}
         </div>
+
+        {babyProfile?.birthDate && (
+          <Link to="/tracking" className="block mt-4">
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-medium dark:text-white">
+                  {babyProfile.name ? `${babyProfile.name}'s tracking` : "Tracking"}
+                </h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Targets, feeds normalcy chart, milestones
+                </p>
+              </div>
+              <span className="text-blue-600 dark:text-blue-400 text-sm">View →</span>
+            </div>
+          </Link>
+        )}
       </div>
 
       <Navigation />

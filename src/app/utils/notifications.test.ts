@@ -1,37 +1,27 @@
+/**
+ * Notifications — what the user experiences when warnings fire.
+ */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { maybeNotifyForWarning, scheduleNotification, sendNotification } from './notifications';
-
-// ─── helpers ─────────────────────────────────────────────────────────────────
 
 const store: Record<string, string> = {};
 const notificationCtor = vi.fn();
 
-/** Stub Notification with "granted" permission and a working constructor. */
 function stubGranted() {
   vi.stubGlobal('Notification', Object.assign(notificationCtor, { permission: 'granted' }));
 }
 
-/** Stub Notification with "denied" permission. */
 function stubDenied() {
   vi.stubGlobal('Notification', Object.assign(vi.fn(), { permission: 'denied' }));
 }
 
-/**
- * Stub Notification so the constructor throws "Illegal constructor"
- * (mobile browser behaviour).  A service-worker fallback is also stubbed.
- */
-function stubMobileIllegalConstructor() {
+function stubMobile() {
   const ctor = vi.fn().mockImplementation(() => {
     throw new TypeError('Illegal constructor. Use ServiceWorkerRegistration.showNotification() instead.');
   });
   vi.stubGlobal('Notification', Object.assign(ctor, { permission: 'granted' }));
-
   const showNotification = vi.fn().mockResolvedValue(undefined);
-  vi.stubGlobal('navigator', {
-    serviceWorker: {
-      ready: Promise.resolve({ showNotification }),
-    },
-  });
+  vi.stubGlobal('navigator', { serviceWorker: { ready: Promise.resolve({ showNotification }) } });
   return { showNotification };
 }
 
@@ -44,126 +34,102 @@ beforeEach(() => {
     removeItem: (k: string) => { delete store[k]; },
   });
 });
-
 afterEach(() => vi.unstubAllGlobals());
 
-// ─── sendNotification ─────────────────────────────────────────────────────────
+// ─── Receiving a notification ──────────────────────────────────────────────────
 
-describe('sendNotification', () => {
-  it('constructs a Notification when permission is granted', async () => {
+describe('When the app sends a notification', () => {
+  it('the user sees the notification when they have granted permission', async () => {
     stubGranted();
-    await sendNotification('Test title', { body: 'hello' });
-    expect(notificationCtor).toHaveBeenCalledOnce();
-    expect(notificationCtor).toHaveBeenCalledWith('Test title', expect.objectContaining({ body: 'hello' }));
+    await sendNotification('Feeding due', { body: 'Time for the next feeding.' });
+    expect(notificationCtor).toHaveBeenCalledWith('Feeding due', expect.objectContaining({ body: 'Time for the next feeding.' }));
   });
 
-  it('does nothing when permission is denied', async () => {
+  it('nothing happens when the user has denied notifications', async () => {
     stubDenied();
-    await sendNotification('Test title');
+    await sendNotification('Feeding due');
     expect(notificationCtor).not.toHaveBeenCalled();
   });
 
-  it('falls back to ServiceWorkerRegistration.showNotification() on mobile', async () => {
-    const { showNotification } = stubMobileIllegalConstructor();
-    await sendNotification('Mobile title', { body: 'via SW' });
-    expect(showNotification).toHaveBeenCalledOnce();
-    expect(showNotification).toHaveBeenCalledWith('Mobile title', expect.objectContaining({ body: 'via SW' }));
-  });
-
-  it('does not crash when Notification is absent from window', async () => {
+  it('nothing happens and the app does not crash when notifications are unavailable', async () => {
     vi.stubGlobal('Notification', undefined);
     await expect(sendNotification('Test')).resolves.not.toThrow();
   });
+
+  it('on mobile (where direct Notification is blocked) the service worker delivers it instead', async () => {
+    const { showNotification } = stubMobile();
+    await sendNotification('Mobile alert', { body: 'via SW' });
+    expect(showNotification).toHaveBeenCalledWith('Mobile alert', expect.objectContaining({ body: 'via SW' }));
+  });
 });
 
-// ─── scheduleNotification ─────────────────────────────────────────────────────
-
-describe('scheduleNotification', () => {
+describe('Scheduled notifications (e.g. remind me in X minutes)', () => {
   afterEach(() => vi.useRealTimers());
 
-  it('fires the notification after the specified delay', async () => {
+  it('fires after the specified delay, not before', async () => {
     vi.useFakeTimers();
     stubGranted();
-    scheduleNotification('Title', 'Body', 2_000);
+    scheduleNotification('Reminder', 'Check baby', 2_000);
+    expect(notificationCtor).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1_999);
     expect(notificationCtor).not.toHaveBeenCalled();
     await vi.runAllTimersAsync();
     expect(notificationCtor).toHaveBeenCalledOnce();
   });
-
-  it('does not fire before the delay elapses', async () => {
-    vi.useFakeTimers();
-    stubGranted();
-    scheduleNotification('Title', 'Body', 5_000);
-    vi.advanceTimersByTime(4_999);
-    expect(notificationCtor).not.toHaveBeenCalled();
-  });
 });
 
-// ─── maybeNotifyForWarning ────────────────────────────────────────────────────
+// ─── Warning notifications (feeding due, painkiller, etc.) ───────────────────
 
-describe('maybeNotifyForWarning', () => {
-  const FOUR_HOURS = 4 * 60 * 60 * 1_000;
-
-  it('does not fire when Notification is not in window', async () => {
-    vi.stubGlobal('Notification', undefined);
-    await expect(maybeNotifyForWarning('test', 'T', 'M')).resolves.not.toThrow();
-  });
-
-  it('does not fire when permission is denied', async () => {
-    stubDenied();
-    await maybeNotifyForWarning('warn1', 'Title', 'Msg');
-    expect(notificationCtor).not.toHaveBeenCalled();
-  });
-
-  it('fires on the first call (no previous timestamp)', async () => {
+describe('Warning notifications — the user is not spammed', () => {
+  it('fires the first time a warning appears', async () => {
     stubGranted();
-    await maybeNotifyForWarning('warn1', 'Title', 'Msg');
+    await maybeNotifyForWarning('feeding-due', 'Feeding overdue', 'Time for the next feeding.');
     expect(notificationCtor).toHaveBeenCalledOnce();
   });
 
-  it('stores the notification timestamp in localStorage', async () => {
-    stubGranted();
-    const before = Date.now();
-    await maybeNotifyForWarning('warn1', 'Title', 'Msg');
-    const stored = parseInt(store['lastWarningNotify:warn1'], 10);
-    expect(stored).toBeGreaterThanOrEqual(before);
-    expect(stored).toBeLessThanOrEqual(Date.now());
-  });
-
-  it('does NOT fire within the 4-hour cooldown window', async () => {
+  it('does NOT fire again within 4 hours of the same warning', async () => {
     vi.useFakeTimers();
     stubGranted();
-    await maybeNotifyForWarning('warn2', 'T', 'M');   // first fire
+    await maybeNotifyForWarning('feeding-due', 'T', 'M');
     notificationCtor.mockClear();
-    vi.advanceTimersByTime(FOUR_HOURS - 1);
-    await maybeNotifyForWarning('warn2', 'T', 'M');   // should be blocked
+    vi.advanceTimersByTime(4 * 60 * 60 * 1_000 - 1);
+    await maybeNotifyForWarning('feeding-due', 'T', 'M');
     expect(notificationCtor).not.toHaveBeenCalled();
     vi.useRealTimers();
   });
 
-  it('fires again after the 4-hour cooldown expires', async () => {
+  it('fires again once 4 hours have passed', async () => {
     vi.useFakeTimers();
     stubGranted();
-    await maybeNotifyForWarning('warn3', 'T', 'M');   // first fire
+    await maybeNotifyForWarning('feeding-due', 'T', 'M');
     notificationCtor.mockClear();
-    vi.advanceTimersByTime(FOUR_HOURS);               // exactly at expiry
-    await maybeNotifyForWarning('warn3', 'T', 'M');   // should fire
+    vi.advanceTimersByTime(4 * 60 * 60 * 1_000);
+    await maybeNotifyForWarning('feeding-due', 'T', 'M');
     expect(notificationCtor).toHaveBeenCalledOnce();
     vi.useRealTimers();
   });
 
-  it('different warning keys are tracked independently', async () => {
+  it('different warning types fire independently (feeding-due does not suppress painkiller-due)', async () => {
     stubGranted();
-    await maybeNotifyForWarning('keyA', 'A', 'a');
-    await maybeNotifyForWarning('keyB', 'B', 'b');
+    await maybeNotifyForWarning('feeding-due',    'Feeding',    'Feed now');
+    await maybeNotifyForWarning('painkiller-due', 'Painkiller', 'You can take another');
     expect(notificationCtor).toHaveBeenCalledTimes(2);
-    expect(store['lastWarningNotify:keyA']).toBeDefined();
-    expect(store['lastWarningNotify:keyB']).toBeDefined();
   });
 
-  it('uses service worker fallback on mobile without crashing', async () => {
-    const { showNotification } = stubMobileIllegalConstructor();
-    await maybeNotifyForWarning('mobileKey', 'Title', 'Body');
+  it('does not fire when notifications have been denied', async () => {
+    stubDenied();
+    await maybeNotifyForWarning('feeding-due', 'T', 'M');
+    expect(notificationCtor).not.toHaveBeenCalled();
+  });
+
+  it('does not crash when notifications are unavailable (e.g. unsupported browser)', async () => {
+    vi.stubGlobal('Notification', undefined);
+    await expect(maybeNotifyForWarning('feeding-due', 'T', 'M')).resolves.not.toThrow();
+  });
+
+  it('still works on mobile via service worker', async () => {
+    const { showNotification } = stubMobile();
+    await maybeNotifyForWarning('feeding-due', 'Feeding', 'Body');
     expect(showNotification).toHaveBeenCalledOnce();
   });
 });
