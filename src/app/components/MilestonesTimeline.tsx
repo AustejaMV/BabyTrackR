@@ -76,7 +76,7 @@ export function MilestonesTimeline({ birthDateMs, milestones, onSave, photoDataU
   return (
     <div className="space-y-2">
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-        Tap a milestone to set when your baby reached it. Your baby&apos;s face appears when achieved.
+        Each milestone shows when most babies hit it (typical range). Tap a card to set <strong>your</strong> baby&apos;s date — it&apos;s okay if it wasn&apos;t exactly then.
       </p>
 
       {/* Time axis + path (horizontal scroll) */}
@@ -169,13 +169,15 @@ export function MilestonesTimeline({ birthDateMs, milestones, onSave, photoDataU
                   <span className="text-[10px] font-medium text-center mt-1.5 text-gray-700 dark:text-gray-300 leading-tight max-w-[72px]">
                     {m.label}
                   </span>
-                  <span className="text-[9px] text-gray-500 dark:text-gray-400">
-                    {Math.round(m.typicalDaysMin / 7)}–{Math.round(m.typicalDaysMax / 7)}w
+                  <span className="text-[9px] text-gray-500 dark:text-gray-400" title="When most babies reach this">
+                    Typically {Math.round(m.typicalDaysMin / 7)}–{Math.round(m.typicalDaysMax / 7)}w
                   </span>
-                  {achievedDays != null && (
-                    <span className="text-[9px] text-green-600 dark:text-green-400">
-                      {format(m.achievedAt!, DATE_DISPLAY)}
+                  {achievedDays != null ? (
+                    <span className="text-[9px] text-green-600 dark:text-green-400 font-medium" title="Your baby">
+                      Yours: {format(m.achievedAt!, DATE_DISPLAY)}
                     </span>
+                  ) : (
+                    <span className="text-[8px] text-gray-400 dark:text-gray-500 italic">Tap to set</span>
                   )}
                 </div>
               );
@@ -188,17 +190,23 @@ export function MilestonesTimeline({ birthDateMs, milestones, onSave, photoDataU
       {editingId && (() => {
         const m = list.find((x) => x.id === editingId);
         if (!m) return null;
+        const typicalW = `${Math.round(m.typicalDaysMin / 7)}–${Math.round(m.typicalDaysMax / 7)} weeks`;
         return (
-          <div className="flex flex-wrap items-center gap-2 mt-3 p-3 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-            <span className="text-sm font-medium dark:text-white">{m.label}</span>
-            <Input
-              type="date"
-              value={editDate}
-              onChange={(e) => setEditDate(e.target.value)}
-              className="text-sm w-36"
-            />
-            <Button size="sm" onClick={() => handleSetAchieved(m.id, editDate)}>Save</Button>
-            <Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setEditDate(""); }}>Cancel</Button>
+          <div className="mt-3 p-4 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border border-amber-200 dark:border-amber-800">
+            <p className="text-sm font-medium dark:text-white mb-0.5">{m.label}</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+              Most babies: <strong>{typicalW}</strong>. When did yours? (approximate is fine.)
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                type="date"
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+                className="text-sm w-36"
+              />
+              <Button size="sm" onClick={() => handleSetAchieved(m.id, editDate)}>Save</Button>
+              <Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setEditDate(""); }}>Cancel</Button>
+            </div>
           </div>
         );
       })()}

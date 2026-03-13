@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 
-// iOS timer picker: 5 visible rows, center row is selection; ~40px rows
-const ROW_HEIGHT = 40;
-const VISIBLE_ROWS = 5;
+// Top-aligned picker: selection at top row; smaller default
+const ROW_HEIGHT = 32;
+const VISIBLE_ROWS = 3;
 const PICKER_HEIGHT = ROW_HEIGHT * VISIBLE_ROWS;
-const CENTER_OFFSET = ROW_HEIGHT * 2; // padding so first/last can scroll to center
+/** Only sync scroll from valueMs when delta is >= this (avoids live tick overwriting user scroll) */
+const SYNC_SCROLL_THRESHOLD_MS = 25_000;
 
 /** Max duration for editing past sessions: 23h 59m. Use as maxMs when showing picker on history items. */
 export const MAX_DURATION_HISTORY_MS = 23 * 60 * 60 * 1000 + 59 * 60 * 1000;
@@ -41,8 +42,19 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
   const secRef = useRef<HTMLDivElement>(null);
   const didInitialScroll = useRef(false);
 
-  // Sync from controlled value (live updates + external changes)
+  const msFromIndices = (h: number, m: number, s: number) => {
+    let ms = h * 60 * 60 * 1000 + m * 60_000;
+    if (showSeconds) ms += s * 1000;
+    return Math.min(ms, maxMs);
+  };
+
+  // Sync from controlled value only when change is large (avoids live tick snapping picker back)
   useEffect(() => {
+    const currentMs = msFromIndices(hourIndex, minIndex, secIndex);
+    const delta = Math.abs(valueMs - currentMs);
+    const shouldSync = !didInitialScroll.current || delta >= SYNC_SCROLL_THRESHOLD_MS || valueMs < currentMs;
+    if (!shouldSync) return;
+
     const h = Math.floor(valueMs / (60 * 60 * 1000));
     const m = Math.floor((valueMs % (60 * 60 * 1000)) / 60_000);
     const s = Math.floor((valueMs % 60_000) / 1000);
@@ -62,7 +74,7 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
     }
   };
 
-  // Initial scroll
+  // Initial scroll (top-aligned: selected row at top)
   useEffect(() => {
     if (didInitialScroll.current) return;
     const h = Math.min(hourIndex, maxHours);
@@ -106,12 +118,6 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
     }
   };
 
-  const msFromIndices = (h: number, m: number, s: number) => {
-    let ms = h * 60 * 60 * 1000 + m * 60_000;
-    if (showSeconds) ms += s * 1000;
-    return Math.min(ms, maxMs);
-  };
-
   const newMsFromIndices = (h: number, m: number, s?: number) => {
     onChange(msFromIndices(h, m, s ?? (showSeconds ? secIndex : 0)));
   };
@@ -139,35 +145,35 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
           backgroundColor: "var(--duration-picker-bg)",
         }}
       >
-        {/* Top/bottom fade — iOS strong fade so only center row pops */}
+        {/* Top/bottom fade */}
         <div
-          className="absolute inset-x-0 top-0 h-[80px] pointer-events-none z-10 rounded-t-2xl"
+          className="absolute inset-x-0 top-0 h-8 pointer-events-none z-10 rounded-t-2xl"
           style={{
             background: "linear-gradient(to bottom, var(--duration-picker-bg) 0%, transparent 100%)",
           }}
         />
         <div
-          className="absolute inset-x-0 bottom-0 h-[80px] pointer-events-none z-10 rounded-b-2xl"
+          className="absolute inset-x-0 bottom-0 h-8 pointer-events-none z-10 rounded-b-2xl"
           style={{
             background: "linear-gradient(to top, var(--duration-picker-bg) 0%, transparent 100%)",
           }}
         />
-        {/* Center selection band — spans all columns */}
+        {/* Top selection band — selected row at top */}
         <div
-          className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-[8] pointer-events-none rounded-lg mx-1"
+          className="absolute inset-x-0 top-0 z-[8] pointer-events-none rounded-t-lg mx-1"
           style={{
             height: ROW_HEIGHT,
             backgroundColor: "var(--duration-picker-band, rgba(0,0,0,0.06))",
           }}
         />
-        {/* Column dividers: 2 cols = one at 50%; 3 cols = at 33% and 66% */}
+        {/* Column dividers */}
         {showSeconds ? (
           <>
-            <div className="absolute left-[33.33%] top-1/2 -translate-y-1/2 -translate-x-px w-px h-[40px] bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" />
-            <div className="absolute left-[66.66%] top-1/2 -translate-y-1/2 -translate-x-px w-px h-[40px] bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" />
+            <div className="absolute left-[33.33%] top-0 w-px h-[32px] bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" />
+            <div className="absolute left-[66.66%] top-0 w-px h-[32px] bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" />
           </>
         ) : (
-          <div className="absolute left-1/2 top-1/2 -translate-y-1/2 -translate-x-px w-px h-[40px] bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" />
+          <div className="absolute left-1/2 top-0 -translate-x-px w-px h-[32px] bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" />
         )}
 
         <div
@@ -176,15 +182,14 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
           style={{
             height: PICKER_HEIGHT,
             scrollSnapType: "y mandatory",
-            paddingTop: CENTER_OFFSET,
-            paddingBottom: CENTER_OFFSET,
+            paddingBottom: Math.max(0, (maxHours + 1) * ROW_HEIGHT - PICKER_HEIGHT),
           }}
           onScroll={() => handleScroll("h")}
         >
           {Array.from({ length: maxHours + 1 }, (_, i) => (
             <div
               key={i}
-              className="flex items-center justify-center snap-center select-none font-semibold tabular-nums text-[17px] text-gray-900 dark:text-white"
+              className="flex items-center justify-center snap-start select-none font-semibold tabular-nums text-[15px] text-gray-900 dark:text-white"
               style={{ height: ROW_HEIGHT, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif" }}
               onClick={() => { setHourIndex(i); newMsFromIndices(i, minIndex, showSeconds ? secIndex : undefined); }}
             >
@@ -198,15 +203,14 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
           style={{
             height: PICKER_HEIGHT,
             scrollSnapType: "y mandatory",
-            paddingTop: CENTER_OFFSET,
-            paddingBottom: CENTER_OFFSET,
+            paddingBottom: Math.max(0, (maxMins + 1) * ROW_HEIGHT - PICKER_HEIGHT),
           }}
           onScroll={() => handleScroll("m")}
         >
           {Array.from({ length: maxMins + 1 }, (_, i) => (
             <div
               key={i}
-              className="flex items-center justify-center snap-center select-none font-semibold tabular-nums text-[17px] text-gray-900 dark:text-white"
+              className="flex items-center justify-center snap-start select-none font-semibold tabular-nums text-[15px] text-gray-900 dark:text-white"
               style={{ height: ROW_HEIGHT, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif" }}
               onClick={() => { setMinIndex(i); newMsFromIndices(hourIndex, i, showSeconds ? secIndex : undefined); }}
             >
@@ -221,15 +225,14 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
             style={{
               height: PICKER_HEIGHT,
               scrollSnapType: "y mandatory",
-              paddingTop: CENTER_OFFSET,
-              paddingBottom: CENTER_OFFSET,
+              paddingBottom: Math.max(0, (maxSecs + 1) * ROW_HEIGHT - PICKER_HEIGHT),
             }}
             onScroll={() => handleScroll("s")}
           >
             {Array.from({ length: maxSecs + 1 }, (_, i) => (
               <div
                 key={i}
-                className="flex items-center justify-center snap-center select-none font-semibold tabular-nums text-[17px] text-gray-900 dark:text-white"
+                className="flex items-center justify-center snap-start select-none font-semibold tabular-nums text-[15px] text-gray-900 dark:text-white"
                 style={{ height: ROW_HEIGHT, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif" }}
                 onClick={() => { setSecIndex(i); newMsFromIndices(hourIndex, minIndex, i); }}
               >

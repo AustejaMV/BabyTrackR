@@ -471,7 +471,7 @@ export function FeedingTracking() {
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
                   Started {safeFormat(session.sessionStartTime, "HH:mm")} {isPaused && "(paused)"}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Scroll to set duration — time updates live</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Current · set duration below</p>
                 <DurationPicker
                   valueMs={totalElapsedMs}
                   maxMs={Math.max(totalElapsedMs, 60 * 1000)}
@@ -481,52 +481,27 @@ export function FeedingTracking() {
                     grace.markAction();
                     setSession(setSessionTotalDisplayedDuration(session, ms));
                   }}
-                  className="min-h-[200px] flex-1"
+                  className="min-h-[96px] flex-1"
                 />
               </div>
-              {session.segments.length > 1 && (
-                <div className="text-sm">
-                  <p className="text-gray-600 dark:text-gray-400 mb-1">So far:</p>
-                  <ul className="space-y-0.5">
-                    {session.segments.slice(0, -1).map((seg, i) => {
-                      const wall = (seg.endTime ?? seg.startTime) - seg.startTime;
-                      const effective = Math.max(0, wall - (seg.excludedMs ?? 0));
-                      return (
-                        <li key={i} className="dark:text-gray-300">
-                          {seg.type}
-                          {seg.endTime != null && ` ${formatDurationShort(effective)}`}
-                          {seg.amount != null && seg.amount > 0 && ` · ${seg.amount} ml`}
-                        </li>
-                      );
-                    })}
-                  </ul>
+              {currentSegment?.type === "Formula" && (
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-600 dark:text-gray-400">Formula ml:</label>
+                  <Input
+                    type="number"
+                    value={currentSegment.amount ?? ""}
+                    onChange={(e) => {
+                      const parsed = parseFloat(e.target.value);
+                      const v = e.target.value === "" || !Number.isFinite(parsed) ? undefined : parsed;
+                      setCurrentSegmentAmount(v);
+                    }}
+                    placeholder="e.g. 60"
+                    className="w-24"
+                    step="10"
+                    min={0}
+                  />
                 </div>
               )}
-              <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Current</p>
-                <p className="text-xl font-medium dark:text-white">{currentSegment?.type}</p>
-                <p className="text-2xl font-mono text-green-600 dark:text-green-400 mt-1">
-                  {formatDurationMs(currentSegmentElapsedMs)}
-                </p>
-                {currentSegment?.type === "Formula" && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <label className="text-sm text-gray-600 dark:text-gray-400">ml:</label>
-                    <Input
-                      type="number"
-                      value={currentSegment.amount ?? ""}
-                      onChange={(e) => {
-                        const parsed = parseFloat(e.target.value);
-                        const v = e.target.value === "" || !Number.isFinite(parsed) ? undefined : parsed;
-                        setCurrentSegmentAmount(v);
-                      }}
-                      placeholder="e.g. 60"
-                      className="w-24"
-                      step="10"
-                      min={0}
-                    />
-                  </div>
-                )}
-              </div>
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Switch to</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -599,21 +574,14 @@ export function FeedingTracking() {
                 const displayedMs = displayedDurationMs(feeding);
                 return (
                   <div key={feeding.id} className="flex flex-col gap-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-xs font-mono text-gray-500 dark:text-gray-400">
-                          {safeFormat(feeding.startTime ?? feeding.timestamp, "d MMM")}
-                          {"  "}
-                          {safeFormat(feeding.startTime ?? feeding.timestamp, "HH:mm")}
-                          {" → "}
-                          {safeFormat(endTime, "HH:mm")}
-                        </p>
-                        <p className="dark:text-white font-medium mt-0.5">
-                          {formatDurationMs(displayedMs)} total
-                          {totalMl > 0 && <span className="text-green-600 dark:text-green-400 ml-1">· {totalMl} ml</span>}
-                        </p>
-                      </div>
-                    </div>
+                    <p className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                      {safeFormat(feeding.startTime ?? feeding.timestamp, "d MMM")}
+                      {"  "}
+                      {safeFormat(feeding.startTime ?? feeding.timestamp, "HH:mm")}
+                      {" → "}
+                      {safeFormat(endTime, "HH:mm")}
+                      {totalMl > 0 && <span className="text-green-600 dark:text-green-400 ml-1">· {totalMl} ml</span>}
+                    </p>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">Duration:</span>
                       <DurationPicker
@@ -626,19 +594,9 @@ export function FeedingTracking() {
                           try { localStorage.setItem("feedingHistory", JSON.stringify(updated)); } catch { /* ignore */ }
                           if (authSession?.access_token) saveData("feedingHistory", updated, authSession.access_token);
                         }}
-                        className="min-h-[140px] flex-1 max-w-[180px]"
+                        className="min-h-[96px] flex-1 max-w-[160px]"
                       />
                     </div>
-                    {hasSegments && feeding.segments!.length > 0 && (
-                      <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-0.5">
-                        {feeding.segments!.map((seg, i) => (
-                          <li key={i}>
-                            {seg.type}: {seg.durationMs != null ? formatDurationShort(seg.durationMs) : "—"}
-                            {seg.amount != null && seg.amount > 0 && ` · ${seg.amount} ml`}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
                   </div>
                 );
               })}

@@ -7,7 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import { saveData, loadAllDataFromServer, POLL_MS_ACTIVE, POLL_MS_IDLE } from "../utils/dataSync";
-import { safeFormat, formatLiveDuration, formatDurationShort } from "../utils/dateUtils";
+import { safeFormat } from "../utils/dateUtils";
 import { buildTimestamp, buildDurationMs, isManualEntryValid } from "../utils/manualEntryUtils";
 import { adjustActiveSleepItem, adjustSleepHistoryItem, setActiveSleepDisplayedDuration, setSleepHistoryDisplayedDuration, sleepDisplayedDurationMs } from "../utils/sleepUtils";
 import { DurationPicker, MAX_DURATION_HISTORY_MS } from "../components/DurationPicker";
@@ -223,12 +223,6 @@ export function SleepTracking() {
     }
   };
 
-  const getDuration = (record: SleepRecord) => {
-    const ms = sleepDisplayedDurationMs(record);
-    if (!Number.isFinite(ms) || ms < 0) return '—';
-    return record.endTime != null ? formatDurationShort(ms) : formatLiveDuration(ms);
-  };
-
   const adjustActiveSleepTime = (mins: number) => {
     if (!currentSleep) return;
     grace.markAction();
@@ -288,7 +282,7 @@ export function SleepTracking() {
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
                   {currentSleep?.position ?? "Sleep"} · Started {safeFormat(currentSleep.startTime, "HH:mm")}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Scroll to set duration — time updates live</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Current · set duration below</p>
                 <DurationPicker
                   valueMs={sleepDisplayedDurationMs(currentSleep)}
                   maxMs={Math.max(currentSleep ? Date.now() - currentSleep.startTime : 0, 60 * 1000)}
@@ -301,7 +295,7 @@ export function SleepTracking() {
                     try { localStorage.setItem("currentSleep", JSON.stringify(updated)); } catch { /* ignore */ }
                     if (session?.access_token) saveData("currentSleep", updated, session.access_token);
                   }}
-                  className="min-h-[200px] flex-1"
+                  className="min-h-[96px] flex-1"
                 />
               </div>
               <Button onClick={stopTracking} className="w-full" variant="destructive">
@@ -344,20 +338,14 @@ export function SleepTracking() {
                   const displayedMs = sleepDisplayedDurationMs(sleep);
                   return (
                     <div key={sleep.id} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg space-y-2">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="dark:text-white">{sleep?.position ?? "—"}</p>
-                          <p className="text-xs font-mono text-gray-500 dark:text-gray-400">
-                            {safeFormat(start, "d MMM")}
-                            {"  "}
-                            {safeFormat(start, "HH:mm")}
-                            {sleep.endTime && ` → ${safeFormat(sleep.endTime, "HH:mm")}`}
-                          </p>
-                        </div>
-                        <p className="text-blue-600 dark:text-blue-400 text-sm font-medium">
-                          {getDuration(sleep)}
-                        </p>
-                      </div>
+                      <p className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                        {sleep?.position ?? "—"}
+                        {" · "}
+                        {safeFormat(start, "d MMM")}
+                        {"  "}
+                        {safeFormat(start, "HH:mm")}
+                        {sleep.endTime && ` → ${safeFormat(sleep.endTime, "HH:mm")}`}
+                      </p>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">Duration:</span>
                         <DurationPicker
@@ -370,7 +358,7 @@ export function SleepTracking() {
                             try { localStorage.setItem("sleepHistory", JSON.stringify(updated)); } catch { /* ignore */ }
                             if (session?.access_token) saveData("sleepHistory", updated, session.access_token);
                           }}
-                          className="min-h-[140px] flex-1 max-w-[180px]"
+                          className="min-h-[96px] flex-1 max-w-[160px]"
                         />
                       </div>
                     </div>

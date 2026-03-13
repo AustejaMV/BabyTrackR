@@ -8,7 +8,7 @@ import { ArrowLeft, Play, Square } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import { saveData, loadAllDataFromServer, POLL_MS_ACTIVE, POLL_MS_IDLE } from "../utils/dataSync";
-import { safeFormat, formatDurationMs } from "../utils/dateUtils";
+import { safeFormat } from "../utils/dateUtils";
 import { buildTimestamp, buildDurationMs, isManualEntryValid } from "../utils/manualEntryUtils";
 import { adjustActiveTummyItem, adjustTummyHistoryItem, setActiveTummyDisplayedDuration, setTummyHistoryDisplayedDuration, tummyDisplayedDurationMs } from "../utils/tummyUtils";
 import { DurationPicker, MAX_DURATION_HISTORY_MS } from "../components/DurationPicker";
@@ -256,7 +256,7 @@ export function TummyTime() {
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
                   Started at {safeFormat(currentSession?.startTime, "HH:mm")}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Scroll to set duration — time updates live</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Current · set duration below</p>
                 <DurationPicker
                   valueMs={Math.max(0, elapsedTime - (currentSession?.excludedMs ?? 0))}
                   maxMs={Math.max(elapsedTime, 60 * 1000)}
@@ -269,7 +269,7 @@ export function TummyTime() {
                     try { localStorage.setItem("currentTummyTime", JSON.stringify(updated)); } catch { /* ignore */ }
                     if (session?.access_token) saveData("currentTummyTime", updated, session.access_token);
                   }}
-                  className="min-h-[200px] flex-1"
+                  className="min-h-[96px] flex-1"
                 />
               </div>
               <Button onClick={stopSession} className="w-full" variant="destructive" size="lg">
@@ -315,19 +315,12 @@ export function TummyTime() {
                   const displayedMs = tummyDisplayedDurationMs(s);
                   return (
                     <div key={s.id} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg space-y-2">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="text-xs font-mono text-gray-500 dark:text-gray-400">
-                            {safeFormat(start, "d MMM")}
-                            {"  "}
-                            {safeFormat(start, "HH:mm")}
-                            {s.endTime && ` → ${safeFormat(s.endTime, "HH:mm")}`}
-                          </p>
-                          <p className="text-blue-600 dark:text-blue-400 mt-0.5 font-medium">
-                            {formatDurationMs(displayedMs)}
-                          </p>
-                        </div>
-                      </div>
+                      <p className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                        {safeFormat(start, "d MMM")}
+                        {"  "}
+                        {safeFormat(start, "HH:mm")}
+                        {s.endTime && ` → ${safeFormat(s.endTime, "HH:mm")}`}
+                      </p>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">Duration:</span>
                         <DurationPicker
@@ -340,7 +333,7 @@ export function TummyTime() {
                             try { localStorage.setItem("tummyTimeHistory", JSON.stringify(updated)); } catch { /* ignore */ }
                             if (session?.access_token) saveData("tummyTimeHistory", updated, session.access_token);
                           }}
-                          className="min-h-[140px] flex-1 max-w-[180px]"
+                          className="min-h-[96px] flex-1 max-w-[160px]"
                         />
                       </div>
                     </div>
