@@ -1,5 +1,7 @@
 import { createBrowserRouter } from "react-router";
 import { Dashboard } from "./pages/Dashboard";
+import { JourneyScreen } from "./pages/JourneyScreen";
+import { MoreScreen } from "./pages/MoreScreen";
 import { Tracking } from "./pages/Tracking";
 import { SleepTracking } from "./pages/SleepTracking";
 import { FeedingTracking } from "./pages/FeedingTracking";
@@ -16,6 +18,14 @@ export const router = createBrowserRouter([
   {
     path: "/",
     Component: Dashboard,
+  },
+  {
+    path: "/journey",
+    Component: JourneyScreen,
+  },
+  {
+    path: "/more",
+    Component: MoreScreen,
   },
   {
     path: "/tracking",

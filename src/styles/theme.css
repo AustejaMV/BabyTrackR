@@ -2,80 +2,144 @@
 
 :root {
   --font-size: 16px;
-  --background: #ffffff;
-  --foreground: oklch(0.145 0 0);
+  /* BabyTrackR light (from example) */
+  --bg: #fffbf5;
+  --bg2: #fff8f2;
+  --bg3: #fdf5ee;
   --card: #ffffff;
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #030213;
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.95 0.0058 264.53);
-  --secondary-foreground: #030213;
-  --muted: #ececf0;
-  --muted-foreground: #717182;
-  --accent: #e9ebef;
-  --accent-foreground: #030213;
-  --destructive: #d4183d;
-  --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.1);
-  --input: transparent;
-  --input-background: #f3f3f5;
-  --switch-background: #cbced4;
+  --card2: #fdf8f4;
+  --bd: #f0e0d0;
+  --bd2: #e8d0c0;
+  --tx: #3d2c2c;
+  --mu: #9a8080;
+  --mu2: #c0a898;
+  --coral: #ff8c69;
+  --blue: #7ab3d4;
+  --grn: #8cbc7c;
+  --purp: #c4a0d4;
+  --pink: #e8748a;
+  --pe: #fde8d8;
+  --ro: #f5c4c4;
+  --sa: #d4e8d4;
+  --sk: #d4eaf7;
+  --la: #e8d4f5;
+  --hello1: #fef0e8;
+  --hello2: #f8eeff;
+  --pick-bg: #fdf5f0;
+  --hl-bg: rgba(232, 116, 138, 0.07);
+  --btn-row: #f5ede8;
+  --stat-bg: #ffffff;
+  --med-bg: #fde8d8;
+  --med-col: #b05050;
+  --rem-bg: #ffffff;
+  --rng-track: #f5ede8;
+  --ro-bub: #fff0f0;
+  /* Tailwind compat */
+  --background: var(--bg);
+  --foreground: var(--tx);
+  --card-foreground: var(--tx);
+  --popover: var(--card);
+  --popover-foreground: var(--tx);
+  --primary: var(--tx);
+  --primary-foreground: #fff;
+  --secondary: var(--card2);
+  --secondary-foreground: var(--tx);
+  --muted: var(--bd);
+  --muted-foreground: var(--mu);
+  --accent: var(--pe);
+  --accent-foreground: var(--tx);
+  --destructive: #c46060;
+  --destructive-foreground: #fff;
+  --border: var(--bd);
+  --input: var(--bd);
+  --input-background: var(--card2);
+  --switch-background: var(--pe);
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  --ring: var(--pink);
+  --chart-1: var(--coral);
+  --chart-2: var(--blue);
+  --chart-3: var(--grn);
+  --chart-4: var(--purp);
+  --chart-5: var(--pink);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #030213;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: var(--bg2);
+  --sidebar-foreground: var(--tx);
+  --sidebar-primary: var(--pink);
+  --sidebar-primary-foreground: #fff;
+  --sidebar-accent: var(--pe);
+  --sidebar-accent-foreground: var(--tx);
+  --sidebar-border: var(--bd);
+  --sidebar-ring: var(--pink);
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
+.dark,
+:root.dark {
+  --bg: #0f1729;
+  --bg2: #162035;
+  --bg3: #1a2840;
+  --card: #1e2d48;
+  --card2: #1e2d48;
+  --bd: #2a3d5e;
+  --bd2: #2a3d5e;
+  --tx: #e8eef8;
+  --mu: #7a90b0;
+  --mu2: #7a90b0;
+  --coral: #ffaa88;
+  --blue: #88c8f0;
+  --grn: #88d4a8;
+  --purp: #c8a8f0;
+  --pink: #f0a0c0;
+  --pe: #2a3d5e;
+  --ro: #3d2a4a;
+  --sa: #1a2e24;
+  --sk: #1a2838;
+  --la: #2e1e38;
+  --hello1: #1a2840;
+  --hello2: #201838;
+  --pick-bg: var(--bg2);
+  --hl-bg: rgba(240, 160, 192, 0.1);
+  --btn-row: var(--bg2);
+  --stat-bg: var(--card);
+  --med-bg: #2a3d5e;
+  --med-col: var(--pink);
+  --rem-bg: var(--card);
+  --rng-track: var(--bg2);
+  --ro-bub: #2e1820;
+  --duration-picker-bg: var(--bg2);
+  --background: var(--bg);
+  --foreground: var(--tx);
+  --card-foreground: var(--tx);
+  --popover: var(--card);
+  --popover-foreground: var(--tx);
+  --primary: var(--tx);
+  --primary-foreground: var(--bg);
+  --secondary: var(--card2);
+  --secondary-foreground: var(--tx);
+  --muted: var(--bd);
+  --muted-foreground: var(--mu);
+  --accent: var(--pe);
+  --accent-foreground: var(--tx);
+  --destructive: #e09090;
+  --destructive-foreground: var(--bg);
+  --border: var(--bd);
+  --input: var(--bd);
+  --input-background: var(--bg2);
+  --switch-background: #2a3d5e;
+  --ring: var(--pink);
+  --chart-1: var(--coral);
+  --chart-2: var(--blue);
+  --chart-3: var(--grn);
+  --chart-4: var(--purp);
+  --chart-5: var(--pink);
+  --sidebar: var(--bg2);
+  --sidebar-foreground: var(--tx);
+  --sidebar-primary: var(--pink);
+  --sidebar-primary-foreground: var(--bg);
+  --sidebar-accent: var(--pe);
+  --sidebar-accent-foreground: var(--tx);
+  --sidebar-border: var(--bd);
+  --sidebar-ring: var(--pink);
 }
 
 @theme inline {
@@ -126,6 +190,11 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: Georgia, serif;
   }
 
   /**

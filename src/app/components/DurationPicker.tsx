@@ -18,6 +18,10 @@ interface DurationPickerProps {
   onChange: (ms: number) => void;
   /** Show seconds column (for active sessions so duration "moves" live). */
   showSeconds?: boolean;
+  /** When true, always sync picker to valueMs (e.g. live timer). When false, only sync on large delta to avoid overwriting user scroll. */
+  liveSync?: boolean;
+  /** When false, hide the hours column (feed drawer: minutes and seconds only). */
+  showHours?: boolean;
   className?: string;
 }
 
@@ -25,12 +29,12 @@ interface DurationPickerProps {
  * iOS-style duration wheel: scroll hours, minutes, and optionally seconds.
  * Value updates live from valueMs (e.g. every second for active sessions); user can scroll to adjust.
  */
-export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, className = "" }: DurationPickerProps) {
-  const maxHours = Math.floor(maxMs / (60 * 60 * 1000));
+export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, liveSync = false, showHours = true, className = "" }: DurationPickerProps) {
+  const maxHours = showHours ? Math.floor(maxMs / (60 * 60 * 1000)) : 0;
   const maxMins = maxHours > 0 ? 59 : Math.min(59, Math.floor(maxMs / 60_000));
   const maxSecs = showSeconds ? (maxHours > 0 || maxMins > 0 ? 59 : Math.min(59, Math.floor(maxMs / 1000))) : 0;
 
-  const hours = Math.floor(valueMs / (60 * 60 * 1000));
+  const hours = showHours ? Math.floor(valueMs / (60 * 60 * 1000)) : 0;
   const minutes = Math.floor((valueMs % (60 * 60 * 1000)) / 60_000);
   const seconds = Math.floor((valueMs % 60_000) / 1000);
 
@@ -41,6 +45,10 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
   const minRef = useRef<HTMLDivElement>(null);
   const secRef = useRef<HTMLDivElement>(null);
   const didInitialScroll = useRef(false);
+  const programmaticScrollRef = useRef(false);
+  /** When user scrolls, we skip programmatic scroll for this long so we don't fight. */
+  const lastUserScrollAt = useRef(0);
+  const USER_SCROLL_DEBOUNCE_MS = 400;
 
   const msFromIndices = (h: number, m: number, s: number) => {
     let ms = h * 60 * 60 * 1000 + m * 60_000;
@@ -48,23 +56,24 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
     return Math.min(ms, maxMs);
   };
 
-  // Sync from controlled value only when change is large (avoids live tick snapping picker back)
+  // Sync from controlled value: when liveSync (e.g. timer running), always sync; else only when delta is large or initial
   useEffect(() => {
     const currentMs = msFromIndices(hourIndex, minIndex, secIndex);
     const delta = Math.abs(valueMs - currentMs);
-    const shouldSync = !didInitialScroll.current || delta >= SYNC_SCROLL_THRESHOLD_MS || valueMs < currentMs;
+    const shouldSync = liveSync || !didInitialScroll.current || delta >= SYNC_SCROLL_THRESHOLD_MS;
     if (!shouldSync) return;
 
     const h = Math.floor(valueMs / (60 * 60 * 1000));
-    const m = Math.floor((valueMs % (60 * 60 * 1000)) / 60_000);
-    const s = Math.floor((valueMs % 60_000) / 1000);
+    const m = Math.floor((valueMs % (60 * 60 * 1000)) / 60_000) % 60;
+    const s = Math.floor((valueMs % 60_000) / 1000) % 60;
     setHourIndex(Math.min(h, maxHours));
     setMinIndex(Math.min(m, maxMins));
     if (showSeconds) setSecIndex(Math.min(s, maxSecs));
-  }, [valueMs, maxHours, maxMins, showSeconds, maxSecs]);
+  }, [valueMs, maxHours, maxMins, showSeconds, maxSecs, liveSync]);
 
   const scrollTo = (ref: React.RefObject<HTMLDivElement | null>, index: number, instant = false) => {
     if (!ref.current) return;
+    programmaticScrollRef.current = true;
     const el = ref.current;
     const targetScroll = index * ROW_HEIGHT;
     if (typeof el.scrollTo === "function") {
@@ -72,11 +81,13 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
     } else {
       (el as { scrollTop?: number }).scrollTop = targetScroll;
     }
+    setTimeout(() => { programmaticScrollRef.current = false; }, 50);
   };
 
   // Initial scroll (top-aligned: selected row at top)
   useEffect(() => {
     if (didInitialScroll.current) return;
+    programmaticScrollRef.current = true;
     const h = Math.min(hourIndex, maxHours);
     const m = Math.min(minIndex, maxMins);
     const s = Math.min(secIndex, maxSecs);
@@ -84,22 +95,28 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
     if (minRef.current) minRef.current.scrollTop = m * ROW_HEIGHT;
     if (showSeconds && secRef.current) secRef.current.scrollTop = s * ROW_HEIGHT;
     didInitialScroll.current = true;
+    setTimeout(() => { programmaticScrollRef.current = false; }, 50);
   }, [hourIndex, minIndex, secIndex, maxHours, maxMins, maxSecs, showSeconds]);
 
+  const skipProgrammatic = liveSync && (Date.now() - lastUserScrollAt.current < USER_SCROLL_DEBOUNCE_MS);
+  const useInstant = liveSync;
+
   useEffect(() => {
-    if (!didInitialScroll.current) return;
-    scrollTo(hourRef, hourIndex);
-  }, [hourIndex]);
+    if (!didInitialScroll.current || skipProgrammatic) return;
+    scrollTo(hourRef, hourIndex, useInstant);
+  }, [hourIndex, skipProgrammatic, useInstant]);
   useEffect(() => {
-    if (!didInitialScroll.current) return;
-    scrollTo(minRef, minIndex);
-  }, [minIndex]);
+    if (!didInitialScroll.current || skipProgrammatic) return;
+    scrollTo(minRef, minIndex, useInstant);
+  }, [minIndex, skipProgrammatic, useInstant]);
   useEffect(() => {
-    if (!didInitialScroll.current || !showSeconds) return;
-    scrollTo(secRef, secIndex);
-  }, [secIndex, showSeconds]);
+    if (!didInitialScroll.current || !showSeconds || skipProgrammatic) return;
+    scrollTo(secRef, secIndex, useInstant);
+  }, [secIndex, showSeconds, skipProgrammatic, useInstant]);
 
   const handleScroll = (type: "h" | "m" | "s") => {
+    if (programmaticScrollRef.current) return; // Ignore scroll events we triggered; user scroll is handled below
+    lastUserScrollAt.current = Date.now();
     const ref = type === "h" ? hourRef : type === "m" ? minRef : secRef;
     const max = type === "h" ? maxHours : type === "m" ? maxMins : maxSecs;
     if (!ref.current) return;
@@ -158,45 +175,49 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
             background: "linear-gradient(to top, var(--duration-picker-bg) 0%, transparent 100%)",
           }}
         />
-        {/* Top selection band — selected row at top */}
+        {/* Top selection band — selected row at top; theme: --hl-bg and --pink borders */}
         <div
           className="absolute inset-x-0 top-0 z-[8] pointer-events-none rounded-t-lg mx-1"
           style={{
             height: ROW_HEIGHT,
-            backgroundColor: "var(--duration-picker-band, rgba(0,0,0,0.06))",
+            backgroundColor: "var(--hl-bg, var(--duration-picker-band, rgba(0,0,0,0.06)))",
+            borderTop: "1px solid var(--pink)",
+            borderBottom: "1px solid var(--pink)",
           }}
         />
         {/* Column dividers */}
-        {showSeconds ? (
+        {!showHours && showSeconds && <div className="absolute left-1/2 top-0 -translate-x-px w-px h-[32px] bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" />}
+        {showHours && !showSeconds && <div className="absolute left-1/2 top-0 -translate-x-px w-px h-[32px] bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" />}
+        {showHours && showSeconds && (
           <>
             <div className="absolute left-[33.33%] top-0 w-px h-[32px] bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" />
             <div className="absolute left-[66.66%] top-0 w-px h-[32px] bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" />
           </>
-        ) : (
-          <div className="absolute left-1/2 top-0 -translate-x-px w-px h-[32px] bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" />
         )}
 
-        <div
-          ref={hourRef}
-          className="duration-picker-scroll flex-1 overflow-y-auto overflow-x-hidden scroll-smooth snap-y snap-mandatory min-w-0"
-          style={{
-            height: PICKER_HEIGHT,
-            scrollSnapType: "y mandatory",
-            paddingBottom: Math.max(0, (maxHours + 1) * ROW_HEIGHT - PICKER_HEIGHT),
-          }}
-          onScroll={() => handleScroll("h")}
-        >
-          {Array.from({ length: maxHours + 1 }, (_, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-center snap-start select-none font-semibold tabular-nums text-[15px] text-gray-900 dark:text-white"
-              style={{ height: ROW_HEIGHT, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif" }}
-              onClick={() => { setHourIndex(i); newMsFromIndices(i, minIndex, showSeconds ? secIndex : undefined); }}
-            >
-              {i}h
-            </div>
-          ))}
-        </div>
+        {showHours && (
+          <div
+            ref={hourRef}
+            className="duration-picker-scroll flex-1 overflow-y-auto overflow-x-hidden scroll-smooth snap-y snap-mandatory min-w-0"
+            style={{
+              height: PICKER_HEIGHT,
+              scrollSnapType: "y mandatory",
+              paddingBottom: Math.max(0, (maxHours + 1) * ROW_HEIGHT - PICKER_HEIGHT),
+            }}
+            onScroll={() => handleScroll("h")}
+          >
+            {Array.from({ length: maxHours + 1 }, (_, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-center snap-start select-none font-semibold tabular-nums text-[15px] text-gray-900 dark:text-white"
+                style={{ height: ROW_HEIGHT, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif" }}
+                onClick={() => { setHourIndex(i); newMsFromIndices(i, minIndex, showSeconds ? secIndex : undefined); }}
+              >
+                {i}h
+              </div>
+            ))}
+          </div>
+        )}
         <div
           ref={minRef}
           className="duration-picker-scroll flex-1 overflow-y-auto overflow-x-hidden scroll-smooth snap-y snap-mandatory min-w-0"

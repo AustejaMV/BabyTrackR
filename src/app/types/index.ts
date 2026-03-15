@@ -102,6 +102,9 @@ export interface BabyProfile {
   name?: string;
   /** Compressed image as data URL (JPEG, small size); set after client-side resize+compress */
   photoDataUrl?: string;
+  weight?: number; // kg, optional
+  height?: number; // cm, optional
+  headCircumference?: number; // cm, optional
 }
 
 /** Developmental milestone with typical range and user-set date */
@@ -113,4 +116,66 @@ export interface Milestone {
   typicalDaysMax: number;
   /** When the user marked it achieved (epoch ms), or undefined */
   achievedAt?: number;
+}
+
+/** Bottle feed log */
+export interface BottleRecord {
+  id: string;
+  timestamp: number;
+  volumeMl: number;
+  feedType: "formula" | "expressed" | "mixed";
+}
+
+/** Pump session log */
+export interface PumpRecord {
+  id: string;
+  timestamp: number;
+  side: "left" | "right" | "both";
+  volumeLeftMl?: number;
+  volumeRightMl?: number;
+  durationMs: number;
+}
+
+/** Mum mood log entry */
+export interface MoodEntry {
+  date: string; // YYYY-MM-DD
+  mood: "great" | "good" | "okay" | "tired" | "struggling";
+}
+
+/** Appointment */
+export interface Appointment {
+  id: string;
+  date: string; // dd/mm/yyyy or YYYY-MM-DD
+  time: string; // HH:mm
+  type: "GP" | "Health visitor" | "Hospital";
+  notes?: string;
+}
+
+/** Vaccination log entry (one vaccine at a visit) */
+export interface VaccinationLogEntry {
+  id: string;
+  vaccineId: string;
+  dateGiven: string; // dd/mm/yyyy
+}
+
+/** Growth measurement */
+export interface GrowthMeasurement {
+  id: string;
+  date: number; // epoch ms start of day
+  weightKg?: number;
+  heightCm?: number;
+  headCircumferenceCm?: number;
+}
+
+/** Unified timeline event for Today view (and PDF export) */
+export type TimelineEventKind = "feed" | "sleep" | "diaper" | "tummy" | "bottle" | "pump";
+
+export interface TimelineEvent {
+  id: string;
+  kind: TimelineEventKind;
+  forDatetime: number; // sort key
+  timeLabel: string; // HH:mm or dd/mm/yyyy HH:mm for past days
+  description: string;
+  /** Original record for edit/delete */
+  record: FeedingRecord | SleepRecord | DiaperRecord | TummyTimeRecord | BottleRecord | PumpRecord;
 }

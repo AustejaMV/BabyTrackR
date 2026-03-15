@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
-import type { SleepRecord, FeedingRecord, DiaperRecord, TummyTimeRecord, Note, BabyProfile } from '../types';
+import type { SleepRecord, FeedingRecord, DiaperRecord, TummyTimeRecord, Note, BabyProfile, PumpRecord } from '../types';
 
 /** Safely parse a localStorage value; returns `fallback` on any error. */
 function safeParse<T>(key: string, fallback: T): T {
@@ -32,7 +32,9 @@ export function generatePediatricReport() {
     const feedingHistory  = safeParse<FeedingRecord[]>('feedingHistory', []);
     const diaperHistory   = safeParse<DiaperRecord[]>('diaperHistory', []);
     const tummyTimeHistory = safeParse<TummyTimeRecord[]>('tummyTimeHistory', []);
+    const pumpHistory     = safeParse<PumpRecord[]>('pumpHistory', []);
     const notes           = safeParse<Note[]>('notes', []);
+    const babyProfile     = safeParse<BabyProfile | null>('babyProfile', null);
 
     // Get last 7 days
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
@@ -41,6 +43,7 @@ export function generatePediatricReport() {
     const recentFeeding    = feedingHistory.filter(f => f.timestamp > sevenDaysAgo);
     const recentDiaper     = diaperHistory.filter(d => d.timestamp > sevenDaysAgo);
     const recentTummyTime  = tummyTimeHistory.filter(t => t.startTime > sevenDaysAgo);
+    const recentPump       = pumpHistory.filter(p => p.timestamp > sevenDaysAgo);
     const recentNotes      = notes
       .filter(n => n.createdAt > sevenDaysAgo && n.isPublic === true)
       .sort((a, b) => b.createdAt - a.createdAt);
@@ -261,6 +264,37 @@ export function generatePediatricReport() {
           safeDate(d.timestamp, 'HH:mm'),
           d.type.charAt(0).toUpperCase() + d.type.slice(1),
         ]),
+        theme: 'grid',
+        styles: { fontSize: 8 },
+      });
+      yPos = (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? yPos;
+      yPos += 10;
+    }
+
+    // Pump log table (Prompt 4)
+    if (recentPump.length > 0 && yPos < 250) {
+      doc.setFontSize(12);
+      doc.text('Pump sessions', 14, yPos);
+      yPos += 5;
+
+      const pumpTableBody = recentPump.slice(-20).reverse().map((p) => {
+        const volL = p.volumeLeftMl ?? 0;
+        const volR = p.volumeRightMl ?? 0;
+        const volStr = p.side === 'both' ? `${volL} / ${volR} ml` : p.side === 'left' ? `${volL} ml` : `${volR} ml`;
+        const durMin = Math.round(p.durationMs / 60000);
+        return [
+          safeDate(p.timestamp, 'dd/MM/yyyy'),
+          safeDate(p.timestamp, 'HH:mm'),
+          p.side.charAt(0).toUpperCase() + p.side.slice(1),
+          volStr,
+          `${durMin} m`,
+        ];
+      });
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Date', 'Time', 'Side', 'Volume', 'Duration']],
+        body: pumpTableBody,
         theme: 'grid',
         styles: { fontSize: 8 },
       });

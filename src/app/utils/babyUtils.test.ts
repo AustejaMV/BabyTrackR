@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { getAgeInDays, getTargetsForAge, DEFAULT_MILESTONES } from "./babyUtils";
+import { describe, it, expect } from "vitest";
+import { getAgeInDays, getAgeMonthsWeeks, getTargetsForAge, DEFAULT_MILESTONES } from "./babyUtils";
 
 describe("babyUtils", () => {
   describe("getAgeInDays", () => {
@@ -38,6 +38,26 @@ describe("babyUtils", () => {
       const birth = new Date("2025-01-01T00:00:00Z").getTime();
       const now = new Date("2025-01-06T12:00:00Z").getTime();
       expect(getAgeInDays(birth, now)).toBe(5);
+    });
+  });
+
+  describe("getAgeMonthsWeeks", () => {
+    it("returns days for first 2 weeks", () => {
+      const now = new Date("2025-02-01T12:00:00Z").getTime();
+      const birth = new Date("2025-01-28T00:00:00Z").getTime();
+      expect(getAgeMonthsWeeks(birth, now)).toBe("4 days");
+    });
+
+    it("returns weeks for under 1 month", () => {
+      const now = new Date("2025-02-15T12:00:00Z").getTime();
+      const birth = new Date("2025-01-01T00:00:00Z").getTime();
+      expect(getAgeMonthsWeeks(birth, now)).toMatch(/\d+ weeks?/);
+    });
+
+    it("returns months (and weeks when non-zero) for older baby", () => {
+      const now = new Date("2025-05-01T12:00:00Z").getTime();
+      const birth = new Date("2025-01-01T00:00:00Z").getTime();
+      expect(getAgeMonthsWeeks(birth, now)).toMatch(/\d+ month/);
     });
   });
 

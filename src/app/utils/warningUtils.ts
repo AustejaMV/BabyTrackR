@@ -7,17 +7,26 @@ import type { FeedingRecord, SleepRecord, DiaperRecord, TummyTimeRecord } from '
 export type WarningKey =
   | 'feeding-due'
   | 'feeding-soon'
+  | 'feed-overdue'
   | 'same-position'
   | 'no-poop'
   | 'no-sleep'
   | 'no-tummy-time'
+  | 'tummy-low'
   | 'painkiller-due';
 
 const PAINKILLER_INTERVAL_HOURS = 8;
 
+export interface AlertThresholdsInput {
+  noPoopHours?: number;
+  noSleepHours?: number;
+  feedOverdueMinutes?: number;
+  tummyLowMinutes?: number;
+  tummyLowByHour?: number;
+}
+
 /**
- * Compute which warning keys are active given snapshot data and a reference
- * timestamp (defaults to `Date.now()` for real use; pass a fixed value in tests).
+ * Compute which warning keys are active given snapshot data and optional thresholds.
  */
 export function computeWarnings({
   feedingHistory,
@@ -27,6 +36,7 @@ export function computeWarnings({
   painkillerHistory,
   feedingIntervalHours = 3,
   now = Date.now(),
+  thresholds,
 }: {
   feedingHistory: FeedingRecord[];
   sleepHistory: SleepRecord[];
@@ -35,8 +45,14 @@ export function computeWarnings({
   painkillerHistory: { id: string; timestamp: number }[];
   feedingIntervalHours?: number;
   now?: number;
+  thresholds?: AlertThresholdsInput;
 }): WarningKey[] {
   const warnings: WarningKey[] = [];
+  const noPoopHours = thresholds?.noPoopHours ?? 24;
+  const noSleepHours = thresholds?.noSleepHours ?? 6;
+  const feedOverdueMinutes = thresholds?.feedOverdueMinutes ?? 30;
+  const tummyLowMinutes = thresholds?.tummyLowMinutes ?? 20;
+  const tummyLowByHour = thresholds?.tummyLowByHour ?? 16;
 
   // ─── Feeding ─────────────────────────────────────────────────────────────────
   if (feedingHistory.length > 0) {
@@ -44,7 +60,9 @@ export function computeWarnings({
     const lastEnd = last.endTime ?? last.timestamp;
     if (Number.isFinite(lastEnd)) {
       const hours = (now - lastEnd) / 3_600_000;
-      if (hours >= feedingIntervalHours) warnings.push('feeding-due');
+      const intervalWithBuffer = feedingIntervalHours + feedOverdueMinutes / 60;
+      if (hours >= intervalWithBuffer) warnings.push('feed-overdue');
+      else if (hours >= feedingIntervalHours) warnings.push('feeding-due');
       else if (hours >= feedingIntervalHours - 0.5) warnings.push('feeding-soon');
     }
   }
@@ -58,27 +76,38 @@ export function computeWarnings({
     }
   }
 
-  // ─── No poop in 24 h ─────────────────────────────────────────────────────────
-  const oneDayAgo = now - 24 * 60 * 60 * 1_000;
+  // ─── No poop ──────────────────────────────────────────────────────────────────
+  const poopWindowMs = noPoopHours * 60 * 60 * 1_000;
+  const poopWindowAgo = now - poopWindowMs;
   const recentPoops = diaperHistory.filter(
-    (d) => (d.type === 'poop' || d.type === 'both') && d.timestamp > oneDayAgo,
+    (d) => (d.type === 'poop' || d.type === 'both') && d.timestamp > poopWindowAgo,
   );
   if (recentPoops.length === 0 && diaperHistory.length > 0) {
     warnings.push('no-poop');
   }
 
-  // ─── No sleep in 6 h ─────────────────────────────────────────────────────────
-  const sixHoursAgo = now - 6 * 60 * 60 * 1_000;
-  const recentSleep = sleepHistory.filter((s) => s.startTime > sixHoursAgo);
+  // ─── No sleep ─────────────────────────────────────────────────────────────────
+  const sleepWindowMs = noSleepHours * 60 * 60 * 1_000;
+  const sleepWindowAgo = now - sleepWindowMs;
+  const recentSleep = sleepHistory.filter((s) => s.startTime > sleepWindowAgo);
   if (recentSleep.length === 0 && sleepHistory.length > 0) {
     warnings.push('no-sleep');
   }
 
-  // ─── No tummy time today ──────────────────────────────────────────────────────
+  // ─── No tummy time today / tummy low ─────────────────────────────────────────
   const todayStart = new Date(now).setHours(0, 0, 0, 0);
   const todayTummy = tummyTimeHistory.filter((t) => t.startTime > todayStart);
+  let todayTummyMs = 0;
+  todayTummy.forEach((t) => {
+    const end = t.endTime ?? t.startTime;
+    todayTummyMs += end - t.startTime;
+  });
+  const todayTummyMins = todayTummyMs / 60_000;
+  const nowHour = new Date(now).getHours();
   if (todayTummy.length === 0 && tummyTimeHistory.length > 0) {
     warnings.push('no-tummy-time');
+  } else if (nowHour >= tummyLowByHour && todayTummyMins < tummyLowMinutes && tummyTimeHistory.length > 0) {
+    warnings.push('tummy-low');
   }
 
   // ─── Painkiller ───────────────────────────────────────────────────────────────

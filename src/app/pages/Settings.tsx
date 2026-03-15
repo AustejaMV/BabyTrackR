@@ -12,6 +12,7 @@ import { saveData, saveManyToServer, SYNCED_DATA_KEYS, SYNCED_DATA_DEFAULTS, loa
 import type { Note, BabyProfile } from '../types';
 import { getAgeInDays } from '../utils/babyUtils';
 import { compressBabyPhoto } from '../utils/imageCompress';
+import { readAlertThresholds, saveAlertThresholds, type AlertThresholds } from '../utils/alertThresholdsStorage';
 import { Mic } from 'lucide-react';
 import { VOICE_COMMAND_EXAMPLES } from '../components/VoiceControl';
 
@@ -39,6 +40,7 @@ export function Settings() {
   const [babyNameInput, setBabyNameInput] = useState('');
   const [photoCompressing, setPhotoCompressing] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const [alertThresholds, setAlertThresholds] = useState<AlertThresholds>(() => readAlertThresholds());
 
   useEffect(() => {
     if (session?.access_token && familyId) {
@@ -488,6 +490,66 @@ export function Settings() {
                   </p>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Alert thresholds (Prompt 3) */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-4">
+          <h2 className="text-lg mb-2 dark:text-white">Alert thresholds</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Configure when alert pills appear on the home screen. Dismissed alerts hide for 2 hours.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">No poop (hours)</label>
+              <Input
+                type="number"
+                min={12}
+                max={72}
+                value={alertThresholds.noPoopHours}
+                onChange={(e) => { const v = Number(e.target.value); if (!Number.isNaN(v)) { setAlertThresholds((t) => ({ ...t, noPoopHours: v })); saveAlertThresholds({ noPoopHours: v }); } }}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">No sleep (hours)</label>
+              <Input
+                type="number"
+                min={3}
+                max={12}
+                value={alertThresholds.noSleepHours}
+                onChange={(e) => { const v = Number(e.target.value); if (!Number.isNaN(v)) { setAlertThresholds((t) => ({ ...t, noSleepHours: v })); saveAlertThresholds({ noSleepHours: v }); } }}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Feed overdue buffer (minutes)</label>
+              <Input
+                type="number"
+                min={0}
+                max={120}
+                value={alertThresholds.feedOverdueMinutes}
+                onChange={(e) => { const v = Number(e.target.value); if (!Number.isNaN(v)) { setAlertThresholds((t) => ({ ...t, feedOverdueMinutes: v })); saveAlertThresholds({ feedOverdueMinutes: v }); } }}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Tummy low target (minutes)</label>
+              <Input
+                type="number"
+                min={5}
+                max={60}
+                value={alertThresholds.tummyLowMinutes}
+                onChange={(e) => { const v = Number(e.target.value); if (!Number.isNaN(v)) { setAlertThresholds((t) => ({ ...t, tummyLowMinutes: v })); saveAlertThresholds({ tummyLowMinutes: v }); } }}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Tummy low check after (hour, 0–23)</label>
+              <Input
+                type="number"
+                min={0}
+                max={23}
+                value={alertThresholds.tummyLowByHour}
+                onChange={(e) => { const v = Number(e.target.value); if (!Number.isNaN(v)) { setAlertThresholds((t) => ({ ...t, tummyLowByHour: v })); saveAlertThresholds({ tummyLowByHour: v }); } }}
+              />
             </div>
           </div>
         </div>

@@ -9,6 +9,16 @@ export function getAgeInDays(birthDateMs: number, now = Date.now()): number {
   return Math.max(0, Math.floor((end - start) / (24 * 60 * 60 * 1000)));
 }
 
+/** Format age as "X months Y weeks" for display. */
+export function getAgeMonthsWeeks(birthDateMs: number, now = Date.now()): string {
+  const days = getAgeInDays(birthDateMs, now);
+  const months = Math.floor(days / 30);
+  const weeks = Math.floor((days % 30) / 7);
+  if (months === 0) return weeks <= 1 ? `${days} days` : `${weeks} weeks`;
+  if (weeks === 0) return months === 1 ? "1 month" : `${months} months`;
+  return `${months} month${months !== 1 ? "s" : ""} ${weeks} week${weeks !== 1 ? "s" : ""}`;
+}
+
 /** Typical per-day ranges by age (feeds, naps/sleeps, diapers). */
 export function getTargetsForAge(ageDays: number): {
   feedsMin: number;
@@ -39,4 +49,5 @@ export const DEFAULT_MILESTONES: { id: string; label: string; typicalDaysMin: nu
   { id: "pulls-stand", label: "Pulls to stand", typicalDaysMin: 240, typicalDaysMax: 330 },
   { id: "first-words", label: "First words", typicalDaysMin: 270, typicalDaysMax: 450 },
   { id: "walks", label: "First steps", typicalDaysMin: 300, typicalDaysMax: 420 },
+  { id: "first-tooth", label: "First tooth", typicalDaysMin: 180, typicalDaysMax: 300 },
 ];

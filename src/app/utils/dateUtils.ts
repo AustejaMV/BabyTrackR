@@ -74,7 +74,12 @@ export function formatLiveDuration(ms: number): string {
  * Examples: "3m 05s ago", "1h 2m ago"
  */
 export function getTimeSince(timestamp: number): string {
-  const totalSeconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (!Number.isFinite(timestamp)) return "just now";
+  // If timestamp looks like seconds (e.g. < 1e11), convert to ms
+  const tsMs = timestamp < 1e11 ? timestamp * 1000 : timestamp;
+  const diffMs = Date.now() - tsMs;
+  const totalSeconds = Math.floor(diffMs / 1000);
+  if (totalSeconds < 0) return "just now";
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
 
