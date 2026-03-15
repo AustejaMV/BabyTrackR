@@ -9,7 +9,7 @@ export function ThemeToggle() {
       <button
         type="button"
         onClick={toggle}
-        className="relative h-7 w-[52px] flex-shrink-0 cursor-pointer rounded-[14px] border-[1.5px] transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--pink)] focus:ring-offset-2 focus:ring-offset-[var(--bg)]"
+        className="relative h-9 w-[56px] flex-shrink-0 cursor-pointer rounded-[14px] border-[1.5px] transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--pink)] focus:ring-offset-2 focus:ring-offset-[var(--bg)] min-h-[44px]"
         style={{
           background: isDark ? "#3d2430" : "var(--pe)",
           borderColor: isDark ? "#5a3040" : "var(--ro)",
@@ -17,9 +17,9 @@ export function ThemeToggle() {
         aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       >
         <span
-          className="absolute top-0.5 flex h-[22px] w-[22px] items-center justify-center rounded-full transition-all duration-300"
+          className="absolute top-1 flex h-6 w-6 items-center justify-center rounded-full transition-all duration-300"
           style={{
-            left: isDark ? "26px" : "2px",
+            left: isDark ? "28px" : "4px",
             background: isDark ? "var(--pink)" : "var(--coral)",
           }}
         >
@@ -45,7 +45,7 @@ export function ThemeToggle() {
         </span>
       </button>
       <span
-        className="text-[11px] font-normal"
+        className="text-[13px] font-normal"
         style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}
       >
         {isDark ? "Dark mode — tap to switch" : "Light mode — tap to switch"}

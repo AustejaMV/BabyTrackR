@@ -127,7 +127,7 @@ export function LogEditSheet({ event, onClose, onSaved, session }: LogEditSheetP
     }
   };
 
-  const styleInput = "w-full rounded-lg border px-2 py-1.5 text-[12px] outline-none border-[var(--bd)] bg-[var(--bg2)] text-[var(--tx)]";
+  const styleInput = "w-full rounded-lg border px-3 py-2.5 text-[14px] outline-none min-h-[44px] border-[var(--bd)] bg-[var(--bg2)] text-[var(--tx)]";
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40" onClick={onClose}>
@@ -137,17 +137,17 @@ export function LogEditSheet({ event, onClose, onSaved, session }: LogEditSheetP
         </h3>
         <div className="space-y-3 mb-4">
           <div>
-            <label className="block text-[10px] mb-1" style={{ color: "var(--mu)" }}>Date</label>
+            <label className="block text-[13px] mb-1" style={{ color: "var(--mu)" }}>Date</label>
             <input type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} className={styleInput} />
           </div>
           <div>
-            <label className="block text-[10px] mb-1" style={{ color: "var(--mu)" }}>Time</label>
+            <label className="block text-[13px] mb-1" style={{ color: "var(--mu)" }}>Time</label>
             <input type="time" value={timeStr} onChange={(e) => setTimeStr(e.target.value)} className={styleInput} />
           </div>
           {event.kind === "feed" && (
             <>
               <div>
-                <label className="block text-[10px] mb-1" style={{ color: "var(--mu)" }}>Side</label>
+                <label className="block text-[13px] mb-1" style={{ color: "var(--mu)" }}>Side</label>
                 <select value={String(extra.side)} onChange={(e) => setExtra((x) => ({ ...x, side: e.target.value }))} className={styleInput}>
                   <option value="Left">Left</option>
                   <option value="Right">Right</option>
@@ -155,7 +155,7 @@ export function LogEditSheet({ event, onClose, onSaved, session }: LogEditSheetP
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] mb-1" style={{ color: "var(--mu)" }}>Duration (minutes)</label>
+                <label className="block text-[13px] mb-1" style={{ color: "var(--mu)" }}>Duration (minutes)</label>
                 <input type="number" value={Math.round((Number(extra.durationMs) || 0) / 60000)} onChange={(e) => setExtra((x) => ({ ...x, durationMs: Number(e.target.value) * 60000 }))} className={styleInput} />
               </div>
             </>
@@ -163,7 +163,7 @@ export function LogEditSheet({ event, onClose, onSaved, session }: LogEditSheetP
           {event.kind === "sleep" && (
             <>
               <div>
-                <label className="block text-[10px] mb-1" style={{ color: "var(--mu)" }}>Position</label>
+                <label className="block text-[13px] mb-1" style={{ color: "var(--mu)" }}>Position</label>
                 <select value={String(extra.position)} onChange={(e) => setExtra((x) => ({ ...x, position: e.target.value }))} className={styleInput}>
                   <option value="Back">Back</option>
                   <option value="Left side">Left side</option>
@@ -171,14 +171,14 @@ export function LogEditSheet({ event, onClose, onSaved, session }: LogEditSheetP
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] mb-1" style={{ color: "var(--mu)" }}>Duration (minutes)</label>
+                <label className="block text-[13px] mb-1" style={{ color: "var(--mu)" }}>Duration (minutes)</label>
                 <input type="number" value={Math.round((Number(extra.durationMs) || 0) / 60000)} onChange={(e) => setExtra((x) => ({ ...x, durationMs: Number(e.target.value) * 60000 }))} className={styleInput} />
               </div>
             </>
           )}
           {event.kind === "diaper" && (
             <div>
-              <label className="block text-[10px] mb-1" style={{ color: "var(--mu)" }}>Type</label>
+              <label className="block text-[13px] mb-1" style={{ color: "var(--mu)" }}>Type</label>
               <select value={String(extra.type)} onChange={(e) => setExtra((x) => ({ ...x, type: e.target.value }))} className={styleInput}>
                 <option value="pee">Wet</option>
                 <option value="poop">Dirty</option>
@@ -188,18 +188,18 @@ export function LogEditSheet({ event, onClose, onSaved, session }: LogEditSheetP
           )}
           {event.kind === "tummy" && (
             <div>
-              <label className="block text-[10px] mb-1" style={{ color: "var(--mu)" }}>Duration (minutes)</label>
+              <label className="block text-[13px] mb-1" style={{ color: "var(--mu)" }}>Duration (minutes)</label>
               <input type="number" value={Math.round((Number(extra.durationMs) || 0) / 60000)} onChange={(e) => setExtra((x) => ({ ...x, durationMs: Number(e.target.value) * 60000 }))} className={styleInput} />
             </div>
           )}
           {event.kind === "bottle" && (
             <>
               <div>
-                <label className="block text-[10px] mb-1" style={{ color: "var(--mu)" }}>Volume (ml)</label>
+                <label className="block text-[13px] mb-1" style={{ color: "var(--mu)" }}>Volume (ml)</label>
                 <input type="number" value={Number(extra.volumeMl) || 0} onChange={(e) => setExtra((x) => ({ ...x, volumeMl: Number(e.target.value) }))} className={styleInput} />
               </div>
               <div>
-                <label className="block text-[10px] mb-1" style={{ color: "var(--mu)" }}>Type</label>
+                <label className="block text-[13px] mb-1" style={{ color: "var(--mu)" }}>Type</label>
                 <select value={String(extra.feedType)} onChange={(e) => setExtra((x) => ({ ...x, feedType: e.target.value }))} className={styleInput}>
                   <option value="formula">Formula</option>
                   <option value="expressed">Expressed milk</option>
@@ -211,7 +211,7 @@ export function LogEditSheet({ event, onClose, onSaved, session }: LogEditSheetP
           {event.kind === "pump" && (
             <>
               <div>
-                <label className="block text-[10px] mb-1" style={{ color: "var(--mu)" }}>Side</label>
+                <label className="block text-[13px] mb-1" style={{ color: "var(--mu)" }}>Side</label>
                 <select value={String(extra.side)} onChange={(e) => setExtra((x) => ({ ...x, side: e.target.value }))} className={styleInput}>
                   <option value="left">Left</option>
                   <option value="right">Right</option>
@@ -220,24 +220,24 @@ export function LogEditSheet({ event, onClose, onSaved, session }: LogEditSheetP
               </div>
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <label className="block text-[10px] mb-1" style={{ color: "var(--mu)" }}>Left (ml)</label>
+                  <label className="block text-[13px] mb-1" style={{ color: "var(--mu)" }}>Left (ml)</label>
                   <input type="number" value={Number(extra.volumeLeftMl) || 0} onChange={(e) => setExtra((x) => ({ ...x, volumeLeftMl: Number(e.target.value) }))} className={styleInput} />
                 </div>
                 <div className="flex-1">
-                  <label className="block text-[10px] mb-1" style={{ color: "var(--mu)" }}>Right (ml)</label>
+                  <label className="block text-[13px] mb-1" style={{ color: "var(--mu)" }}>Right (ml)</label>
                   <input type="number" value={Number(extra.volumeRightMl) || 0} onChange={(e) => setExtra((x) => ({ ...x, volumeRightMl: Number(e.target.value) }))} className={styleInput} />
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] mb-1" style={{ color: "var(--mu)" }}>Duration (minutes)</label>
+                <label className="block text-[13px] mb-1" style={{ color: "var(--mu)" }}>Duration (minutes)</label>
                 <input type="number" value={Math.round((Number(extra.durationMs) || 0) / 60000)} onChange={(e) => setExtra((x) => ({ ...x, durationMs: Number(e.target.value) * 60000 }))} className={styleInput} />
               </div>
             </>
           )}
         </div>
         <div className="flex gap-2">
-          <button type="button" onClick={onClose} className="flex-1 py-2 rounded-xl border text-[12px]" style={{ borderColor: "var(--bd)", color: "var(--mu)" }}>Cancel</button>
-          <button type="button" onClick={handleSave} className="flex-1 py-2 rounded-xl text-[12px] text-white" style={{ background: "var(--pink)" }}>Save</button>
+          <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border text-[14px] min-h-[48px]" style={{ borderColor: "var(--bd)", color: "var(--mu)" }}>Cancel</button>
+          <button type="button" onClick={handleSave} className="flex-1 py-3 rounded-xl text-[14px] min-h-[48px] text-white" style={{ background: "var(--pink)" }}>Save</button>
         </div>
         <div className="mt-4 pt-4 border-t border-[var(--bd)]">
           <button type="button" onClick={handleDelete} className="text-[12px] text-red-500">

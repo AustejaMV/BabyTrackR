@@ -1,5 +1,6 @@
 import { AlertCircle, Baby, Utensils, Droplet, Clock, Pill, HelpCircle, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { maybeNotifyForWarning } from "../utils/notifications";
 import { computeWarnings, readStoredArray, readFeedingInterval } from "../utils/warningUtils";
 import { readAlertThresholds, isAlertDismissed, dismissAlert } from "../utils/alertThresholdsStorage";
@@ -98,62 +99,100 @@ export function WarningIndicators() {
   }, []);
 
   const visible = warnings.filter((k) => !isAlertDismissed(k));
+  const pillRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (leaveTimeoutRef.current) clearTimeout(leaveTimeoutRef.current);
+  }, []);
+
   if (visible.length === 0) return null;
 
+  const activeKey = expandedTooltip;
+  const activeRect = activeKey && pillRefs.current[activeKey]
+    ? pillRefs.current[activeKey]!.getBoundingClientRect()
+    : null;
+
+  const scheduleClose = () => {
+    if (leaveTimeoutRef.current) clearTimeout(leaveTimeoutRef.current);
+    leaveTimeoutRef.current = setTimeout(() => setExpandedTooltip(null), 150);
+  };
+  const cancelClose = () => {
+    if (leaveTimeoutRef.current) {
+      clearTimeout(leaveTimeoutRef.current);
+      leaveTimeoutRef.current = null;
+    }
+  };
+
   return (
-    <div className="overflow-x-auto flex gap-2 mb-3 pb-1 -mx-1 px-1 scrollbar-none" style={{ scrollbarWidth: "none" }}>
-      {visible.map((key) => {
-        const style = PILL_STYLE[key] ?? { bg: "var(--bg2)", color: "var(--tx)" };
-        const isExpanded = expandedTooltip === key;
-        return (
+    <>
+      <div className="overflow-x-auto flex gap-2 mb-3 pb-1 -mx-1 px-1 scrollbar-none" style={{ scrollbarWidth: "none" }}>
+        {visible.map((key) => {
+          const style = PILL_STYLE[key] ?? { bg: "var(--bg2)", color: "var(--tx)" };
+          const isExpanded = expandedTooltip === key;
+          return (
+            <div
+              key={key}
+              ref={(el) => { pillRefs.current[key] = el; }}
+              className="relative flex-shrink-0 flex items-center gap-2 pl-3 pr-2 py-2 rounded-full border"
+              style={{ background: style.bg, color: style.color, borderColor: "var(--bd)" }}
+              onMouseEnter={() => { cancelClose(); setExpandedTooltip(key); }}
+              onMouseLeave={() => scheduleClose()}
+            >
+              {key === "feed-overdue" || key === "feeding-due" || key === "feeding-soon" ? (
+                <Utensils className="w-5 h-5 flex-shrink-0" style={{ color: style.iconColor ?? style.color }} />
+              ) : key === "no-poop" ? (
+                <Droplet className="w-5 h-5 flex-shrink-0" style={{ color: style.iconColor ?? style.color }} />
+              ) : key === "no-sleep" || key === "same-position" ? (
+                <Baby className="w-5 h-5 flex-shrink-0" style={{ color: style.iconColor ?? style.color }} />
+              ) : key === "no-tummy-time" || key === "tummy-low" ? (
+                <AlertCircle className="w-5 h-5 flex-shrink-0" style={{ color: style.iconColor ?? style.color }} />
+              ) : (
+                <Pill className="w-5 h-5 flex-shrink-0" style={{ color: style.iconColor ?? style.color }} />
+              )}
+              <span className="text-[13px] font-medium whitespace-nowrap" style={{ fontFamily: "system-ui, sans-serif" }}>
+                {LABELS[key] ?? key}
+              </span>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setExpandedTooltip(isExpanded ? null : key); }}
+                className="p-0.5 rounded-full hover:opacity-80 flex-shrink-0"
+                aria-label="More info"
+              >
+                <HelpCircle className="w-3.5 h-3.5" style={{ color: style.color }} />
+              </button>
+              <button
+                type="button"
+                onClick={() => { dismissAlert(key); forceUpdate((n) => n + 1); }}
+                className="p-0.5 rounded-full hover:opacity-80 flex-shrink-0"
+                aria-label="Dismiss for 2 hours"
+              >
+                <X className="w-3.5 h-3.5" style={{ color: style.color }} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      {activeKey && activeRect && typeof document !== "undefined" &&
+        createPortal(
           <div
-            key={key}
-            className="relative flex-shrink-0 flex items-center gap-2 pl-3 pr-2 py-2 rounded-full border"
-            style={{ background: style.bg, color: style.color, borderColor: "var(--bd)" }}
-            onMouseEnter={() => setExpandedTooltip(key)}
+            className="fixed p-3 rounded-lg text-[12px] leading-snug shadow-lg border max-w-[300px] z-[9999]"
+            style={{
+              background: "var(--card)",
+              color: "var(--tx)",
+              borderColor: "var(--bd)",
+              fontFamily: "system-ui, sans-serif",
+              left: Math.max(8, Math.min(activeRect.left, window.innerWidth - 308)),
+              top: activeRect.top - 8,
+              transform: "translateY(-100%)",
+            }}
+            onMouseEnter={cancelClose}
             onMouseLeave={() => setExpandedTooltip(null)}
           >
-            {key === "feed-overdue" || key === "feeding-due" || key === "feeding-soon" ? (
-              <Utensils className="w-5 h-5 flex-shrink-0" style={{ color: style.iconColor ?? style.color }} />
-            ) : key === "no-poop" ? (
-              <Droplet className="w-5 h-5 flex-shrink-0" style={{ color: style.iconColor ?? style.color }} />
-            ) : key === "no-sleep" || key === "same-position" ? (
-              <Baby className="w-5 h-5 flex-shrink-0" style={{ color: style.iconColor ?? style.color }} />
-            ) : key === "no-tummy-time" || key === "tummy-low" ? (
-              <AlertCircle className="w-5 h-5 flex-shrink-0" style={{ color: style.iconColor ?? style.color }} />
-            ) : (
-              <Pill className="w-5 h-5 flex-shrink-0" style={{ color: style.iconColor ?? style.color }} />
-            )}
-            <span className="text-[13px] font-medium whitespace-nowrap" style={{ fontFamily: "system-ui, sans-serif" }}>
-              {LABELS[key] ?? key}
-            </span>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setExpandedTooltip(isExpanded ? null : key); }}
-              className="p-0.5 rounded-full hover:opacity-80 flex-shrink-0"
-              aria-label="More info"
-            >
-              <HelpCircle className="w-3.5 h-3.5" style={{ color: style.color }} />
-            </button>
-            {isExpanded && (
-              <div
-                className="absolute left-0 right-0 mt-1 mx-2 p-3 rounded-lg text-[12px] leading-snug z-10 shadow-lg border top-full max-w-[300px]"
-                style={{ background: "var(--card)", color: "var(--tx)", borderColor: "var(--bd)", fontFamily: "system-ui, sans-serif" }}
-              >
-                {getTooltip(key, thresholds)}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => { dismissAlert(key); forceUpdate((n) => n + 1); }}
-              className="p-0.5 rounded-full hover:opacity-80 flex-shrink-0"
-              aria-label="Dismiss for 2 hours"
-            >
-              <X className="w-3.5 h-3.5" style={{ color: style.color }} />
-            </button>
-          </div>
-        );
-      })}
-    </div>
+            {getTooltip(activeKey, thresholds)}
+          </div>,
+          document.body
+        )}
+    </>
   );
 }

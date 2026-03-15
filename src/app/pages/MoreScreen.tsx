@@ -140,32 +140,32 @@ export function MoreScreen() {
 
         <AppointmentsSection />
 
-        <p className="text-[9px] uppercase tracking-widest mb-2 mt-1" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+        <p className="text-[12px] uppercase tracking-widest mb-2 mt-1" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
           family
         </p>
         <div className="rounded-[18px] border p-4 mb-3" style={{ background: "var(--card)", borderColor: "var(--bd)" }}>
           {family.map((m) => (
             <div
               key={m.id}
-              className="flex items-center gap-2.5 py-2 border-b last:border-b-0"
+              className="flex items-center gap-3 py-2.5 border-b last:border-b-0"
               style={{ borderColor: "var(--bd)" }}
             >
               <div
-                className="w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-medium flex-shrink-0"
+                className="w-10 h-10 rounded-full flex items-center justify-center text-[14px] font-medium flex-shrink-0"
                 style={{ background: m.badgeStyle, color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
               >
                 {m.initial}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-[11px]" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
+                <div className="text-[14px]" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
                   {m.name}
                 </div>
-                <div className="text-[9px]" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+                <div className="text-[12px]" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
                   {m.role}
                 </div>
               </div>
               <span
-                className="px-2 py-0.5 rounded-full text-[8px]"
+                className="px-2.5 py-1 rounded-full text-[11px]"
                 style={{ background: m.badgeStyle, color: "var(--tx)", fontFamily: "system-ui, sans-serif", opacity: 0.9 }}
               >
                 {m.badge}
@@ -179,44 +179,44 @@ export function MoreScreen() {
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addFamily()}
-              className="flex-1 rounded-xl border px-3 py-2 text-[11px] outline-none"
+              className="flex-1 rounded-xl border px-3 py-2.5 text-[15px] outline-none min-h-[44px]"
               style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
             />
             <button
               type="button"
               onClick={addFamily}
-              className="px-3 py-2 rounded-xl text-[11px] border-none cursor-pointer whitespace-nowrap"
+              className="px-4 py-2.5 rounded-xl text-[14px] min-h-[44px] border-none cursor-pointer whitespace-nowrap"
               style={{ background: "var(--btn-row)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
             >
               Invite
             </button>
           </div>
-          <p className="text-[8px] mt-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+          <p className="text-[12px] mt-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
             They&apos;ll sign in with this email to join your family
           </p>
         </div>
 
-        <p className="text-[9px] uppercase tracking-widest mb-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+        <p className="text-[12px] uppercase tracking-widest mb-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
           notes
         </p>
         <div className="rounded-[18px] border p-4 mb-3" style={{ background: "var(--card)", borderColor: "var(--bd)" }}>
           {notes.map((n) => (
             <div
               key={n.id}
-              className="rounded-xl border p-2.5 mb-1.5 flex justify-between items-start gap-2"
+              className="rounded-xl border p-3 mb-2 flex justify-between items-start gap-2"
               style={{ background: "var(--card)", borderColor: "var(--bd)" }}
             >
-              <div className="text-[11px] leading-snug min-w-0" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
+              <div className="text-[14px] leading-snug min-w-0" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
                 {n.text}
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-[8px]" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+                <span className="text-[11px]" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
                   {n.at}
                 </span>
                 <button
                   type="button"
                   onClick={() => removeNote(n.id)}
-                  className="text-[8px] cursor-pointer"
+                  className="text-[12px] cursor-pointer min-h-[36px] px-2"
                   style={{ color: "var(--pink)" }}
                 >
                   remove
@@ -231,28 +231,28 @@ export function MoreScreen() {
               value={noteInput}
               onChange={(e) => setNoteInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addNote()}
-              className="flex-1 rounded-xl border px-3 py-2 text-[11px] outline-none"
+              className="flex-1 rounded-xl border px-3 py-2.5 text-[15px] outline-none min-h-[44px]"
               style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
             />
             <button
               type="button"
               onClick={addNote}
-              className="px-3 py-2 rounded-xl text-[11px] border-none cursor-pointer"
+              className="px-4 py-2.5 rounded-xl text-[14px] min-h-[44px] border-none cursor-pointer"
               style={{ background: "var(--btn-row)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
             >
               Add
             </button>
           </div>
-          <p className="text-[8px] mt-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+          <p className="text-[12px] mt-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
             Public notes appear in the PDF export.
           </p>
         </div>
 
-        <p className="text-[9px] uppercase tracking-widest mb-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+        <p className="text-[12px] uppercase tracking-widest mb-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
           shopping list
         </p>
         <div className="rounded-[18px] border p-4 mb-3" style={{ background: "var(--card)", borderColor: "var(--bd)" }}>
-          <div className="flex flex-wrap gap-1 mb-2">
+          <div className="flex flex-wrap gap-2 mb-2">
             {PRESET_CHIPS.map((label) => {
               const on = shopItems.some((i) => i.label === label);
               return (
@@ -260,7 +260,7 @@ export function MoreScreen() {
                   key={label}
                   type="button"
                   onClick={() => addChip(label)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10px] cursor-pointer transition-all"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full border text-[13px] min-h-[40px] cursor-pointer transition-all"
                   style={{
                     borderColor: on ? "#a8d498" : "var(--bd)",
                     background: on ? "var(--sa)" : "var(--card)",
@@ -280,13 +280,13 @@ export function MoreScreen() {
               value={shopInput}
               onChange={(e) => setShopInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addShopItem()}
-              className="flex-1 rounded-xl border px-3 py-2 text-[11px] outline-none"
+              className="flex-1 rounded-xl border px-3 py-2.5 text-[15px] outline-none min-h-[44px]"
               style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
             />
             <button
               type="button"
               onClick={addShopItem}
-              className="px-3 py-1.5 rounded-xl text-base border-none cursor-pointer"
+              className="px-4 py-2.5 rounded-xl text-lg min-h-[44px] border-none cursor-pointer"
               style={{ background: "var(--btn-row)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
             >
               +
@@ -294,20 +294,20 @@ export function MoreScreen() {
           </div>
           <div className="mt-2 space-y-1">
             {shopItems.map((i) => (
-              <div key={i.id} className="flex items-center gap-2 py-1.5 border-b last:border-b-0" style={{ borderColor: "var(--bd)" }}>
+              <div key={i.id} className="flex items-center gap-3 py-2.5 border-b last:border-b-0" style={{ borderColor: "var(--bd)" }}>
                 <button
                   type="button"
                   onClick={() => toggleShop(i.id)}
-                  className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 cursor-pointer"
+                  className="w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 cursor-pointer min-w-[24px] min-h-[24px]"
                   style={{
                     borderColor: i.done ? "var(--grn)" : "var(--bd)",
                     background: i.done ? "var(--grn)" : "transparent",
                   }}
                 >
-                  {i.done && <span className="text-white text-[10px]">✓</span>}
+                  {i.done && <span className="text-white text-[12px]">✓</span>}
                 </button>
                 <span
-                  className="text-[11px] flex-1"
+                  className="text-[14px] flex-1"
                   style={{
                     color: "var(--tx)",
                     fontFamily: "system-ui, sans-serif",
@@ -322,41 +322,41 @@ export function MoreScreen() {
           </div>
         </div>
 
-        <p className="text-[9px] uppercase tracking-widest mb-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+        <p className="text-[12px] uppercase tracking-widest mb-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
           export
         </p>
-        <div className="rounded-2xl border p-3 mb-2" style={{ background: "var(--card)", borderColor: "var(--bd)" }}>
-          <div className="text-[12px] font-medium mb-1" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
+        <div className="rounded-2xl border p-4 mb-2" style={{ background: "var(--card)", borderColor: "var(--bd)" }}>
+          <div className="text-[15px] font-medium mb-1" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
             PDF report
           </div>
-          <p className="text-[10px] leading-snug mb-2.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+          <p className="text-[13px] leading-snug mb-2.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
             All logs, feed times per breast, milestones, public notes and growth data. Dates in dd/mm/yyyy.
           </p>
           <Link
             to="/settings"
-            className="block w-full py-2 rounded-xl text-[11px] font-medium text-white text-center cursor-pointer"
+            className="block w-full py-3 rounded-xl text-[14px] font-medium text-white text-center cursor-pointer min-h-[48px] leading-[48px]"
             style={{ background: "var(--coral)", fontFamily: "system-ui, sans-serif" }}
           >
             Generate PDF
           </Link>
         </div>
         <div className="rounded-[18px] border p-4 mb-3" style={{ background: "var(--card)", borderColor: "var(--bd)" }}>
-          <div className="text-[12px] font-medium mb-1" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
+          <div className="text-[15px] font-medium mb-1" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
             Weekly summary
           </div>
-          <p className="text-[10px] leading-snug mb-2.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+          <p className="text-[13px] leading-snug mb-2.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
             A cosy digest sent to you or your partner.
           </p>
           <button
             type="button"
-            className="w-full py-2 rounded-xl text-[11px] font-medium text-white cursor-pointer border-none"
+            className="w-full py-3 rounded-xl text-[14px] font-medium text-white cursor-pointer border-none min-h-[48px]"
             style={{ background: "var(--blue)", fontFamily: "system-ui, sans-serif" }}
           >
             Send email
           </button>
         </div>
 
-        <p className="text-[9px] uppercase tracking-widest mb-2 mt-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+        <p className="text-[12px] uppercase tracking-widest mb-2 mt-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
           preferences
         </p>
         <div className="rounded-[18px] border p-4 mb-4" style={{ background: "var(--card)", borderColor: "var(--bd)" }}>

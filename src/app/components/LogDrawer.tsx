@@ -252,7 +252,7 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
       key={label}
       type="button"
       onClick={() => set(value)}
-      className="px-3 py-1.5 rounded-[20px] border text-[10px] transition-all"
+      className="px-4 py-2.5 rounded-[20px] border text-[13px] min-h-[44px] transition-all"
       style={{
         borderColor: current === value ? "var(--ro)" : "var(--bd)",
         background: current === value ? "var(--pe)" : "var(--card)",
@@ -275,9 +275,9 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
       {type === "feed" && f && (
         <>
           {lastFeedLabel && (
-            <p className="text-[9px] mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>{lastFeedLabel}</p>
+            <p className="text-[12px] mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>{lastFeedLabel}</p>
           )}
-          <p className="text-[9px] uppercase tracking-wider mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Which breast?</p>
+          <p className="text-[12px] uppercase tracking-wider mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Which breast?</p>
           <div className="flex gap-1.5 justify-center mb-2.5">
             {(["Left", "Right", "Both"] as const).map((s) => pill(s, s, f.feedSide, (v) => f.setFeedSide(v as "Left" | "Right" | "Both")))}
           </div>
@@ -293,7 +293,7 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
             />
           </div>
           {f.feedSegments.length > 0 && (
-            <p className="text-[9px] mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+            <p className="text-[12px] mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
               So far: {f.feedSegments.map((s) => `${s.side} ${Math.round(s.durationMs / 60000)}m`).join(" → ")}
             </p>
           )}
@@ -305,7 +305,7 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
                 else if (f.timerPaused) f.setTimerPaused(false);
                 else f.setTimerPaused(true);
               }}
-              className="py-2.5 px-4 rounded-[14px] text-[12px] font-medium text-white border-none cursor-pointer"
+              className="py-3 px-5 rounded-[14px] text-[14px] font-medium text-white border-none cursor-pointer min-h-[44px]"
               style={{ background: "var(--coral)", fontFamily: "system-ui, sans-serif" }}
             >
               {!f.timerRunning ? "Start" : f.timerPaused ? "Resume" : "Pause"}
@@ -314,7 +314,7 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
               <button
                 type="button"
                 onClick={handleSwitchBreast}
-                className="py-2.5 px-3 rounded-[14px] text-[12px] font-medium border cursor-pointer"
+                className="py-3 px-4 rounded-[14px] text-[13px] font-medium border cursor-pointer min-h-[44px]"
                 style={{ borderColor: "var(--pink)", color: "var(--pink)", fontFamily: "system-ui, sans-serif" }}
               >
                 Switch breast
@@ -324,16 +324,16 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
               <button
                 type="button"
                 onClick={() => f.resetFeedTimer()}
-                className="py-2.5 px-3 rounded-[14px] text-[11px] font-medium border cursor-pointer"
+                className="py-3 px-4 rounded-[14px] text-[13px] font-medium border cursor-pointer min-h-[44px]"
                 style={{ borderColor: "var(--bd)", color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}
               >
                 Stop timer
               </button>
             )}
           </div>
-          <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
-            <input type="checkbox" checked={pastChecked} onChange={(e) => setPastChecked(e.target.checked)} className="accent-[var(--pink)] w-3 h-3" />
-            <span className="text-[10px]" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Log a past feed instead</span>
+          <label className="flex items-center gap-2 mb-1 cursor-pointer">
+            <input type="checkbox" checked={pastChecked} onChange={(e) => setPastChecked(e.target.checked)} className="accent-[var(--pink)] w-4 h-4" />
+            <span className="text-[13px]" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Log a past feed instead</span>
           </label>
           {pastChecked && (
             <div className="flex gap-2 mb-2">
@@ -341,25 +341,25 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
                 type="date"
                 value={pastDate}
                 onChange={(e) => setPastDate(e.target.value)}
-                className="flex-1 rounded-lg border px-2 py-1.5 text-[10px] outline-none min-h-[36px]"
+                className="flex-1 rounded-lg border px-3 py-2.5 text-[14px] outline-none min-h-[44px]"
                 style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
               />
               <input
                 type="time"
                 value={pastTime}
                 onChange={(e) => setPastTime(e.target.value)}
-                className="flex-1 rounded-lg border px-2 py-1.5 text-[10px] outline-none min-h-[36px]"
+                className="flex-1 rounded-lg border px-3 py-2.5 text-[14px] outline-none min-h-[44px]"
                 style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
               />
             </div>
           )}
-          <button type="button" onClick={handleSaveFeed} className="w-full py-2 rounded-[13px] text-[11px] font-medium text-white border-none cursor-pointer" style={{ background: "var(--coral)", fontFamily: "system-ui, sans-serif" }}>Save feed</button>
+          <button type="button" onClick={handleSaveFeed} className="w-full py-3 rounded-[13px] text-[14px] font-medium text-white border-none cursor-pointer min-h-[48px]" style={{ background: "var(--coral)", fontFamily: "system-ui, sans-serif" }}>Save feed</button>
         </>
       )}
 
       {type === "sleep" && (
         <>
-          <p className="text-[9px] uppercase tracking-wider mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Sleep position</p>
+          <p className="text-[12px] uppercase tracking-wider mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Sleep position</p>
           <div className="flex gap-1.5 justify-center mb-2.5">
             {["Left side", "Right side", "On back"].map((p) => pill(p, p, sleepPosition, setSleepPosition))}
           </div>
@@ -369,35 +369,35 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
           <button
             type="button"
             onClick={() => { setTimerRunning(!timerRunning); if (!timerRunning) setElapsedMs(0); }}
-            className="w-full py-2.5 rounded-[14px] text-[12px] font-medium text-white border-none cursor-pointer mb-2"
+            className="w-full py-3 rounded-[14px] text-[14px] font-medium text-white border-none cursor-pointer mb-2 min-h-[48px]"
             style={{ background: "var(--blue)", fontFamily: "system-ui, sans-serif" }}
           >
             {timerRunning ? "Stop" : "Start"}
           </button>
-          <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
-            <input type="checkbox" checked={pastChecked} onChange={(e) => setPastChecked(e.target.checked)} className="accent-[var(--pink)] w-3 h-3" />
-            <span className="text-[10px]" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Log a past sleep instead</span>
+          <label className="flex items-center gap-2 mb-1 cursor-pointer">
+            <input type="checkbox" checked={pastChecked} onChange={(e) => setPastChecked(e.target.checked)} className="accent-[var(--pink)] w-4 h-4" />
+            <span className="text-[13px]" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Log a past sleep instead</span>
           </label>
           {pastChecked && (
             <div className="flex gap-2 mb-2">
-              <input type="date" value={pastDate} onChange={(e) => setPastDate(e.target.value)} className="flex-1 rounded-lg border px-2 py-1.5 text-[10px] outline-none min-h-[36px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
-              <input type="time" value={pastTime} onChange={(e) => setPastTime(e.target.value)} className="flex-1 rounded-lg border px-2 py-1.5 text-[10px] outline-none min-h-[36px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
+              <input type="date" value={pastDate} onChange={(e) => setPastDate(e.target.value)} className="flex-1 rounded-lg border px-3 py-2.5 text-[14px] outline-none min-h-[44px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
+              <input type="time" value={pastTime} onChange={(e) => setPastTime(e.target.value)} className="flex-1 rounded-lg border px-3 py-2.5 text-[14px] outline-none min-h-[44px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
             </div>
           )}
-          <button type="button" onClick={handleSaveSleep} className="w-full py-2 rounded-[13px] text-[11px] font-medium text-white border-none cursor-pointer" style={{ background: "var(--blue)", fontFamily: "system-ui, sans-serif" }}>Save sleep</button>
+          <button type="button" onClick={handleSaveSleep} className="w-full py-3 rounded-[13px] text-[14px] font-medium text-white border-none cursor-pointer min-h-[48px]" style={{ background: "var(--blue)", fontFamily: "system-ui, sans-serif" }}>Save sleep</button>
         </>
       )}
 
       {type === "diaper" && (
         <>
-          <p className="text-[9px] uppercase tracking-wider mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>What kind?</p>
+          <p className="text-[12px] uppercase tracking-wider mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>What kind?</p>
           <div className="flex gap-1.5 justify-center mb-2.5">
             {(["Wet", "Dirty", "Both"] as const).map((l) => (
               <button
                 key={l}
                 type="button"
                 onClick={() => setDiaperType(l.toLowerCase() as "pee" | "poop" | "both")}
-                className="px-3 py-1.5 rounded-[20px] border text-[10px] transition-all"
+                className="px-4 py-2.5 rounded-[20px] border text-[13px] min-h-[44px] transition-all"
                 style={{
                   borderColor: diaperType === (l === "Both" ? "both" : l === "Wet" ? "pee" : "poop") ? "var(--ro)" : "var(--bd)",
                   background: diaperType === (l === "Both" ? "both" : l === "Wet" ? "pee" : "poop") ? "var(--pe)" : "var(--card)",
@@ -410,17 +410,17 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
               </button>
             ))}
           </div>
-          <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
-            <input type="checkbox" checked={pastChecked} onChange={(e) => setPastChecked(e.target.checked)} className="accent-[var(--pink)] w-3 h-3" />
-            <span className="text-[10px]" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Log a past change instead</span>
+          <label className="flex items-center gap-2 mb-1 cursor-pointer">
+            <input type="checkbox" checked={pastChecked} onChange={(e) => setPastChecked(e.target.checked)} className="accent-[var(--pink)] w-4 h-4" />
+            <span className="text-[13px]" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Log a past change instead</span>
           </label>
           {pastChecked && (
             <div className="flex gap-2 mb-2">
-              <input type="date" value={pastDate} onChange={(e) => setPastDate(e.target.value)} className="flex-1 rounded-lg border px-2 py-1.5 text-[10px] outline-none min-h-[36px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
-              <input type="time" value={pastTime} onChange={(e) => setPastTime(e.target.value)} className="flex-1 rounded-lg border px-2 py-1.5 text-[10px] outline-none min-h-[36px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
+              <input type="date" value={pastDate} onChange={(e) => setPastDate(e.target.value)} className="flex-1 rounded-lg border px-3 py-2.5 text-[14px] outline-none min-h-[44px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
+              <input type="time" value={pastTime} onChange={(e) => setPastTime(e.target.value)} className="flex-1 rounded-lg border px-3 py-2.5 text-[14px] outline-none min-h-[44px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
             </div>
           )}
-          <button type="button" onClick={handleSaveDiaper} className="w-full py-2 rounded-[13px] text-[11px] font-medium text-white border-none cursor-pointer" style={{ background: "var(--grn)", fontFamily: "system-ui, sans-serif" }}>Save change</button>
+          <button type="button" onClick={handleSaveDiaper} className="w-full py-3 rounded-[13px] text-[14px] font-medium text-white border-none cursor-pointer min-h-[48px]" style={{ background: "var(--grn)", fontFamily: "system-ui, sans-serif" }}>Save change</button>
         </>
       )}
 
@@ -432,35 +432,35 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
           <button
             type="button"
             onClick={() => { setTimerRunning(!timerRunning); if (!timerRunning) setElapsedMs(0); }}
-            className="w-full py-2.5 rounded-[14px] text-[12px] font-medium text-white border-none cursor-pointer mb-2"
+            className="w-full py-3 rounded-[14px] text-[14px] font-medium text-white border-none cursor-pointer mb-2 min-h-[48px]"
             style={{ background: "var(--purp)", fontFamily: "system-ui, sans-serif" }}
           >
             {timerRunning ? "Stop" : "Start"}
           </button>
-          <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
-            <input type="checkbox" checked={pastChecked} onChange={(e) => setPastChecked(e.target.checked)} className="accent-[var(--pink)] w-3 h-3" />
-            <span className="text-[10px]" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Log a past session instead</span>
+          <label className="flex items-center gap-2 mb-1 cursor-pointer">
+            <input type="checkbox" checked={pastChecked} onChange={(e) => setPastChecked(e.target.checked)} className="accent-[var(--pink)] w-4 h-4" />
+            <span className="text-[13px]" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Log a past session instead</span>
           </label>
           {pastChecked && (
             <div className="flex gap-2 mb-2">
-              <input type="date" value={pastDate} onChange={(e) => setPastDate(e.target.value)} className="flex-1 rounded-lg border px-2 py-1.5 text-[10px] outline-none min-h-[36px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
-              <input type="time" value={pastTime} onChange={(e) => setPastTime(e.target.value)} className="flex-1 rounded-lg border px-2 py-1.5 text-[10px] outline-none min-h-[36px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
+              <input type="date" value={pastDate} onChange={(e) => setPastDate(e.target.value)} className="flex-1 rounded-lg border px-3 py-2.5 text-[14px] outline-none min-h-[44px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
+              <input type="time" value={pastTime} onChange={(e) => setPastTime(e.target.value)} className="flex-1 rounded-lg border px-3 py-2.5 text-[14px] outline-none min-h-[44px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
             </div>
           )}
-          <button type="button" onClick={handleSaveTummy} className="w-full py-2 rounded-[13px] text-[11px] font-medium text-white border-none cursor-pointer" style={{ background: "var(--purp)", fontFamily: "system-ui, sans-serif" }}>Save session</button>
+          <button type="button" onClick={handleSaveTummy} className="w-full py-3 rounded-[13px] text-[14px] font-medium text-white border-none cursor-pointer min-h-[48px]" style={{ background: "var(--purp)", fontFamily: "system-ui, sans-serif" }}>Save session</button>
         </>
       )}
 
       {type === "bottle" && (
         <>
-          <p className="text-[9px] uppercase tracking-wider mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Volume (ml)</p>
+          <p className="text-[12px] uppercase tracking-wider mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Volume (ml)</p>
           <div className="flex flex-wrap gap-1.5 justify-center mb-2">
             {BOTTLE_VOLUMES.map((v) => (
               <button
                 key={v}
                 type="button"
                 onClick={() => setBottleVolumeMl(v)}
-                className="px-2.5 py-1 rounded-lg border text-[11px]"
+                className="px-3 py-2 rounded-lg border text-[13px] min-h-[44px]"
                 style={{
                   borderColor: bottleVolumeMl === v ? "var(--coral)" : "var(--bd)",
                   background: bottleVolumeMl === v ? "var(--pe)" : "var(--card)",
@@ -472,7 +472,7 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
               </button>
             ))}
           </div>
-          <p className="text-[9px] uppercase tracking-wider mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Type</p>
+          <p className="text-[12px] uppercase tracking-wider mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Type</p>
           <div className="flex gap-1.5 justify-center mb-2.5">
             {(["Formula", "Expressed milk", "Mixed"] as const).map((l) => {
               const v = l === "Formula" ? "formula" : l === "Expressed milk" ? "expressed" : "mixed";
@@ -481,7 +481,7 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
                   key={v}
                   type="button"
                   onClick={() => setBottleFeedType(v)}
-                  className="px-3 py-1.5 rounded-[20px] border text-[10px]"
+                  className="px-4 py-2.5 rounded-[20px] border text-[13px] min-h-[44px]"
                   style={{
                     borderColor: bottleFeedType === v ? "var(--ro)" : "var(--bd)",
                     background: bottleFeedType === v ? "var(--pe)" : "var(--card)",
@@ -494,28 +494,28 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
               );
             })}
           </div>
-          <label className="flex items-center gap-1.5 mb-2 cursor-pointer">
-            <input type="checkbox" checked={pastChecked} onChange={(e) => setPastChecked(e.target.checked)} className="accent-[var(--pink)] w-3 h-3" />
-            <span className="text-[10px]" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Log a past bottle</span>
+          <label className="flex items-center gap-2 mb-2 cursor-pointer">
+            <input type="checkbox" checked={pastChecked} onChange={(e) => setPastChecked(e.target.checked)} className="accent-[var(--pink)] w-4 h-4" />
+            <span className="text-[13px]" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Log a past bottle</span>
           </label>
           {pastChecked && (
             <div className="flex gap-2 mb-2">
-              <input type="date" value={pastDate} onChange={(e) => setPastDate(e.target.value)} className="flex-1 rounded-lg border px-2 py-1.5 text-[10px] outline-none min-h-[36px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
-              <input type="time" value={pastTime} onChange={(e) => setPastTime(e.target.value)} className="flex-1 rounded-lg border px-2 py-1.5 text-[10px] outline-none min-h-[36px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
+              <input type="date" value={pastDate} onChange={(e) => setPastDate(e.target.value)} className="flex-1 rounded-lg border px-3 py-2.5 text-[14px] outline-none min-h-[44px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
+              <input type="time" value={pastTime} onChange={(e) => setPastTime(e.target.value)} className="flex-1 rounded-lg border px-3 py-2.5 text-[14px] outline-none min-h-[44px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
             </div>
           )}
-          <button type="button" onClick={handleSaveBottle} className="w-full py-2 rounded-[13px] text-[11px] font-medium text-white border-none cursor-pointer" style={{ background: "var(--coral)", fontFamily: "system-ui, sans-serif" }}>Save bottle</button>
+          <button type="button" onClick={handleSaveBottle} className="w-full py-3 rounded-[13px] text-[14px] font-medium text-white border-none cursor-pointer min-h-[48px]" style={{ background: "var(--coral)", fontFamily: "system-ui, sans-serif" }}>Save bottle</button>
         </>
       )}
 
       {type === "pump" && (
         <>
-          <p className="text-[9px] uppercase tracking-wider mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Side</p>
+          <p className="text-[12px] uppercase tracking-wider mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Side</p>
           <div className="flex gap-1.5 justify-center mb-2">
             {(["Left", "Right", "Both"] as const).map((l) => {
               const v = l.toLowerCase() as "left" | "right" | "both";
               return (
-                <button key={v} type="button" onClick={() => setPumpSide(v)} className="px-3 py-1.5 rounded-[20px] border text-[10px]" style={{ borderColor: pumpSide === v ? "var(--ro)" : "var(--bd)", background: pumpSide === v ? "var(--pe)" : "var(--card)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
+                <button key={v} type="button" onClick={() => setPumpSide(v)} className="px-4 py-2.5 rounded-[20px] border text-[13px] min-h-[44px]" style={{ borderColor: pumpSide === v ? "var(--ro)" : "var(--bd)", background: pumpSide === v ? "var(--pe)" : "var(--card)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
                   {l}
                 </button>
               );
@@ -524,33 +524,33 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
           <div className="flex gap-2 mb-2">
             {(pumpSide === "left" || pumpSide === "both") && (
               <div>
-                <label className="block text-[9px] text-[var(--mu)] mb-0.5">Left (ml)</label>
-                <input type="number" min={0} max={500} value={pumpVolumeLeft} onChange={(e) => setPumpVolumeLeft(Number(e.target.value) || 0)} className="w-20 rounded-lg border px-2 py-1.5 text-[11px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)" }} />
+                <label className="block text-[12px] mb-0.5" style={{ color: "var(--mu)" }}>Left (ml)</label>
+                <input type="number" min={0} max={500} value={pumpVolumeLeft} onChange={(e) => setPumpVolumeLeft(Number(e.target.value) || 0)} className="w-20 rounded-lg border px-3 py-2.5 text-[14px] min-h-[44px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)" }} />
               </div>
             )}
             {(pumpSide === "right" || pumpSide === "both") && (
               <div>
-                <label className="block text-[9px] text-[var(--mu)] mb-0.5">Right (ml)</label>
-                <input type="number" min={0} max={500} value={pumpVolumeRight} onChange={(e) => setPumpVolumeRight(Number(e.target.value) || 0)} className="w-20 rounded-lg border px-2 py-1.5 text-[11px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)" }} />
+                <label className="block text-[12px] mb-0.5" style={{ color: "var(--mu)" }}>Right (ml)</label>
+                <input type="number" min={0} max={500} value={pumpVolumeRight} onChange={(e) => setPumpVolumeRight(Number(e.target.value) || 0)} className="w-20 rounded-lg border px-3 py-2.5 text-[14px] min-h-[44px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)" }} />
               </div>
             )}
           </div>
-          <p className="text-[9px] uppercase tracking-wider mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Duration</p>
+          <p className="text-[12px] uppercase tracking-wider mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Duration</p>
           <div className="mb-2 flex justify-center">
             <DurationPicker valueMs={pumpTimerRunning ? pumpElapsedMs : pumpDurationMs} maxMs={MAX_DURATION_HISTORY_MS} onChange={(ms) => { if (pumpTimerRunning) setPumpElapsedMs(ms); else setPumpDurationMs(ms); }} showSeconds showHours={false} liveSync={pumpTimerRunning} className="min-h-[96px] max-w-[180px]" />
           </div>
-          <button type="button" onClick={() => { setPumpTimerRunning(!pumpTimerRunning); if (!pumpTimerRunning) setPumpElapsedMs(0); }} className="w-full py-2 rounded-[14px] text-[11px] font-medium text-white border-none cursor-pointer mb-2" style={{ background: "var(--pink)", fontFamily: "system-ui, sans-serif" }}>{pumpTimerRunning ? "Stop" : "Start"} timer</button>
-          <label className="flex items-center gap-1.5 mb-2 cursor-pointer">
-            <input type="checkbox" checked={pastChecked} onChange={(e) => setPastChecked(e.target.checked)} className="accent-[var(--pink)] w-3 h-3" />
-            <span className="text-[10px]" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Log a past session</span>
+          <button type="button" onClick={() => { setPumpTimerRunning(!pumpTimerRunning); if (!pumpTimerRunning) setPumpElapsedMs(0); }} className="w-full py-3 rounded-[14px] text-[14px] font-medium text-white border-none cursor-pointer mb-2 min-h-[48px]" style={{ background: "var(--pink)", fontFamily: "system-ui, sans-serif" }}>{pumpTimerRunning ? "Stop" : "Start"} timer</button>
+          <label className="flex items-center gap-2 mb-2 cursor-pointer">
+            <input type="checkbox" checked={pastChecked} onChange={(e) => setPastChecked(e.target.checked)} className="accent-[var(--pink)] w-4 h-4" />
+            <span className="text-[13px]" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Log a past session</span>
           </label>
           {pastChecked && (
             <div className="flex gap-2 mb-2">
-              <input type="date" value={pastDate} onChange={(e) => setPastDate(e.target.value)} className="flex-1 rounded-lg border px-2 py-1.5 text-[10px] outline-none min-h-[36px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
-              <input type="time" value={pastTime} onChange={(e) => setPastTime(e.target.value)} className="flex-1 rounded-lg border px-2 py-1.5 text-[10px] outline-none min-h-[36px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
+              <input type="date" value={pastDate} onChange={(e) => setPastDate(e.target.value)} className="flex-1 rounded-lg border px-3 py-2.5 text-[14px] outline-none min-h-[44px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
+              <input type="time" value={pastTime} onChange={(e) => setPastTime(e.target.value)} className="flex-1 rounded-lg border px-3 py-2.5 text-[14px] outline-none min-h-[44px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }} />
             </div>
           )}
-          <button type="button" onClick={handleSavePump} className="w-full py-2 rounded-[13px] text-[11px] font-medium text-white border-none cursor-pointer" style={{ background: "var(--pink)", fontFamily: "system-ui, sans-serif" }}>Save pump</button>
+          <button type="button" onClick={handleSavePump} className="w-full py-3 rounded-[13px] text-[14px] font-medium text-white border-none cursor-pointer min-h-[48px]" style={{ background: "var(--pink)", fontFamily: "system-ui, sans-serif" }}>Save pump</button>
         </>
       )}
     </div>

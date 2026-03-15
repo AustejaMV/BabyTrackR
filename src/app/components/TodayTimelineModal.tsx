@@ -113,16 +113,16 @@ export function TodayTimelineModal({ open, onClose, filter = null, onEdit, refre
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-[var(--bd)] flex items-center justify-between flex-shrink-0">
-          <h2 className="text-lg font-semibold" style={{ color: "var(--tx)", fontFamily: "Georgia, serif" }}>
+          <h2 className="text-xl font-semibold" style={{ color: "var(--tx)", fontFamily: "Georgia, serif" }}>
             {filter ? `Today: ${filter}` : "Today's activity"}
           </h2>
-          <button type="button" onClick={onClose} className="p-2 rounded-full hover:bg-[var(--bg2)]" style={{ color: "var(--mu)" }} aria-label="Close">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          <button type="button" onClick={onClose} className="p-2.5 min-w-[44px] min-h-[44px] rounded-full hover:bg-[var(--bg2)] flex items-center justify-center" style={{ color: "var(--mu)" }} aria-label="Close">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </button>
         </div>
 
-        <div className="p-3 border-b border-[var(--bd)] flex-shrink-0">
-          <label className="block text-[10px] mb-1" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Jump to date</label>
+        <div className="p-4 border-b border-[var(--bd)] flex-shrink-0">
+          <label className="block text-[13px] mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Jump to date</label>
           <input
             type="date"
             value={format(selectedDate, "yyyy-MM-dd")}
@@ -130,32 +130,32 @@ export function TodayTimelineModal({ open, onClose, filter = null, onEdit, refre
               const v = e.target.value;
               if (v) setSelectedDate(new Date(v).setHours(0, 0, 0, 0));
             }}
-            className="w-full rounded-xl border px-3 py-2 text-[13px]"
+            className="w-full rounded-xl border px-3 py-2.5 text-[15px] min-h-[44px]"
             style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
           />
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
           <section>
-            <h3 className="text-[11px] uppercase tracking-wider mb-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+            <h3 className="text-[13px] uppercase tracking-wider mb-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
               {isToday ? "Today" : dayLabel}
             </h3>
             {todayEvents.length === 0 ? (
-              <p className="text-[13px] py-4" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>No events logged for this day.</p>
+              <p className="text-[15px] py-4" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>No events logged for this day.</p>
             ) : (
-              <ul className="space-y-1">
+              <ul className="space-y-1.5">
                 {todayEvents.map((ev) => (
                   <li key={ev.id}>
                     <button
                       type="button"
                       onClick={() => onEdit?.(ev)}
-                      className="w-full flex items-center gap-3 rounded-xl border py-2.5 px-3 text-left transition-colors hover:bg-[var(--bg2)]"
+                      className="w-full flex items-center gap-3 rounded-xl border py-3 px-4 text-left transition-colors hover:bg-[var(--bg2)] min-h-[52px]"
                       style={{ borderColor: "var(--bd)", background: "var(--card)" }}
                     >
-                      <div className="w-1 h-10 rounded-full flex-shrink-0" style={{ background: getBorderColorForKind(ev.kind) }} />
-                      <span className="text-[13px] tabular-nums w-14 flex-shrink-0" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>{ev.timeLabel}</span>
+                      <div className="w-1.5 h-10 rounded-full flex-shrink-0" style={{ background: getBorderColorForKind(ev.kind) }} />
+                      <span className="text-[14px] tabular-nums w-14 flex-shrink-0" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>{ev.timeLabel}</span>
                       <span className="flex-shrink-0 text-[var(--tx)]">{getIcon(ev.kind)}</span>
-                      <span className="text-[13px] min-w-0 truncate" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>{ev.description}</span>
+                      <span className="text-[15px] min-w-0 truncate" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>{ev.description}</span>
                     </button>
                   </li>
                 ))}
@@ -164,23 +164,23 @@ export function TodayTimelineModal({ open, onClose, filter = null, onEdit, refre
           </section>
 
           <section>
-            <h3 className="text-[11px] uppercase tracking-wider mb-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Yesterday</h3>
+            <h3 className="text-[13px] uppercase tracking-wider mb-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>Yesterday</h3>
             {yesterdayEvents.length === 0 ? (
-              <p className="text-[13px] py-4" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>No events logged.</p>
+              <p className="text-[15px] py-4" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>No events logged.</p>
             ) : (
-              <ul className="space-y-1">
+              <ul className="space-y-1.5">
                 {yesterdayEvents.map((ev) => (
                   <li key={ev.id}>
                     <button
                       type="button"
                       onClick={() => onEdit?.(ev)}
-                      className="w-full flex items-center gap-3 rounded-xl border py-2.5 px-3 text-left transition-colors hover:bg-[var(--bg2)]"
+                      className="w-full flex items-center gap-3 rounded-xl border py-3 px-4 text-left transition-colors hover:bg-[var(--bg2)] min-h-[52px]"
                       style={{ borderColor: "var(--bd)", background: "var(--card)" }}
                     >
-                      <div className="w-1 h-10 rounded-full flex-shrink-0" style={{ background: getBorderColorForKind(ev.kind) }} />
-                      <span className="text-[13px] tabular-nums w-20 flex-shrink-0" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>{ev.timeLabel}</span>
+                      <div className="w-1.5 h-10 rounded-full flex-shrink-0" style={{ background: getBorderColorForKind(ev.kind) }} />
+                      <span className="text-[14px] tabular-nums w-20 flex-shrink-0" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>{ev.timeLabel}</span>
                       <span className="flex-shrink-0 text-[var(--tx)]">{getIcon(ev.kind)}</span>
-                      <span className="text-[13px] min-w-0 truncate" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>{ev.description}</span>
+                      <span className="text-[15px] min-w-0 truncate" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>{ev.description}</span>
                     </button>
                   </li>
                 ))}

@@ -207,10 +207,10 @@ export function JourneyScreen() {
           <ThemeToggle />
         </div>
 
-        <h1 className="text-[18px] mb-0.5 font-serif" style={{ color: "var(--tx)" }}>
+        <h1 className="text-[22px] mb-0.5 font-serif" style={{ color: "var(--tx)" }}>
           {babyProfile?.name ? `${babyProfile.name}'s story` : "Journey"}
         </h1>
-        <p className="text-[10px] mb-2.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+        <p className="text-[13px] mb-2.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
           Tap any milestone to set when it happened
         </p>
 
@@ -280,7 +280,7 @@ export function JourneyScreen() {
                       )}
                     </div>
                     <div
-                      className="text-[8px] text-center max-w-[56px] leading-tight"
+                      className="text-[11px] text-center max-w-[56px] leading-tight"
                       style={{
                         color: state === "done" ? "var(--ro)" : state === "now" ? "#9060b0" : state === "custom" ? "var(--grn)" : "var(--mu)",
                         fontFamily: "system-ui, sans-serif",
@@ -288,7 +288,7 @@ export function JourneyScreen() {
                     >
                       {node.label.replace(" ", "\n")}
                       <br />
-                      <span style={{ fontSize: "7px" }}>
+                      <span style={{ fontSize: "10px" }}>
                         {node.achievedAt ? formatAchieved(node.achievedAt) : node.typicalLabel || "Add"}
                       </span>
                     </div>
@@ -298,19 +298,19 @@ export function JourneyScreen() {
             })}
           </div>
         </div>
-        <p className="text-[8px] text-center mb-2.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+        <p className="text-[12px] text-center mb-2.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
           ← scroll the timeline →
         </p>
 
         {editId && (
           <div
-            className="border rounded-2xl p-3 mb-2 animate-in fade-in slide-in-from-top-2 duration-200"
+            className="border rounded-2xl p-4 mb-2 animate-in fade-in slide-in-from-top-2 duration-200"
             style={{ background: "var(--card)", borderColor: "var(--bd)" }}
           >
-            <p className="text-[13px] font-medium mb-2" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
+            <p className="text-[16px] font-medium mb-2" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
               {editId === CUSTOM_MILESTONE_ID ? "Custom milestone" : nodes.find((n) => n.id === editId)?.label}
             </p>
-            <p className="text-[9px] mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+            <p className="text-[13px] mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
               When did this happen for {babyProfile?.name || "your baby"}?
             </p>
             <div className="flex gap-2 mb-2">
@@ -318,14 +318,14 @@ export function JourneyScreen() {
                 type="date"
                 value={editDate}
                 onChange={(e) => setEditDate(e.target.value)}
-                className="flex-1 rounded-lg border px-2 py-1.5 text-[10px] outline-none min-h-[36px]"
+                className="flex-1 rounded-lg border px-3 py-2.5 text-[14px] outline-none min-h-[44px]"
                 style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
               />
               <input
                 type="time"
                 value={editTime}
                 onChange={(e) => setEditTime(e.target.value)}
-                className="flex-1 rounded-lg border px-2 py-1.5 text-[10px] outline-none min-h-[36px]"
+                className="flex-1 rounded-lg border px-3 py-2.5 text-[14px] outline-none min-h-[44px]"
                 style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
               />
             </div>
@@ -335,7 +335,7 @@ export function JourneyScreen() {
                 placeholder="Name this milestone..."
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                className="w-full rounded-lg border px-2 py-1.5 text-[10px] outline-none mb-2"
+                className="w-full rounded-lg border px-3 py-2.5 text-[14px] outline-none mb-2 min-h-[44px]"
                 style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
               />
             )}
@@ -343,7 +343,7 @@ export function JourneyScreen() {
               <button
                 type="button"
                 onClick={() => { setEditId(null); setEditDate(""); setEditTime(""); setEditName(""); }}
-                className="flex-1 py-2 rounded-xl text-[11px] border"
+                className="flex-1 py-3 rounded-xl text-[14px] border min-h-[48px]"
                 style={{ background: "var(--btn-row)", color: "var(--mu)", borderColor: "var(--bd)", fontFamily: "system-ui, sans-serif" }}
               >
                 Cancel
@@ -351,7 +351,7 @@ export function JourneyScreen() {
               <button
                 type="button"
                 onClick={() => saveMilestone(editId, editDate, editTime, editName || undefined)}
-                className="flex-[2] py-2 rounded-xl text-[11px] text-white"
+                className="flex-[2] py-3 rounded-xl text-[14px] min-h-[48px] text-white"
                 style={{ background: "var(--pink)", fontFamily: "system-ui, sans-serif" }}
               >
                 Save milestone
