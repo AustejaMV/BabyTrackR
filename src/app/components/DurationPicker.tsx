@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
-// Top-aligned picker: selection at top row; smaller default
-const ROW_HEIGHT = 32;
+// Top-aligned picker: selection at top row; larger row height for bigger numbers
+const ROW_HEIGHT = 42;
 const VISIBLE_ROWS = 3;
 const PICKER_HEIGHT = ROW_HEIGHT * VISIBLE_ROWS;
 /** Only sync scroll from valueMs when delta is >= this (avoids live tick overwriting user scroll) */
@@ -144,14 +144,15 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
       className={`duration-picker-container flex items-stretch rounded-2xl overflow-hidden ${className}`}
       style={{
         minHeight: PICKER_HEIGHT,
-        backgroundColor: "var(--duration-picker-bg, #e5e5ea)",
+        minWidth: 226,
+        backgroundColor: "var(--duration-picker-bg, var(--card))",
       }}
     >
       <style>{`
         .duration-picker-scroll { scrollbar-width: none; -ms-overflow-style: none; }
         .duration-picker-scroll::-webkit-scrollbar { display: none; }
         .dark .duration-picker-container {
-          --duration-picker-bg: #2c2c2e;
+          --duration-picker-bg: var(--card);
           --duration-picker-band: rgba(255,255,255,0.08);
         }
       `}</style>
@@ -186,12 +187,12 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
           }}
         />
         {/* Column dividers */}
-        {!showHours && showSeconds && <div className="absolute left-1/2 top-0 -translate-x-px w-px h-[32px] bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" />}
-        {showHours && !showSeconds && <div className="absolute left-1/2 top-0 -translate-x-px w-px h-[32px] bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" />}
+        {!showHours && showSeconds && <div className="absolute left-1/2 top-0 -translate-x-px w-px bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" style={{ height: ROW_HEIGHT }} />}
+        {showHours && !showSeconds && <div className="absolute left-1/2 top-0 -translate-x-px w-px bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" style={{ height: ROW_HEIGHT }} />}
         {showHours && showSeconds && (
           <>
-            <div className="absolute left-[33.33%] top-0 w-px h-[32px] bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" />
-            <div className="absolute left-[66.66%] top-0 w-px h-[32px] bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" />
+            <div className="absolute left-[33.33%] top-0 w-px bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" style={{ height: ROW_HEIGHT }} />
+            <div className="absolute left-[66.66%] top-0 w-px bg-gray-300 dark:bg-gray-600 z-[9] pointer-events-none" style={{ height: ROW_HEIGHT }} />
           </>
         )}
 
@@ -209,7 +210,7 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
             {Array.from({ length: maxHours + 1 }, (_, i) => (
               <div
                 key={i}
-                className="flex items-center justify-center snap-start select-none font-semibold tabular-nums text-[15px] text-gray-900 dark:text-white"
+                className="flex items-center justify-center snap-start select-none font-semibold tabular-nums text-[40px] text-gray-900 dark:text-white"
                 style={{ height: ROW_HEIGHT, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif" }}
                 onClick={() => { setHourIndex(i); newMsFromIndices(i, minIndex, showSeconds ? secIndex : undefined); }}
               >
@@ -231,7 +232,7 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
           {Array.from({ length: maxMins + 1 }, (_, i) => (
             <div
               key={i}
-              className="flex items-center justify-center snap-start select-none font-semibold tabular-nums text-[15px] text-gray-900 dark:text-white"
+              className="flex items-center justify-center snap-start select-none font-semibold tabular-nums text-[40px] text-gray-900 dark:text-white"
               style={{ height: ROW_HEIGHT, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif" }}
               onClick={() => { setMinIndex(i); newMsFromIndices(hourIndex, i, showSeconds ? secIndex : undefined); }}
             >
@@ -253,7 +254,7 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
             {Array.from({ length: maxSecs + 1 }, (_, i) => (
               <div
                 key={i}
-                className="flex items-center justify-center snap-start select-none font-semibold tabular-nums text-[15px] text-gray-900 dark:text-white"
+                className="flex items-center justify-center snap-start select-none font-semibold tabular-nums text-[40px] text-gray-900 dark:text-white"
                 style={{ height: ROW_HEIGHT, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif" }}
                 onClick={() => { setSecIndex(i); newMsFromIndices(hourIndex, minIndex, i); }}
               >

@@ -1,5 +1,41 @@
 import { serverUrl, supabaseAnonKey } from './supabase';
 
+// ─── Sync throttler (load) ───────────────────────────────────────────────────
+/** Last time we successfully called loadAllDataFromServer. Skip load if within 60s. */
+let lastSyncAt = 0;
+const SYNC_THROTTLE_MS = 60_000;
+
+// ─── Batch save queue (saves within 2s are sent in one save-many) ─────────────
+const BATCH_WINDOW_MS = 2_000;
+interface BatchEntry {
+  key: string;
+  data: unknown;
+}
+const batchSaveQueue: BatchEntry[] = [];
+let batchAccessToken: string | null = null;
+let batchFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flushBatchSaveQueue() {
+  batchFlushTimer = null;
+  if (batchSaveQueue.length === 0 || !batchAccessToken) {
+    batchAccessToken = null;
+    return;
+  }
+  const token = batchAccessToken;
+  const updates = batchSaveQueue.splice(0, batchSaveQueue.length).map((e) => ({ dataType: e.key, data: e.data }));
+  batchAccessToken = null;
+  saveManyToServer(updates, token).catch((err) => {
+    console.warn('[BabyTracker] batch save failed, re-queuing for retry', err);
+    updates.forEach((u) => enqueue(u.dataType, u.data, Date.now()));
+  });
+}
+
+function scheduleBatchFlush(accessToken: string) {
+  batchAccessToken = accessToken;
+  if (batchFlushTimer != null) clearTimeout(batchFlushTimer);
+  batchFlushTimer = setTimeout(flushBatchSaveQueue, BATCH_WINDOW_MS);
+}
+
 // Keys that are synced per family (must match server DATA_TYPES)
 export const SYNCED_DATA_KEYS = [
   'sleepHistory',
@@ -228,7 +264,7 @@ export function flushPendingSaves(accessToken: string) {
   }
 }
 
-/** Save to both localStorage and server (with retry). */
+/** Save to both localStorage and server. When token is present, enqueues to batch and flushes after 2s (single save-many). */
 export function saveData(key: string, value: unknown, accessToken?: string) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -237,7 +273,10 @@ export function saveData(key: string, value: unknown, accessToken?: string) {
     console.warn(`[BabyTracker] localStorage.setItem("${key}") failed:`, e);
   }
   if (accessToken) {
-    syncDataToServer(key, value, accessToken);
+    const existing = batchSaveQueue.findIndex((e) => e.key === key);
+    if (existing >= 0) batchSaveQueue[existing] = { key, data: value };
+    else batchSaveQueue.push({ key, data: value });
+    scheduleBatchFlush(accessToken);
   }
 }
 
@@ -291,6 +330,9 @@ export type LoadAllDataResult = {
 };
 
 export async function loadAllDataFromServer(accessToken: string): Promise<LoadAllDataResult> {
+  if (Date.now() - lastSyncAt < SYNC_THROTTLE_MS) {
+    return { ok: false, data: {} };
+  }
   const url = `${serverUrl}/data/all`;
   try {
     const response = await fetch(url, {
@@ -312,6 +354,7 @@ export async function loadAllDataFromServer(accessToken: string): Promise<LoadAl
       console.warn('[BabyTracker] GET /data/all failed', { status: response.status, error: result?.error });
       return { ok: false, data: {}, _debug };
     }
+    lastSyncAt = Date.now();
     return { ok: true, data, _debug };
   } catch (error) {
     console.error('[BabyTracker] GET /data/all network error', { url, error });
