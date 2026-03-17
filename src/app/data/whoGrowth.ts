@@ -80,3 +80,18 @@ export function getWeightPercentile(sex: Sex, ageMonths: number, weightKg: numbe
   if (weightKg <= p50) return 5 + (45 * (weightKg - p5)) / (p50 - p5);
   return 50 + (45 * (weightKg - p50)) / (p95 - p50);
 }
+
+/** Get percentile for a value at given age. Guard: null if value <= 0, ageMonths < 0 or > 24, or sex invalid. */
+export function getPercentile(
+  value: number,
+  ageMonths: number,
+  metric: "weight" | "height",
+  sex: "male" | "female"
+): number | null {
+  if (value <= 0 || !Number.isFinite(value)) return null;
+  if (ageMonths < 0 || ageMonths > 24 || !Number.isFinite(ageMonths)) return null;
+  const sexKey: Sex = sex === "female" ? "girls" : "boys";
+  if (metric === "weight") return getWeightPercentile(sexKey, ageMonths, value);
+  if (metric === "height") return null; // length/height percentiles not yet implemented
+  return null;
+}

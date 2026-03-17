@@ -16,24 +16,40 @@ let batchAccessToken: string | null = null;
 let batchFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
 function flushBatchSaveQueue() {
-  batchFlushTimer = null;
-  if (batchSaveQueue.length === 0 || !batchAccessToken) {
+  try {
+    batchFlushTimer = null;
+    if (batchSaveQueue.length === 0 || !batchAccessToken) {
+      batchAccessToken = null;
+      return;
+    }
+    const token = batchAccessToken;
+    const updates = batchSaveQueue.splice(0, batchSaveQueue.length).map((e) => ({ dataType: e.key, data: e.data }));
     batchAccessToken = null;
-    return;
+    if (updates.length === 0 || !token) return;
+    saveManyToServer(updates, token).catch((err) => {
+      console.warn('[Cradl] batch save failed, re-queuing for retry', err);
+      try {
+        updates.forEach((u) => enqueue(u.dataType, u.data, Date.now()));
+      } catch (e2) {
+        console.warn('[Cradl] enqueue after batch failure failed', e2);
+      }
+    });
+  } catch (err) {
+    console.warn('[Cradl] flushBatchSaveQueue error', err);
+    batchFlushTimer = null;
+    batchAccessToken = null;
   }
-  const token = batchAccessToken;
-  const updates = batchSaveQueue.splice(0, batchSaveQueue.length).map((e) => ({ dataType: e.key, data: e.data }));
-  batchAccessToken = null;
-  saveManyToServer(updates, token).catch((err) => {
-    console.warn('[BabyTracker] batch save failed, re-queuing for retry', err);
-    updates.forEach((u) => enqueue(u.dataType, u.data, Date.now()));
-  });
 }
 
 function scheduleBatchFlush(accessToken: string) {
-  batchAccessToken = accessToken;
-  if (batchFlushTimer != null) clearTimeout(batchFlushTimer);
-  batchFlushTimer = setTimeout(flushBatchSaveQueue, BATCH_WINDOW_MS);
+  if (!accessToken || typeof accessToken !== 'string') return;
+  try {
+    batchAccessToken = accessToken;
+    if (batchFlushTimer != null) clearTimeout(batchFlushTimer);
+    batchFlushTimer = setTimeout(flushBatchSaveQueue, BATCH_WINDOW_MS);
+  } catch (err) {
+    console.warn('[Cradl] scheduleBatchFlush error', err);
+  }
 }
 
 // Keys that are synced per family (must match server DATA_TYPES)
@@ -53,6 +69,25 @@ export const SYNCED_DATA_KEYS = [
   'shoppingList',
   'babyProfile',
   'milestones',
+  'temperatureHistory',
+  'symptomHistory',
+  'medicationHistory',
+  'solidFoodHistory',
+  'growthMeasurements',
+  'activityHistory',
+  'woundCareHistory',
+  'pelvicFloorHistory',
+  'breastPainHistory',
+  'epdsResponses',
+  'skinFlares',
+  'skinCreams',
+  'skinTriggers',
+  'mumSleepHistory',
+  'returnToWorkPlan',
+  'memoryDays',
+  'memoryMonthlyRecaps',
+  'customTrackers',
+  'customTrackerLogs',
 ] as const;
 
 /** Default value when server doesn't return a key. */
@@ -72,6 +107,25 @@ export const SYNCED_DATA_DEFAULTS: Record<(typeof SYNCED_DATA_KEYS)[number], unk
   shoppingList: [],
   babyProfile: null as { birthDate: number; name?: string } | null,
   milestones: [] as { id: string; label: string; typicalDaysMin: number; typicalDaysMax: number; achievedAt?: number }[],
+  temperatureHistory: [] as { id: string; timestamp: string; tempC: number; method: string; note: string | null }[],
+  symptomHistory: [] as { id: string; timestamp: string; symptoms: string[]; severity: string; note: string | null }[],
+  medicationHistory: [] as { id: string; timestamp: string; medication: string; doseML: number | null; note: string | null }[],
+  solidFoodHistory: [] as { id: string; timestamp: string; food: string; isFirstTime: boolean; reaction: string; note: string | null; allergenFlags: string[] }[],
+  growthMeasurements: [] as { id: string; date: number; weightKg?: number; heightCm?: number; headCircumferenceCm?: number }[],
+  activityHistory: [] as { id: string; timestamp: string; durationMinutes: number; activityType: string; note: string | null }[],
+  woundCareHistory: [] as { id: string; timestamp: string; area: string; notes: string | null; hasRedness: boolean; hasPain: boolean; painLevel: number | null }[],
+  pelvicFloorHistory: [] as { id: string; date: string; completed: boolean; repsCompleted: number | null }[],
+  breastPainHistory: [] as { id: string; timestamp: string; side: string; severity: number; warmth: boolean; redness: boolean; notes: string | null }[],
+  epdsResponses: [] as { id: string; completedAt: string; answers: number[]; totalScore: number; flagged: boolean }[],
+  skinFlares: [] as { id: string; timestamp: string; bodyAreas: string[]; severity: number; appearance: string[]; photo: string | null; note: string | null }[],
+  skinCreams: [] as { id: string; timestamp: string; product: string; bodyAreas: string[]; note: string | null }[],
+  skinTriggers: [] as { id: string; timestamp: string; triggerType: string; description: string; note: string | null }[],
+  mumSleepHistory: [] as { id: string; date: string; sleepRange: string; loggedAt: string }[],
+  returnToWorkPlan: null,
+  memoryDays: [] as { id: string; date: string; note?: string | null; photoDataUrl?: string | null; createdAt: number }[],
+  memoryMonthlyRecaps: [] as { id: string; yearMonth: string; note: string; createdAt: number }[],
+  customTrackers: [] as { id: string; name: string; icon: string; unit?: string | null; createdAt: number }[],
+  customTrackerLogs: [] as { id: string; trackerId: string; timestamp: number; value?: number | null; note?: string | null }[],
 };
 
 /** Poll interval when any live session is active (feeding, sleep, tummy time). */
@@ -145,6 +199,11 @@ function dequeue(dataType: string) {
   writeQueue(readQueue().filter((q) => q.dataType !== dataType));
 }
 
+/** Number of saves waiting to be synced (e.g. after offline). Use for sync icon. */
+export function getPendingSavesCount(): number {
+  return readQueue().length;
+}
+
 /**
  * Low-level HTTP send for a single save.
  *
@@ -170,7 +229,7 @@ async function doSave(
   });
 
   if (response.status === 409) {
-    console.warn(`[BabyTracker] save conflict for "${dataType}": server has newer data`);
+    console.warn(`[Cradl] save conflict for "${dataType}": server has newer data`);
     dequeue(dataType); // server is ahead — no point replaying this
     return 'conflict';
   }
@@ -202,7 +261,7 @@ function scheduleRetry(
     try {
       const result = await doSave(dataType, data, accessToken, clientUpdatedAt);
       if (result === 'ok') {
-        console.log(`[BabyTracker] retry #${attempt} succeeded for "${dataType}"`);
+        console.log(`[Cradl] retry #${attempt} succeeded for "${dataType}"`);
       }
     } catch {
       scheduleRetry(dataType, data, accessToken, clientUpdatedAt, attempt + 1);
@@ -248,35 +307,51 @@ export function syncDataToServer(dataType: string, data: unknown, accessToken: s
  * The server's conflict detection ensures stale replays are safely rejected.
  */
 export function flushPendingSaves(accessToken: string) {
-  const queue = readQueue();
-  if (queue.length === 0) return;
-  console.log(`[BabyTracker] flushing ${queue.length} pending save(s) from previous session`);
-  for (const { dataType, data, clientUpdatedAt } of queue) {
-    // Cancel any in-memory retry for this key (avoid double-send)
-    const existing = retrySlots.get(dataType);
-    if (existing != null) {
-      clearTimeout(existing.timer);
-      retrySlots.delete(dataType);
+  if (!accessToken || typeof accessToken !== 'string') return;
+  try {
+    const queue = readQueue();
+    if (queue.length === 0) return;
+    console.log(`[Cradl] flushing ${queue.length} pending save(s) from previous session`);
+    for (const { dataType, data, clientUpdatedAt } of queue) {
+      try {
+        const existing = retrySlots.get(dataType);
+        if (existing != null) {
+          clearTimeout(existing.timer);
+          retrySlots.delete(dataType);
+        }
+        doSave(dataType, data, accessToken, clientUpdatedAt).catch(() => {
+          scheduleRetry(dataType, data, accessToken, clientUpdatedAt, 0);
+        });
+      } catch (e) {
+        console.warn(`[Cradl] flushPendingSaves item failed for "${dataType}"`, e);
+      }
     }
-    doSave(dataType, data, accessToken, clientUpdatedAt).catch(() => {
-      scheduleRetry(dataType, data, accessToken, clientUpdatedAt, 0);
-    });
+  } catch (e) {
+    console.warn('[Cradl] flushPendingSaves failed', e);
   }
 }
 
 /** Save to both localStorage and server. When token is present, enqueues to batch and flushes after 2s (single save-many). */
 export function saveData(key: string, value: unknown, accessToken?: string) {
+  if (key == null || key === '') {
+    console.warn('[Cradl] saveData called with invalid key');
+    return;
+  }
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {
     // QuotaExceededError (disk full) or SecurityError (private browsing sandbox)
-    console.warn(`[BabyTracker] localStorage.setItem("${key}") failed:`, e);
+    console.warn(`[Cradl] localStorage.setItem("${key}") failed:`, e);
   }
   if (accessToken) {
-    const existing = batchSaveQueue.findIndex((e) => e.key === key);
-    if (existing >= 0) batchSaveQueue[existing] = { key, data: value };
-    else batchSaveQueue.push({ key, data: value });
-    scheduleBatchFlush(accessToken);
+    try {
+      const existing = batchSaveQueue.findIndex((e) => e.key === key);
+      if (existing >= 0) batchSaveQueue[existing] = { key, data: value };
+      else batchSaveQueue.push({ key, data: value });
+      scheduleBatchFlush(accessToken);
+    } catch (e) {
+      console.warn('[Cradl] batch queue / scheduleBatchFlush failed', e);
+    }
   }
 }
 
@@ -292,6 +367,8 @@ export async function saveManyToServer(
   updates: { dataType: string; data: unknown }[],
   accessToken: string,
 ) {
+  if (!accessToken || typeof accessToken !== 'string') return;
+  if (!Array.isArray(updates) || updates.length === 0) return;
   const clientUpdatedAt = Date.now();
   try {
     const response = await fetch(`${serverUrl}/data/save-many`, {
@@ -330,6 +407,9 @@ export type LoadAllDataResult = {
 };
 
 export async function loadAllDataFromServer(accessToken: string): Promise<LoadAllDataResult> {
+  if (!accessToken || typeof accessToken !== 'string') {
+    return { ok: false, data: {} };
+  }
   if (Date.now() - lastSyncAt < SYNC_THROTTLE_MS) {
     return { ok: false, data: {} };
   }
@@ -345,24 +425,34 @@ export async function loadAllDataFromServer(accessToken: string): Promise<LoadAl
     try {
       result = await response.json();
     } catch {
-      console.error('[BabyTracker] GET /data/all: response not JSON', { status: response.status, url });
+      console.error('[Cradl] GET /data/all: response not JSON', { status: response.status, url });
       return { ok: false, data: {} };
     }
     const data = result?.data ?? {};
     const _debug = result?._debug;
     if (!response.ok) {
-      console.warn('[BabyTracker] GET /data/all failed', { status: response.status, error: result?.error });
+      console.warn('[Cradl] GET /data/all failed', { status: response.status, error: result?.error });
       return { ok: false, data: {}, _debug };
     }
     lastSyncAt = Date.now();
     return { ok: true, data, _debug };
   } catch (error) {
-    console.error('[BabyTracker] GET /data/all network error', { url, error });
+    console.error('[Cradl] GET /data/all network error', { url, error });
     return { ok: false, data: {} };
   }
 }
 
 /** Clear all synced family data from localStorage (e.g. before loading a different family). */
 export function clearSyncedDataFromLocalStorage() {
-  SYNCED_DATA_KEYS.forEach((key) => localStorage.removeItem(key));
+  try {
+    SYNCED_DATA_KEYS.forEach((key) => {
+      try {
+        localStorage.removeItem(key);
+      } catch {
+        // ignore per-key failures (e.g. private mode)
+      }
+    });
+  } catch (e) {
+    console.warn('[Cradl] clearSyncedDataFromLocalStorage failed', e);
+  }
 }

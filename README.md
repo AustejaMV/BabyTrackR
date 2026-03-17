@@ -1,7 +1,7 @@
 
-  # BabyTrackR
+# Cradl
 
-  This is a code bundle for BabyTrackR. The original project is available at https://www.figma.com/design/vmMQeSNjcXlJeUwX2HuCV0/BabyTrackR.
+This is a code bundle for Cradl. The original project is available at https://www.figma.com/design/vmMQeSNjcXlJeUwX2HuCV0/BabyTrackR (Cradl).
 
   ## Running the code
 

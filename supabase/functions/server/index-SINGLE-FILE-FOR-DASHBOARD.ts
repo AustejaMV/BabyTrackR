@@ -240,6 +240,401 @@ app.get("/data/all", async (c) => {
   return c.json({ data: allData });
 });
 
+// Handoff: public read by session id; auth create; anon add log if session valid
+app.get("/handoff/:sessionId", async (c) => {
+  const sessionId = c.req.param("sessionId");
+  if (!sessionId) return c.json({ error: "missing_session_id" }, 400);
+  const session = await kvGet(`handoff:${sessionId}`);
+  if (!session) return c.json({ error: "not_found" }, 404);
+  if (new Date(session.expiresAt).getTime() < Date.now()) return c.json({ error: "expired" }, 410);
+  return c.json(session);
+});
+
+app.post("/handoff", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  let body: any = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const sessionId = body?.id;
+  if (!sessionId || typeof sessionId !== "string") return c.json({ error: "missing_id" }, 400);
+  await kvSet(`handoff:${sessionId}`, body);
+  await kvSet(`handoff_logs:${sessionId}`, body.logs ?? []);
+  return c.json({ success: true });
+});
+
+app.post("/handoff/log", async (c) => {
+  let body: any = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const { sessionId, type, loggedByName, note } = body;
+  if (!sessionId || !type || !loggedByName) return c.json({ error: "missing_fields" }, 400);
+  if (!["feed", "sleep", "diaper"].includes(type)) return c.json({ error: "invalid_type" }, 400);
+  const session = await kvGet(`handoff:${sessionId}`);
+  if (!session) return c.json({ error: "session_not_found" }, 404);
+  if (new Date(session.expiresAt).getTime() < Date.now()) return c.json({ error: "session_expired" }, 410);
+  const logs = (await kvGet(`handoff_logs:${sessionId}`)) ?? [];
+  const newLog = {
+    id: `log_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+    type,
+    loggedAt: new Date().toISOString(),
+    loggedByName: String(loggedByName),
+    note: note != null ? String(note) : null,
+  };
+  logs.push(newLog);
+  await kvSet(`handoff_logs:${sessionId}`, logs);
+  return c.json(newLog, 201);
+});
+
+app.get("/handoff/:sessionId/logs", async (c) => {
+  const sessionId = c.req.param("sessionId");
+  if (!sessionId) return c.json([], 200);
+  const logs = (await kvGet(`handoff_logs:${sessionId}`)) ?? [];
+  return c.json(logs);
+});
+
+// ─── Village: safety & night ping (KV-based) ─────────────────────────────────
+function contentFilter(text: string): { ok: boolean; reason?: string } {
+  if (typeof text !== "string") return { ok: false, reason: "invalid" };
+  const t = text.slice(0, 5000);
+  if (/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/.test(t)) return { ok: false, reason: "email_not_allowed" };
+  if (/\b(\+?\d{10,14}|\d{4,5}\s*\d{4,5})\b/.test(t)) return { ok: false, reason: "phone_not_allowed" };
+  if (/https?:\/\/[^\s]+/i.test(t)) return { ok: false, reason: "url_not_allowed" };
+  return { ok: true };
+}
+
+function geohash4(lat: number, lng: number): string {
+  const la = Math.max(-90, Math.min(90, lat));
+  const lo = Math.max(-180, Math.min(180, lng));
+  const y = Math.floor(((la + 90) / 180) * 32).toString(32).padStart(2, "0").slice(0, 2);
+  const x = Math.floor(((lo + 180) / 360) * 32).toString(32).padStart(2, "0").slice(0, 2);
+  return (y + x).slice(0, 4);
+}
+
+const NIGHT_PING_RATE_MS = 10 * 60 * 1000;
+const NIGHT_PING_TTL_MS = 90 * 60 * 1000;
+const NIGHT_COUNT_WINDOW_MS = 60 * 60 * 1000;
+
+app.post("/village/night-ping", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  let body: any = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const lat = typeof body.lat === "number" ? body.lat : parseFloat(body.lat);
+  const lng = typeof body.lng === "number" ? body.lng : parseFloat(body.lng);
+  if (Number.isNaN(lat) || Number.isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return c.json({ error: "invalid_lat_lng" }, 400);
+  }
+  const rateKey = `village:night_rate:${user!.id}`;
+  const last = await kvGet(rateKey);
+  const now = Date.now();
+  if (typeof last === "number" && now - last < NIGHT_PING_RATE_MS) {
+    return c.json({ error: "rate_limit", retryAfter: Math.ceil((NIGHT_PING_RATE_MS - (now - last)) / 1000) }, 429);
+  }
+  const gh = geohash4(lat, lng);
+  const prefix3 = gh.slice(0, 3);
+  const pingsKey = "village:night_pings";
+  let pings: { geohash: string; pinged_at: number }[] = (await kvGet(pingsKey)) ?? [];
+  const cut = now - NIGHT_PING_TTL_MS;
+  pings = pings.filter((p) => p.pinged_at > cut);
+  pings.push({ geohash: gh, pinged_at: now });
+  await kvSet(pingsKey, pings);
+  await kvSet(rateKey, now);
+
+  const windowStart = now - NIGHT_COUNT_WINDOW_MS;
+  let count = pings.filter((p) => p.geohash.startsWith(prefix3) && p.pinged_at >= windowStart).length;
+  if (count > 0) count -= 1;
+  const capped = Math.min(999, count);
+  return c.json({ count: capped });
+});
+
+app.post("/village/delete-my-data", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  const uid = user!.id;
+  const keysToDelete = [
+    `village:night_rate:${uid}`,
+    `village:profile:${uid}`,
+    `village:groups_joined:${uid}`,
+  ];
+  for (const k of keysToDelete) {
+    try {
+      await supabase.from(KV_TABLE).delete().eq("key", k);
+    } catch {
+      /* ignore */
+    }
+  }
+  return c.json({ success: true });
+});
+
+// ─── Village: venues (KV) ────────────────────────────────────────────────────
+app.get("/village/venues", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  const list: any[] = (await kvGet("village:venues")) ?? [];
+  return c.json({ venues: list });
+});
+
+app.post("/village/venues", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  let body: any = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const name = String(body.name ?? "").trim().slice(0, 120);
+  const address = String(body.address ?? "").trim().slice(0, 300);
+  const venueType = ["cafe", "restaurant", "soft_play", "library", "other"].includes(body.venueType) ? body.venueType : "other";
+  if (!name || !address) return c.json({ error: "name_and_address_required" }, 400);
+  const list: any[] = (await kvGet("village:venues")) ?? [];
+  const id = `v_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  list.push({
+    id,
+    name,
+    address,
+    venueType,
+    lat: typeof body.lat === "number" ? body.lat : null,
+    lng: typeof body.lng === "number" ? body.lng : null,
+    addedBy: user!.id,
+    createdAt: Date.now(),
+  });
+  await kvSet("village:venues", list);
+  return c.json({ id }, 201);
+});
+
+app.post("/village/venues/:id/reviews", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  const venueId = c.req.param("id");
+  let body: any = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const wouldReturn = ["yes", "yes_with_caveats", "no"].includes(body.would_return) ? body.would_return : null;
+  if (!wouldReturn) return c.json({ error: "would_return_required" }, 400);
+  const content = String(body.content ?? "").trim().slice(0, 500);
+  const filter = contentFilter(content);
+  if (!filter.ok) return c.json({ error: filter.reason ?? "content_not_allowed" }, 400);
+  const list: any[] = (await kvGet("village:venues")) ?? [];
+  if (!list.some((v) => v.id === venueId)) return c.json({ error: "venue_not_found" }, 404);
+  const key = `village:venue_reviews:${venueId}`;
+  const reviews: any[] = (await kvGet(key)) ?? [];
+  const id = `r_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  reviews.push({ id, reviewerId: user!.id, wouldReturn, content, createdAt: Date.now() });
+  await kvSet(key, reviews);
+  return c.json({ id }, 201);
+});
+
+app.get("/village/venues/:id/reviews", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  const venueId = c.req.param("id");
+  const reviews: any[] = (await kvGet(`village:venue_reviews:${venueId}`)) ?? [];
+  return c.json({ reviews });
+});
+
+// ─── Village: groups (KV) ─────────────────────────────────────────────────────
+function shortcode8(): string {
+  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
+  let s = "";
+  for (let i = 0; i < 8; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+
+app.post("/village/groups", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  let body: any = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const name = String(body.name ?? "Group").trim().slice(0, 60);
+  const list: any[] = (await kvGet("village:groups")) ?? [];
+  let code = shortcode8();
+  while (list.some((g) => g.shortcode === code)) code = shortcode8();
+  const id = `g_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  list.push({ id, shortcode: code, name, createdBy: user!.id, createdAt: Date.now() });
+  await kvSet("village:groups", list);
+  const members: any[] = [{ userId: user!.id, role: "owner" }];
+  await kvSet(`village:group_members:${id}`, members);
+  return c.json({ id, shortcode: code }, 201);
+});
+
+app.post("/village/groups/join", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  let body: any = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const shortcode = String(body.shortcode ?? "").trim().toLowerCase().slice(0, 8);
+  if (!shortcode) return c.json({ error: "shortcode_required" }, 400);
+  const list: any[] = (await kvGet("village:groups")) ?? [];
+  const group = list.find((g) => g.shortcode === shortcode);
+  if (!group) return c.json({ error: "group_not_found" }, 404);
+  const members: any[] = (await kvGet(`village:group_members:${group.id}`)) ?? [];
+  if (members.some((m) => m.userId === user!.id)) return c.json({ id: group.id, shortcode: group.shortcode });
+  members.push({ userId: user!.id, role: "member" });
+  await kvSet(`village:group_members:${group.id}`, members);
+  return c.json({ id: group.id, shortcode: group.shortcode }, 200);
+});
+
+app.get("/village/groups/mine", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  const list: any[] = (await kvGet("village:groups")) ?? [];
+  const mine: any[] = [];
+  for (const g of list) {
+    const members: any[] = (await kvGet(`village:group_members:${g.id}`)) ?? [];
+    if (members.some((m) => m.userId === user!.id)) mine.push(g);
+  }
+  return c.json({ groups: mine });
+});
+
+app.get("/village/groups/:id/messages", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  const groupId = c.req.param("id");
+  const members: any[] = (await kvGet(`village:group_members:${groupId}`)) ?? [];
+  if (!members.some((m) => m.userId === user!.id)) return c.json({ error: "forbidden" }, 403);
+  const messages: any[] = (await kvGet(`village:group_messages:${groupId}`)) ?? [];
+  return c.json({ messages });
+});
+
+app.post("/village/groups/:id/messages", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  const groupId = c.req.param("id");
+  let body: any = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const content = String(body.content ?? "").trim().slice(0, 2000);
+  if (!content) return c.json({ error: "content_required" }, 400);
+  const filter = contentFilter(content);
+  if (!filter.ok) return c.json({ error: filter.reason ?? "content_not_allowed" }, 400);
+  const members: any[] = (await kvGet(`village:group_members:${groupId}`)) ?? [];
+  if (!members.some((m) => m.userId === user!.id)) return c.json({ error: "forbidden" }, 403);
+  const messages: any[] = (await kvGet(`village:group_messages:${groupId}`)) ?? [];
+  const id = `m_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  messages.push({ id, senderId: user!.id, content, sentAt: Date.now() });
+  await kvSet(`village:group_messages:${groupId}`, messages);
+  return c.json({ id }, 201);
+});
+
+// ─── Village: QA (KV) ───────────────────────────────────────────────────────
+app.get("/village/qa/questions", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  const questions: any[] = (await kvGet("village:qa_questions")) ?? [];
+  return c.json({ questions: questions.slice(-100) });
+});
+
+app.post("/village/qa/questions", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  let body: any = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const content = String(body.content ?? "").trim().slice(0, 280);
+  if (content.length < 10) return c.json({ error: "content_too_short" }, 400);
+  const filter = contentFilter(content);
+  if (!filter.ok) return c.json({ error: filter.reason ?? "content_not_allowed" }, 400);
+  const ageBand = String(body.age_band ?? "0-12").slice(0, 20);
+  const questions: any[] = (await kvGet("village:qa_questions")) ?? [];
+  const id = `q_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  questions.push({ id, content, ageBand, createdAt: Date.now() });
+  await kvSet("village:qa_questions", questions);
+  return c.json({ id }, 201);
+});
+
+app.get("/village/qa/questions/:id/answers", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  const qId = c.req.param("id");
+  const answers: any[] = (await kvGet(`village:qa_answers:${qId}`)) ?? [];
+  return c.json({ answers });
+});
+
+app.post("/village/qa/questions/:id/answers", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  const qId = c.req.param("id");
+  let body: any = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const content = String(body.content ?? "").trim().slice(0, 1000);
+  if (!content) return c.json({ error: "content_required" }, 400);
+  const filter = contentFilter(content);
+  if (!filter.ok) return c.json({ error: filter.reason ?? "content_not_allowed" }, 400);
+  const answers: any[] = (await kvGet(`village:qa_answers:${qId}`)) ?? [];
+  const id = `a_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  answers.push({ id, content, createdAt: Date.now() });
+  await kvSet(`village:qa_answers:${qId}`, answers);
+  return c.json({ id }, 201);
+});
+
+// ─── Village: group board (KV) ───────────────────────────────────────────────
+app.get("/village/groups/:id/board", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  const groupId = c.req.param("id");
+  const members: any[] = (await kvGet(`village:group_members:${groupId}`)) ?? [];
+  if (!members.some((m) => m.userId === user!.id)) return c.json({ error: "forbidden" }, 403);
+  const items: any[] = (await kvGet(`village:group_board:${groupId}`)) ?? [];
+  return c.json({ items });
+});
+
+app.post("/village/groups/:id/board", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  const groupId = c.req.param("id");
+  let body: any = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const title = String(body.title ?? "").trim().slice(0, 100);
+  const boardBody = String(body.body ?? "").trim().slice(0, 500);
+  if (title.length < 3) return c.json({ error: "title_too_short" }, 400);
+  const filter = contentFilter(boardBody);
+  if (!filter.ok) return c.json({ error: filter.reason ?? "content_not_allowed" }, 400);
+  const members: any[] = (await kvGet(`village:group_members:${groupId}`)) ?? [];
+  if (!members.some((m) => m.userId === user!.id)) return c.json({ error: "forbidden" }, 403);
+  const items: any[] = (await kvGet(`village:group_board:${groupId}`)) ?? [];
+  const id = `b_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  items.push({ id, title, body: boardBody, createdBy: user!.id, createdAt: Date.now(), pinned: false });
+  await kvSet(`village:group_board:${groupId}`, items);
+  return c.json({ id }, 201);
+});
+
 const registeredRoutes = [
   "GET /health",
   "GET /family",
@@ -251,6 +646,27 @@ const registeredRoutes = [
   "POST /data/save",
   "GET /data/:dataType",
   "GET /data/all",
+  "GET /handoff/:sessionId",
+  "POST /handoff",
+  "POST /handoff/log",
+  "GET /handoff/:sessionId/logs",
+  "POST /village/night-ping",
+  "POST /village/delete-my-data",
+  "GET /village/venues",
+  "POST /village/venues",
+  "POST /village/venues/:id/reviews",
+  "GET /village/venues/:id/reviews",
+  "POST /village/groups",
+  "POST /village/groups/join",
+  "GET /village/groups/mine",
+  "GET /village/groups/:id/messages",
+  "POST /village/groups/:id/messages",
+  "GET /village/qa/questions",
+  "POST /village/qa/questions",
+  "GET /village/qa/questions/:id/answers",
+  "POST /village/qa/questions/:id/answers",
+  "GET /village/groups/:id/board",
+  "POST /village/groups/:id/board",
 ];
 
 const handler = async (req: Request) => {

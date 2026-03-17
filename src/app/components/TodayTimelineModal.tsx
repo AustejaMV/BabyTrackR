@@ -2,10 +2,21 @@ import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { getTimelineEventsForDay, getBorderColorForKind } from "../utils/timelineUtils";
 import { readStoredArray } from "../utils/warningUtils";
+import { getTemperatureHistory, getSymptomHistory, getMedicationHistory } from "../utils/healthStorage";
+import { filterBySubscription } from "../utils/historyGating";
+import { getCustomTrackers, getCustomTrackerLogs } from "../utils/customTrackerStorage";
 import type { TimelineEvent, TimelineEventKind, FeedingRecord, SleepRecord, DiaperRecord, TummyTimeRecord, BottleRecord, PumpRecord } from "../types";
 
 function getIcon(kind: TimelineEventKind) {
-  const stroke = kind === "feed" || kind === "bottle" ? "var(--coral)" : kind === "sleep" ? "var(--blue)" : kind === "diaper" ? "var(--grn)" : kind === "tummy" ? "var(--purp)" : "var(--pink)";
+  const stroke = kind === "feed" || kind === "bottle" ? "var(--coral)" : kind === "sleep" ? "var(--blue)" : kind === "diaper" ? "var(--grn)" : kind === "tummy" ? "var(--purp)" : kind === "health" ? "#e87474" : kind === "custom" ? "var(--purp)" : "var(--pink)";
+  if (kind === "health") {
+    return (
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+        <path d="M8 2v3M8 11v3M5 5l2.5 2.5M10.5 10.5L8 13M5 11L7.5 8.5M10.5 6.5L8 4" stroke={stroke} strokeWidth="1.4" strokeLinecap="round" />
+        <circle cx="8" cy="8" r="2.5" stroke={stroke} strokeWidth="1.4" fill="none" />
+      </svg>
+    );
+  }
   if (kind === "feed" || kind === "bottle") {
     return (
       <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
@@ -38,6 +49,13 @@ function getIcon(kind: TimelineEventKind) {
       </svg>
     );
   }
+  if (kind === "custom") {
+    return (
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+        <path d="M8 2l1.5 4.5L14 8l-4.5 1.5L8 14l-1.5-4.5L2 8l4.5-1.5L8 2z" stroke={stroke} strokeWidth="1.4" fill="none" strokeLinejoin="round" />
+      </svg>
+    );
+  }
   return (
     <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
       <rect x="7" y="2" width="4" height="14" rx="2" stroke={stroke} strokeWidth="1.5" />
@@ -55,9 +73,11 @@ interface TodayTimelineModalProps {
   onEdit?: (event: TimelineEvent) => void;
   /** Increment to refetch timeline (e.g. after edit/delete) */
   refreshKey?: number;
+  /** If false, only last 30 days of data are shown */
+  isPremium?: boolean;
 }
 
-export function TodayTimelineModal({ open, onClose, filter = null, onEdit, refreshKey = 0 }: TodayTimelineModalProps) {
+export function TodayTimelineModal({ open, onClose, filter = null, onEdit, refreshKey = 0, isPremium = true }: TodayTimelineModalProps) {
   const [selectedDate, setSelectedDate] = useState(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -68,17 +88,37 @@ export function TodayTimelineModal({ open, onClose, filter = null, onEdit, refre
 
   useEffect(() => {
     if (!open) return;
-    const feedingHistory = readStoredArray<FeedingRecord>("feedingHistory");
-    const sleepHistory = readStoredArray<SleepRecord>("sleepHistory");
-    const diaperHistory = readStoredArray<DiaperRecord>("diaperHistory");
-    const tummyTimeHistory = readStoredArray<TummyTimeRecord>("tummyTimeHistory");
-    const bottleHistory = readStoredArray<BottleRecord>("bottleHistory");
-    const pumpHistory = readStoredArray<PumpRecord>("pumpHistory");
+    let feedingHistory = readStoredArray<FeedingRecord>("feedingHistory");
+    let sleepHistory = readStoredArray<SleepRecord>("sleepHistory");
+    let diaperHistory = readStoredArray<DiaperRecord>("diaperHistory");
+    let tummyTimeHistory = readStoredArray<TummyTimeRecord>("tummyTimeHistory");
+    let bottleHistory = readStoredArray<BottleRecord>("bottleHistory");
+    let pumpHistory = readStoredArray<PumpRecord>("pumpHistory");
+    let temperatureHistory = getTemperatureHistory();
+    let symptomHistory = getSymptomHistory();
+    let medicationHistory = getMedicationHistory();
+
+    if (!isPremium) {
+      feedingHistory = filterBySubscription(feedingHistory, false);
+      sleepHistory = filterBySubscription(sleepHistory, false);
+      diaperHistory = filterBySubscription(diaperHistory, false);
+      tummyTimeHistory = filterBySubscription(tummyTimeHistory, false);
+      bottleHistory = filterBySubscription(bottleHistory, false);
+      pumpHistory = filterBySubscription(pumpHistory, false);
+      temperatureHistory = filterBySubscription(temperatureHistory, false);
+      symptomHistory = filterBySubscription(symptomHistory, false);
+      medicationHistory = filterBySubscription(medicationHistory, false);
+    }
 
     const dayStart = selectedDate;
     const yesterdayStart = dayStart - 24 * 60 * 60 * 1000;
     const isToday = dayStart === new Date().setHours(0, 0, 0, 0);
 
+    let customTrackers = getCustomTrackers();
+    let customTrackerLogs = getCustomTrackerLogs();
+    if (!isPremium) {
+      customTrackerLogs = filterBySubscription(customTrackerLogs, false);
+    }
     const data = {
       feedingHistory,
       sleepHistory,
@@ -86,6 +126,11 @@ export function TodayTimelineModal({ open, onClose, filter = null, onEdit, refre
       tummyTimeHistory,
       bottleHistory,
       pumpHistory,
+      temperatureHistory,
+      symptomHistory,
+      medicationHistory,
+      customTrackers,
+      customTrackerLogs,
       useDateOnLabel: !isToday,
     };
 
@@ -99,7 +144,7 @@ export function TodayTimelineModal({ open, onClose, filter = null, onEdit, refre
 
     setTodayEvents(today);
     setYesterdayEvents(yesterday);
-  }, [open, selectedDate, filter, refreshKey]);
+  }, [open, selectedDate, filter, refreshKey, isPremium]);
 
   if (!open) return null;
 

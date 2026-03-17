@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Navigation } from '../components/Navigation';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { ArrowLeft, UserPlus, LogOut, Users, Trash2, Mail, X, AlertTriangle, CloudUpload, Camera } from 'lucide-react';
+import { ArrowLeft, UserPlus, LogOut, Users, Trash2, Mail, X, AlertTriangle, CloudUpload, Camera, Mic, FileDown, LayoutDashboard, UserCircle, ChevronDown, UserMinus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { serverUrl, supabaseAnonKey } from '../utils/supabase';
 import { toast } from 'sonner';
@@ -11,9 +11,19 @@ import { saveData, saveManyToServer, SYNCED_DATA_KEYS, SYNCED_DATA_DEFAULTS, loa
 import type { BabyProfile } from '../types';
 import { getAgeInDays } from '../utils/babyUtils';
 import { compressBabyPhoto } from '../utils/imageCompress';
+import { useBaby } from '../contexts/BabyContext';
+import { OnboardingFlow } from '../components/OnboardingFlow';
 import { readAlertThresholds, saveAlertThresholds, type AlertThresholds } from '../utils/alertThresholdsStorage';
-import { Mic } from 'lucide-react';
 import { VOICE_COMMAND_EXAMPLES } from '../components/VoiceControl';
+import { CSVExportButton } from '../components/CSVExportButton';
+import { useRole } from '../contexts/RoleContext';
+import { getAccessibleFontScale, setAccessibleFontScale } from '../utils/useAccessibleFontSize';
+import { useLanguage } from '../contexts/LanguageContext';
+import { LOCALE_LABELS, type SupportedLocale } from '../utils/languageStorage';
+import { villageDeleteMyData } from '../utils/villageApi';
+
+const REDUCE_MOTION_KEY = 'cradl-reduce-motion';
+const HIGH_CONTRAST_KEY = 'cradl-high-contrast';
 
 interface FamilyMember {
   id: string;
@@ -24,6 +34,8 @@ interface FamilyMember {
 export function Settings() {
   const navigate = useNavigate();
   const { user, signOut, session, familyId, refreshFamily, setFamilyIdFromCreate } = useAuth();
+  const { activeBaby, babies, addBaby, setActiveBabyId, updateActiveBaby, removeBaby } = useBaby();
+  const { role, setRole } = useRole();
   const [inviteEmail, setInviteEmail] = useState('');
   const [family, setFamily] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -32,12 +44,26 @@ export function Settings() {
   const [syncingToCloud, setSyncingToCloud] = useState(false);
   const [wipePending, setWipePending] = useState(false);
   const [wiping, setWiping] = useState(false);
-  const [babyProfile, setBabyProfile] = useState<BabyProfile | null>(null);
+  const [showAddBabyFlow, setShowAddBabyFlow] = useState(false);
+  const babyProfile: BabyProfile | null = activeBaby
+    ? { birthDate: activeBaby.birthDate, name: activeBaby.name, photoDataUrl: activeBaby.photoDataUrl, weight: activeBaby.weight, height: activeBaby.height }
+    : null;
   const [birthDateInput, setBirthDateInput] = useState('');
   const [babyNameInput, setBabyNameInput] = useState('');
+  const [parentNameInput, setParentNameInput] = useState('');
   const [photoCompressing, setPhotoCompressing] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [alertThresholds, setAlertThresholds] = useState<AlertThresholds>(() => readAlertThresholds());
+  const [reduceMotion, setReduceMotion] = useState(() => {
+    try { return localStorage.getItem(REDUCE_MOTION_KEY) === 'true'; } catch { return false; }
+  });
+  const [fontScale, setFontScale] = useState(() => getAccessibleFontScale());
+  const [highContrast, setHighContrast] = useState(() => {
+    try { return localStorage.getItem(HIGH_CONTRAST_KEY) === 'true'; } catch { return false; }
+  });
+  const { language, setLanguage: setAppLanguage } = useLanguage();
+  const [languageSheetOpen, setLanguageSheetOpen] = useState(false);
+  const [villageDeleteLoading, setVillageDeleteLoading] = useState(false);
 
   useEffect(() => {
     if (session?.access_token && familyId) {
@@ -72,21 +98,12 @@ export function Settings() {
   }, [session?.access_token, familyId, refreshFamily]);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('babyProfile');
-      if (raw) {
-        const p = JSON.parse(raw) as BabyProfile | null;
-        setBabyProfile(p);
-        if (p?.birthDate) {
-          const d = new Date(p.birthDate);
-          setBirthDateInput(d.toISOString().slice(0, 10));
-        }
-        setBabyNameInput(p?.name ?? '');
-      }
-    } catch {
-      // ignore
+    if (activeBaby) {
+      setBirthDateInput(activeBaby.birthDate ? new Date(activeBaby.birthDate).toISOString().slice(0, 10) : '');
+      setBabyNameInput(activeBaby.name ?? '');
+      setParentNameInput(activeBaby.parentName ?? '');
     }
-  }, []);
+  }, [activeBaby?.id, activeBaby?.birthDate, activeBaby?.name, activeBaby?.parentName]);
 
   const loadFamily = async () => {
     if (!session?.access_token) return;
@@ -138,9 +155,9 @@ export function Settings() {
               // ignore
             }
           });
-          console.log('[BabyTracker] Settings (after accept): applied server data', { keys: Object.keys(serverData) });
+          console.log('[Cradl] Settings (after accept): applied server data', { keys: Object.keys(serverData) });
         } else {
-          console.warn('[BabyTracker] Settings (after accept): GET /data/all failed, going to Dashboard anyway');
+          console.warn('[Cradl] Settings (after accept): GET /data/all failed, going to Dashboard anyway');
         }
         navigate('/');
       } else {
@@ -293,18 +310,19 @@ export function Settings() {
   };
 
   const saveBabyProfile = (updates: Partial<BabyProfile> | null) => {
-    const next: BabyProfile | null = updates === null
-      ? null
-      : {
-          birthDate: updates.birthDate ?? babyProfile?.birthDate ?? 0,
-          ...(updates.name !== undefined ? { name: updates.name || undefined } : (babyProfile?.name != null ? { name: babyProfile.name } : {})),
-          ...(updates.photoDataUrl !== undefined ? { photoDataUrl: updates.photoDataUrl || undefined } : (babyProfile?.photoDataUrl != null ? { photoDataUrl: babyProfile.photoDataUrl } : {})),
-        };
-    if (next && !next.birthDate) return;
-    const toSave = next && next.birthDate ? next : null;
-    setBabyProfile(toSave);
-    try { localStorage.setItem('babyProfile', JSON.stringify(toSave)); } catch { /* ignore */ }
-    if (session?.access_token) saveData('babyProfile', toSave, session.access_token);
+    if (!activeBaby) return;
+    const next = {
+      birthDate: updates?.birthDate ?? babyProfile?.birthDate ?? 0,
+      name: updates?.name !== undefined ? (updates.name || undefined) : babyProfile?.name,
+      parentName: updates?.parentName !== undefined ? (updates.parentName || undefined) : babyProfile?.parentName ?? activeBaby.parentName,
+      photoDataUrl: updates?.photoDataUrl !== undefined ? updates.photoDataUrl : babyProfile?.photoDataUrl,
+      weight: updates?.weight !== undefined ? updates.weight : activeBaby.weight,
+      height: updates?.height !== undefined ? updates.height : activeBaby.height,
+    };
+    if (!next.birthDate) return;
+    updateActiveBaby(next);
+    try { localStorage.setItem('babyProfile', JSON.stringify({ birthDate: next.birthDate, name: next.name, parentName: next.parentName, photoDataUrl: next.photoDataUrl, weight: next.weight, height: next.height })); } catch { /* ignore */ }
+    if (session?.access_token) saveData('babyProfile', { birthDate: next.birthDate, name: next.name, parentName: next.parentName, photoDataUrl: next.photoDataUrl, weight: next.weight, height: next.height }, session.access_token);
   };
 
   const handleBirthDateChange = (dateStr: string) => {
@@ -320,29 +338,22 @@ export function Settings() {
     if (babyProfile?.birthDate) saveBabyProfile({ name: name || undefined });
   };
 
+  const handleParentNameBlur = () => {
+    const parentName = parentNameInput.trim().slice(0, 40);
+    setParentNameInput(parentName);
+    saveBabyProfile({ parentName: parentName || undefined });
+  };
+
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file || !file.type.startsWith('image/')) return;
-    const existingMs = babyProfile?.birthDate ?? (birthDateInput ? new Date(birthDateInput).setHours(0, 0, 0, 0) : NaN);
-    const birthDateMs = Number.isFinite(existingMs) ? existingMs : (() => {
-      const d = new Date();
-      d.setHours(0, 0, 0, 0);
-      return d.getTime();
-    })();
+    if (!activeBaby) return;
     setPhotoCompressing(true);
     try {
       const dataUrl = await compressBabyPhoto(file);
-      if (babyProfile?.birthDate) saveBabyProfile({ photoDataUrl: dataUrl });
-      else {
-        const next: BabyProfile = { birthDate: birthDateMs, photoDataUrl: dataUrl };
-        if (babyNameInput.trim()) next.name = babyNameInput.trim().slice(0, 200);
-        setBabyProfile(next);
-        setBirthDateInput(new Date(birthDateMs).toISOString().slice(0, 10));
-        try { localStorage.setItem('babyProfile', JSON.stringify(next)); } catch { /* ignore */ }
-        if (session?.access_token) saveData('babyProfile', next, session.access_token);
-      }
-      toast.success(Number.isFinite(existingMs) ? 'Photo added' : 'Photo added. Set birth date below for accurate targets.');
+      saveBabyProfile({ photoDataUrl: dataUrl });
+      toast.success('Photo added');
     } catch (err) {
       toast.error('Could not process photo');
       console.warn(err);
@@ -363,6 +374,19 @@ export function Settings() {
   const inputClass = 'rounded-lg border px-3 py-2.5 text-[15px] outline-none min-h-[44px] w-full max-w-[200px]';
   const inputStyle: React.CSSProperties = { borderColor: 'var(--bd)', background: 'var(--bg2)', color: 'var(--tx)' };
 
+  if (showAddBabyFlow) {
+    return (
+      <OnboardingFlow
+        isAddingAnother
+        onComplete={(data) => {
+          const b = addBaby(data);
+          setActiveBabyId(b.id);
+          setShowAddBabyFlow(false);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen pb-20" style={{ background: 'var(--bg)' }}>
       <div className="max-w-lg mx-auto px-4 py-6">
@@ -377,7 +401,19 @@ export function Settings() {
 
         {/* Baby */}
         <div className={cardClass} style={cardStyle}>
-          <h2 className="text-base font-medium mb-1" style={{ color: 'var(--tx)' }}>Baby</h2>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-base font-medium" style={{ color: 'var(--tx)' }}>Baby</h2>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAddBabyFlow(true)}
+              className="flex items-center gap-1.5"
+            >
+              <UserPlus className="w-4 h-4" />
+              Add another baby
+            </Button>
+          </div>
           <p className="text-[13px] mb-4" style={labelStyle}>
             Set birth date to see age-appropriate targets and normalcy on the dashboard.
           </p>
@@ -416,6 +452,20 @@ export function Settings() {
                 />
               </div>
               <div>
+                <label className={labelClass} style={labelStyle}>Your name</label>
+                <Input
+                  type="text"
+                  placeholder="Your first name"
+                  value={parentNameInput}
+                  onChange={(e) => setParentNameInput(e.target.value)}
+                  onBlur={handleParentNameBlur}
+                  className={inputClass}
+                  style={inputStyle}
+                  maxLength={41}
+                />
+                <p className="text-[12px] mt-1" style={labelStyle}>We&apos;ll use this to talk to you as a person, not just as a parent.</p>
+              </div>
+              <div>
                 <label className={labelClass} style={labelStyle}>Birth date</label>
                 <Input
                   type="date"
@@ -432,6 +482,31 @@ export function Settings() {
               </div>
             </div>
           </div>
+          {activeBaby && (
+            <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--bd)' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const name = activeBaby.name || 'This baby';
+                  const isLast = babies.length <= 1;
+                  const msg = isLast
+                    ? `${name} will be removed and all their data deleted. You will need to add a baby again to use the app. Continue?`
+                    : `${name} will be permanently removed and their data deleted. Your other baby will become active. Continue?`;
+                  if (window.confirm(msg)) {
+                    removeBaby(activeBaby.id);
+                    toast.success(isLast ? 'Baby removed. Add a baby to continue.' : 'Baby removed.');
+                    if (isLast) setShowAddBabyFlow(true);
+                  }
+                }}
+                className="flex items-center gap-2 text-[13px] min-h-[44px] rounded-xl px-3 py-2"
+                style={{ color: 'var(--ro)' }}
+                aria-label="Remove this baby"
+              >
+                <UserMinus className="w-4 h-4" />
+                Remove this baby
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Alert thresholds */}
@@ -463,6 +538,168 @@ export function Settings() {
             </div>
           </div>
         </div>
+
+        {/* App view: full vs partner (caregiver) */}
+        <div className={cardClass} style={cardStyle}>
+          <h2 className="text-base font-medium mb-1" style={{ color: 'var(--tx)' }}>App view</h2>
+          <p className="text-[13px] mb-3" style={labelStyle}>
+            Partner view shows only quick log buttons and today&apos;s timeline — useful when handing the phone to a caregiver.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setRole('primary')}
+              className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl border text-sm font-medium"
+              style={{
+                borderColor: role === 'primary' ? 'var(--pink)' : 'var(--bd)',
+                background: role === 'primary' ? 'color-mix(in srgb, var(--pink) 15%, transparent)' : 'var(--card)',
+                color: 'var(--tx)',
+              }}
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              Full view
+            </button>
+            <button
+              type="button"
+              onClick={() => setRole('partner')}
+              className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl border text-sm font-medium"
+              style={{
+                borderColor: role === 'partner' ? 'var(--pink)' : 'var(--bd)',
+                background: role === 'partner' ? 'color-mix(in srgb, var(--pink) 15%, transparent)' : 'var(--card)',
+                color: 'var(--tx)',
+              }}
+            >
+              <UserCircle className="w-4 h-4" />
+              Partner view
+            </button>
+          </div>
+        </div>
+
+        {/* Accessibility */}
+        <div className={cardClass} style={cardStyle}>
+          <h2 className="text-base font-medium mb-1" style={{ color: 'var(--tx)' }}>Accessibility</h2>
+          <p className="text-[13px] mb-3" style={labelStyle}>
+            Reduce motion, larger text, and high contrast for readability.
+          </p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[14px]" style={{ color: 'var(--tx)' }}>Reduce motion</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={reduceMotion}
+                aria-label="Reduce motion"
+                onClick={() => {
+                  const next = !reduceMotion;
+                  try { localStorage.setItem(REDUCE_MOTION_KEY, String(next)); } catch {}
+                  setReduceMotion(next);
+                }}
+                className="relative w-11 h-6 rounded-full border-2 transition-colors flex-shrink-0 min-w-[44px] min-h-[44px] flex items-center"
+                style={{
+                  borderColor: reduceMotion ? 'var(--pink)' : 'var(--bd)',
+                  background: reduceMotion ? 'var(--pink)' : 'var(--card2)',
+                }}
+              >
+                <span
+                  className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white shadow border border-[var(--bd)] transition-[left] duration-200"
+                  style={{ left: reduceMotion ? 22 : 2 }}
+                />
+              </button>
+            </div>
+            <div>
+              <label className="block text-[14px] mb-1" style={{ color: 'var(--tx)' }}>Larger text</label>
+              <select
+                value={fontScale}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (Number.isFinite(v)) {
+                    setAccessibleFontScale(v);
+                    setFontScale(v);
+                    document.documentElement.setAttribute('data-font-scale', String(v));
+                  }
+                }}
+                className="w-full rounded-xl border px-3 py-2.5 text-[14px] min-h-[44px]"
+                style={{ borderColor: 'var(--bd)', background: 'var(--card2)', color: 'var(--tx)' }}
+                aria-label="Text size"
+              >
+                <option value={1}>100%</option>
+                <option value={1.25}>125%</option>
+                <option value={1.5}>150%</option>
+                <option value={2}>200%</option>
+              </select>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[14px]" style={{ color: 'var(--tx)' }}>High contrast</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={highContrast}
+                aria-label="High contrast"
+                onClick={() => {
+                  const next = !highContrast;
+                  try { localStorage.setItem(HIGH_CONTRAST_KEY, String(next)); } catch {}
+                  setHighContrast(next);
+                  document.documentElement.setAttribute('data-high-contrast', String(next));
+                }}
+                className="relative w-11 h-6 rounded-full border-2 transition-colors flex-shrink-0 min-w-[44px] min-h-[44px] flex items-center"
+                style={{
+                  borderColor: highContrast ? 'var(--pink)' : 'var(--bd)',
+                  background: highContrast ? 'var(--pink)' : 'var(--card2)',
+                }}
+              >
+                <span
+                  className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white shadow border border-[var(--bd)] transition-[left] duration-200"
+                  style={{ left: highContrast ? 22 : 2 }}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Language */}
+        <div className={cardClass} style={cardStyle}>
+          <h2 className="text-base font-medium mb-1" style={{ color: 'var(--tx)' }}>Language</h2>
+          <p className="text-[13px] mb-3" style={labelStyle}>
+            App language (more languages coming soon).
+          </p>
+          <button
+            type="button"
+            onClick={() => setLanguageSheetOpen(true)}
+            className="w-full flex items-center justify-between rounded-xl border px-3 py-2.5 min-h-[44px] text-left"
+            style={{ borderColor: 'var(--bd)', background: 'var(--card2)', color: 'var(--tx)' }}
+            aria-label="Change language"
+          >
+            <span className="text-[14px]">{LOCALE_LABELS[language] ?? 'English'}</span>
+            <ChevronDown className="w-5 h-5" style={{ color: 'var(--mu)' }} />
+          </button>
+        </div>
+
+        {languageSheetOpen && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40" onClick={() => setLanguageSheetOpen(false)}>
+            <div className="w-full max-w-sm rounded-t-2xl sm:rounded-2xl p-4 border flex flex-col gap-2" style={{ background: 'var(--card)', borderColor: 'var(--bd)' }} onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold" style={{ color: 'var(--tx)' }}>Language</h3>
+              {(['en', 'lt'] as SupportedLocale[]).map((loc) => (
+                <button
+                  key={loc}
+                  type="button"
+                  onClick={() => {
+                    setAppLanguage(loc);
+                    setLanguageSheetOpen(false);
+                  }}
+                  className="w-full py-3 px-4 rounded-xl border text-left min-h-[44px]"
+                  style={{
+                    borderColor: language === loc ? 'var(--pink)' : 'var(--bd)',
+                    background: language === loc ? 'color-mix(in srgb, var(--pink) 15%, transparent)' : 'var(--card2)',
+                    color: 'var(--tx)',
+                  }}
+                >
+                  {LOCALE_LABELS[loc]}
+                </button>
+              ))}
+              <button type="button" onClick={() => setLanguageSheetOpen(false)} className="py-2.5 text-[14px]" style={{ color: 'var(--mu)' }}>Cancel</button>
+            </div>
+          </div>
+        )}
 
         {/* Account */}
         <div className={cardClass} style={cardStyle}>
@@ -554,7 +791,7 @@ export function Settings() {
             <h2 className="text-base font-medium" style={{ color: 'var(--tx)' }}>Voice Commands</h2>
           </div>
           <p className="text-[13px] mb-3" style={labelStyle}>
-            Tap the <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs" style={{ background: 'var(--bg2)' }}><Mic className="w-3 h-3" /> mic button</span> floating above the nav bar, then say any of these commands. The &ldquo;BabyTracker,&rdquo; prefix is optional.
+            Tap the <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs" style={{ background: 'var(--bg2)' }}><Mic className="w-3 h-3" /> mic button</span> floating above the nav bar, then say any of these commands. The &ldquo;Cradl,&rdquo; prefix is optional.
           </p>
           <ul className="space-y-2">
             {VOICE_COMMAND_EXAMPLES.map(({ cmd, desc }) => (
@@ -566,12 +803,50 @@ export function Settings() {
           </ul>
         </div>
 
+        {/* Export data */}
+        <div className={cardClass} style={cardStyle}>
+          <h2 className="text-base font-medium mb-1 flex items-center gap-2" style={{ color: 'var(--tx)' }}>
+            <FileDown className="w-5 h-5" />
+            Export data
+          </h2>
+          <p className="text-[13px] mb-3" style={labelStyle}>
+            Download your tracking data as CSV files (feeds, sleep, diapers, tummy time, growth, and more). One file per type.
+          </p>
+          <CSVExportButton babyName={babyProfile?.name ?? activeBaby?.name} />
+        </div>
+
         {/* Danger Zone */}
         <div className={cardClass} style={{ ...cardStyle, borderColor: 'var(--ro)' }}>
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle className="w-5 h-5" style={{ color: 'var(--med-col)' }} />
             <h2 className="text-base font-medium" style={{ color: 'var(--tx)' }}>Danger Zone</h2>
           </div>
+          {user && session?.access_token && (
+            <>
+              <p className="text-[13px] mb-2" style={labelStyle}>
+                Delete my Village data: night-ping rate, Village profile. Does not delete baby tracking.
+              </p>
+              <Button
+                variant="outline"
+                className="w-full min-h-[44px] mb-4"
+                style={{ borderColor: 'var(--ro)', color: 'var(--med-col)' }}
+                disabled={villageDeleteLoading}
+                onClick={async () => {
+                  setVillageDeleteLoading(true);
+                  try {
+                    await villageDeleteMyData(session!.access_token!);
+                    toast.success('Village data deleted');
+                  } catch {
+                    toast.error('Failed to delete Village data');
+                  } finally {
+                    setVillageDeleteLoading(false);
+                  }
+                }}
+              >
+                {villageDeleteLoading ? 'Deleting…' : 'Delete my Village data'}
+              </Button>
+            </>
+          )}
           <p className="text-[13px] mb-4" style={labelStyle}>
             Permanently deletes all tracking data (feeds, sleeps, diapers, tummy time) for the entire family. Your account and family members are kept.
           </p>

@@ -2,7 +2,7 @@
 
 :root {
   --font-size: 16px;
-  /* BabyTrackR light (from example) */
+  /* Cradl light (from example) */
   --bg: #fffbf5;
   --bg2: #fff8f2;
   --bg3: #fdf5ee;
@@ -247,4 +247,27 @@
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
   }
+}
+
+/* Accessibility: larger text (data-font-scale set from Settings) */
+[data-font-scale="1.25"] {
+  font-size: 125%;
+}
+[data-font-scale="1.5"] {
+  font-size: 150%;
+}
+[data-font-scale="2"] {
+  font-size: 200%;
+}
+
+/* Accessibility: high contrast (stronger borders and text) */
+[data-high-contrast="true"] {
+  --bd: #b09080;
+  --tx: #1a1515;
+  --mu: #6a5050;
+}
+html.dark[data-high-contrast="true"] {
+  --bd: #5a7a9a;
+  --tx: #f0f4fc;
+  --mu: #a0b8d0;
 }

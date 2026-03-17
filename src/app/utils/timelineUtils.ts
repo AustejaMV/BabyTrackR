@@ -14,6 +14,9 @@ import type {
   BottleRecord,
   PumpRecord,
 } from "../types";
+import type { TemperatureEntry, SymptomEntry, MedicationEntry } from "../types/health";
+import type { CustomTrackerDefinition, CustomTrackerLogEntry } from "../types/customTracker";
+import { getIconEmoji } from "../data/customTrackerIcons";
 
 const DATE_DISPLAY = "dd/MM/yyyy";
 
@@ -76,6 +79,13 @@ function pumpDescription(r: PumpRecord): string {
   return `Pump ${sides.join(" / ")}, ${formatDurationMs(r.durationMs, false)}`;
 }
 
+function healthDescription(entry: TemperatureEntry | SymptomEntry | MedicationEntry): string {
+  if ("tempC" in entry) return `Temperature ${entry.tempC}°C (${entry.method})`;
+  if ("symptoms" in entry) return `Symptoms: ${entry.symptoms.join(", ")} (${entry.severity})`;
+  if ("medication" in entry) return `Medication: ${entry.medication}${entry.doseML != null ? ` ${entry.doseML}ml` : ""}`;
+  return "Health";
+}
+
 export function getTimelineEventsForDay(
   dayStartMs: number,
   options: {
@@ -85,6 +95,11 @@ export function getTimelineEventsForDay(
     tummyTimeHistory: TummyTimeRecord[];
     bottleHistory?: BottleRecord[];
     pumpHistory?: PumpRecord[];
+    temperatureHistory?: TemperatureEntry[];
+    symptomHistory?: SymptomEntry[];
+    medicationHistory?: MedicationEntry[];
+    customTrackers?: CustomTrackerDefinition[];
+    customTrackerLogs?: CustomTrackerLogEntry[];
     useDateOnLabel?: boolean; // if true, show dd/mm/yyyy in time label (for past days)
   }
 ): TimelineEvent[] {
@@ -174,6 +189,42 @@ export function getTimelineEventsForDay(
     }
   });
 
+  const pushHealth = (entry: TemperatureEntry | SymptomEntry | MedicationEntry) => {
+    const ts = new Date(entry.timestamp).getTime();
+    if (ts >= dayStartMs && ts <= end) {
+      events.push({
+        id: entry.id,
+        kind: "health",
+        forDatetime: ts,
+        timeLabel: useDate ? format(ts, `${DATE_DISPLAY} HH:mm`) : format(ts, "HH:mm"),
+        description: healthDescription(entry),
+        record: entry,
+      });
+    }
+  };
+  (options.temperatureHistory ?? []).forEach(pushHealth);
+  (options.symptomHistory ?? []).forEach(pushHealth);
+  (options.medicationHistory ?? []).forEach(pushHealth);
+
+  const trackers = options.customTrackers ?? [];
+  const trackerMap = new Map(trackers.map((t) => [t.id, t]));
+  (options.customTrackerLogs ?? []).forEach((r) => {
+    if (r.timestamp >= dayStartMs && r.timestamp <= end) {
+      const tracker = trackerMap.get(r.trackerId);
+      const name = tracker?.name ?? "Custom";
+      const valuePart = r.value != null ? ` ${r.value}${tracker?.unit ?? ""}` : "";
+      const notePart = r.note ? ` — ${r.note}` : "";
+      events.push({
+        id: r.id,
+        kind: "custom",
+        forDatetime: r.timestamp,
+        timeLabel: useDate ? format(r.timestamp, `${DATE_DISPLAY} HH:mm`) : format(r.timestamp, "HH:mm"),
+        description: `${getIconEmoji(tracker?.icon ?? "star")} ${name}${valuePart}${notePart}`.trim(),
+        record: r,
+      });
+    }
+  });
+
   events.sort((a, b) => a.forDatetime - b.forDatetime);
   return events;
 }
@@ -186,6 +237,8 @@ export function getBorderColorForKind(kind: TimelineEventKind): string {
     case "tummy": return "var(--purp)";
     case "bottle": return "var(--coral)";
     case "pump": return "var(--pink)";
+    case "health": return "#e87474";
+    case "custom": return "var(--purp)";
     default: return "var(--bd)";
   }
 }

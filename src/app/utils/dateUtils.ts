@@ -89,3 +89,34 @@ export function getTimeSince(timestamp: number): string {
   const hours = Math.floor(minutes / 60);
   return `${hours}h ${minutes % 60}m ago`;
 }
+
+/** Format time as HH:mm (24h) for display. */
+export function formatClockTime(ts: number | null | undefined, fallback = '—'): string {
+  if (ts == null || !Number.isFinite(ts)) return fallback;
+  try {
+    return format(new Date(ts), 'HH:mm');
+  } catch {
+    return fallback;
+  }
+}
+
+/** Format as "HH:mm" and "Xm ago" / "Xh ago" for recent times. */
+export function formatTimeAndAgo(ts: number | null | undefined, nowMs: number = Date.now()): { time: string; ago: string } {
+  if (ts == null || !Number.isFinite(ts)) return { time: '—', ago: '' };
+  const time = formatClockTime(ts, '—');
+  const diffMs = nowMs - ts;
+  const mins = Math.floor(diffMs / 60000);
+  const hours = Math.floor(mins / 60);
+  const ago = hours >= 1 ? `${hours}h ago` : mins < 1 ? 'just now' : `${mins}m ago`;
+  return { time, ago };
+}
+
+/** Format ETA e.g. "in 45m" or "at 14:30". */
+export function formatETA(msFromNow: number): string {
+  if (!Number.isFinite(msFromNow) || msFromNow < 0) return '—';
+  const mins = Math.floor(msFromNow / 60000);
+  const hours = Math.floor(mins / 60);
+  if (hours >= 1) return `in ${hours}h ${mins % 60}m`;
+  if (mins < 1) return 'soon';
+  return `in ${mins}m`;
+}

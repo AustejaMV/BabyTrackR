@@ -1,15 +1,25 @@
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Navigation } from "../components/Navigation";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { RangeBar } from "../components/RangeBar";
 import { GrowthChartSection } from "../components/GrowthChartSection";
+import { ScheduleCreator } from "../components/ScheduleCreator";
+import { TeethTracker } from "../components/TeethTracker";
 import { JOURNEY_MILESTONES, CUSTOM_MILESTONE_ID } from "../data/journeyMilestones";
 import { DEFAULT_MILESTONES } from "../utils/babyUtils";
 import { useAuth } from "../contexts/AuthContext";
 import { saveData } from "../utils/dataSync";
-import type { BabyProfile, Milestone } from "../types";
+import type { BabyProfile, Milestone, SleepRecord, FeedingRecord, DiaperRecord, TummyTimeRecord, BottleRecord } from "../types";
+import { readStoredArray } from "../utils/warningUtils";
+import { InsightsSection } from "../components/InsightsSection";
+import { ComparativeInsights } from "../components/ComparativeInsights";
+import { FoodsIntroducedList } from "../components/FoodsIntroducedList";
+import { SupplyMonitorCard } from "../components/SupplyMonitorCard";
+import { useBaby } from "../contexts/BabyContext";
+import { BabySwitcher } from "../components/BabySwitcher";
+import { EmptyState } from "../components/EmptyState";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -22,7 +32,11 @@ function formatAchieved(ms: number): string {
 }
 
 export function JourneyScreen() {
-  const [babyProfile, setBabyProfile] = useState<BabyProfile | null>(null);
+  const { activeBaby, babies, setActiveBabyId } = useBaby();
+  const navigate = useNavigate();
+  const babyProfile: BabyProfile | null = activeBaby
+    ? { birthDate: activeBaby.birthDate, name: activeBaby.name, photoDataUrl: activeBaby.photoDataUrl, weight: activeBaby.weight, height: activeBaby.height }
+    : null;
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
   const [editDate, setEditDate] = useState("");
@@ -32,15 +46,14 @@ export function JourneyScreen() {
   const [sleepCount, setSleepCount] = useState(0);
   const [diaperCount, setDiaperCount] = useState(0);
   const [tummyMinutes, setTummyMinutes] = useState(0);
+  const [sleepHistory, setSleepHistory] = useState<SleepRecord[]>([]);
+  const [feedingHistory, setFeedingHistory] = useState<FeedingRecord[]>([]);
+  const [diaperHistory, setDiaperHistory] = useState<DiaperRecord[]>([]);
+  const [tummyHistory, setTummyHistory] = useState<TummyTimeRecord[]>([]);
+  const [bottleHistory, setBottleHistory] = useState<BottleRecord[]>([]);
   const { session } = useAuth();
 
   useEffect(() => {
-    try {
-      const bp = localStorage.getItem("babyProfile");
-      setBabyProfile(bp ? JSON.parse(bp) : null);
-    } catch {
-      setBabyProfile(null);
-    }
     try {
       const raw = localStorage.getItem("milestones");
       const saved: Milestone[] = raw ? JSON.parse(raw) : [];
@@ -90,7 +103,20 @@ export function JourneyScreen() {
     } catch {
       setTummyMinutes(0);
     }
-  }, []);
+    try {
+      setSleepHistory(readStoredArray<SleepRecord>("sleepHistory"));
+      setFeedingHistory(readStoredArray<FeedingRecord>("feedingHistory"));
+      setDiaperHistory(readStoredArray<DiaperRecord>("diaperHistory"));
+      setTummyHistory(readStoredArray<TummyTimeRecord>("tummyTimeHistory"));
+      setBottleHistory(readStoredArray<BottleRecord>("bottleHistory"));
+    } catch {
+      setSleepHistory([]);
+      setFeedingHistory([]);
+      setDiaperHistory([]);
+      setTummyHistory([]);
+      setBottleHistory([]);
+    }
+  }, [activeBaby?.id]);
 
   const getAchieved = (id: string) => milestones.find((m) => m.id === id)?.achievedAt;
   const birthMs = babyProfile?.birthDate ? new Date(babyProfile.birthDate).setHours(0, 0, 0, 0) : null;
@@ -198,7 +224,7 @@ export function JourneyScreen() {
   return (
     <div className="min-h-screen pb-20" style={{ background: "var(--bg)" }}>
       <div className="max-w-lg mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-2">
           <Link to="/" className="p-2 -ml-2 rounded-lg hover:opacity-80" style={{ color: "var(--mu)" }} aria-label="Back">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M15 10H5M5 10l5 5M5 10l5-5" />
@@ -206,8 +232,18 @@ export function JourneyScreen() {
           </Link>
           <ThemeToggle />
         </div>
-
-        <h1 className="text-[22px] mb-0.5 font-serif" style={{ color: "var(--tx)" }}>
+        <BabySwitcher babies={babies} activeBaby={activeBaby} onSwitch={setActiveBabyId} />
+        {!activeBaby && (
+          <div className="mb-4">
+            <EmptyState
+              illustration="journey"
+              title="Select a baby to see their journey"
+              body={babies.length === 0 ? "Add a baby in Settings to see milestones, growth, and insights here." : "Choose a baby above to view their journey timeline and milestones."}
+              primaryAction={babies.length === 0 ? { label: "Open Settings", onClick: () => navigate("/settings") } : undefined}
+            />
+          </div>
+        )}
+        <h1 className="text-[22px] mb-0.5 font-serif mt-2" style={{ color: "var(--tx)" }}>
           {babyProfile?.name ? `${babyProfile.name}'s story` : "Journey"}
         </h1>
         <p className="text-[13px] mb-2.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
@@ -302,6 +338,31 @@ export function JourneyScreen() {
           ← scroll the timeline →
         </p>
 
+        <p className="text-[9px] uppercase tracking-widest mt-4 mb-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+          Schedule
+        </p>
+        <ScheduleCreator birthDateMs={birthMs ?? null} babyName={babyProfile?.name} />
+
+        <TeethTracker
+          ageInWeeks={birthMs != null ? (Date.now() - birthMs) / (7 * MS_PER_DAY) : null}
+          babyName={babyProfile?.name}
+        />
+
+        <InsightsSection
+          sleepHistory={sleepHistory}
+          feedingHistory={feedingHistory}
+          diaperHistory={diaperHistory}
+          tummyHistory={tummyHistory}
+          bottleHistory={bottleHistory}
+          babyProfile={babyProfile}
+          isPremium={false}
+        />
+
+        <SupplyMonitorCard
+          feedingHistory={feedingHistory}
+          babyDobMs={birthMs}
+        />
+
         {editId && (
           <div
             className="border rounded-2xl p-4 mb-2 animate-in fade-in slide-in-from-top-2 duration-200"
@@ -361,8 +422,21 @@ export function JourneyScreen() {
         )}
 
         <p className="text-[9px] uppercase tracking-widest mt-4 mb-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
-          how is she doing?
+          How is she doing?
         </p>
+        <ComparativeInsights
+          sleepHistory={sleepHistory}
+          feedingHistory={feedingHistory}
+          diaperHistory={diaperHistory}
+          tummyHistory={tummyHistory}
+          babyProfile={babyProfile}
+        />
+
+        <FoodsIntroducedList
+          ageInWeeks={birthMs != null ? (Date.now() - birthMs) / (7 * MS_PER_DAY) : null}
+          babyName={babyProfile?.name}
+        />
+
         <div
           className="border rounded-2xl p-3 mb-2"
           style={{ background: "var(--card)", borderColor: "var(--bd)" }}

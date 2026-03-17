@@ -246,7 +246,7 @@ const execute: Executor = (cmd, token) => {
     }
   }
   } catch (e) {
-    console.error('[BabyTracker] VoiceControl execute error:', e);
+    console.error('[Cradl] VoiceControl execute error:', e);
     return 'Something went wrong. Please try again.';
   }
 };
@@ -275,9 +275,10 @@ export function VoiceControl() {
   const { session } = useAuth();
   const navigate = useNavigate();
 
-  // Check browser support
+  // Check browser support — must be a constructor (some environments expose a non-constructible value and throw "Illegal constructor")
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const SpeechRec: { new(): SpeechRecognition } | undefined = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+  const SpeechRecRaw = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+  const SpeechRec = typeof SpeechRecRaw === 'function' ? SpeechRecRaw : undefined;
   const supported = !!SpeechRec;
 
   const stopListening = useCallback(() => {
@@ -291,7 +292,15 @@ export function VoiceControl() {
     setState('listening');
     setLastTranscript('');
 
-    const recognition = new SpeechRec();
+    let recognition: SpeechRecognition;
+    try {
+      recognition = new SpeechRec();
+    } catch (err) {
+      console.warn('[Cradl] Speech recognition not available:', err);
+      setState('idle');
+      toast.error('Voice not supported in this context');
+      return;
+    }
     recognition.lang = 'en-US';
     recognition.interimResults = false;
     recognition.maxAlternatives = 3;
@@ -340,7 +349,7 @@ export function VoiceControl() {
       recognition.start();
     } catch (e) {
       // InvalidStateError if already active, or other browser-specific errors
-      console.warn('[BabyTracker] recognition.start() failed:', e);
+      console.warn('[Cradl] recognition.start() failed:', e);
       setState('idle');
       return;
     }
@@ -404,16 +413,16 @@ export function VoiceControl() {
 // ─── Help text (exported for Settings) ───────────────────────────────────────
 
 export const VOICE_COMMAND_EXAMPLES = [
-  { cmd: 'BabyTracker, start sleep on left side', desc: 'Start sleep tracking' },
-  { cmd: 'BabyTracker, stop sleep', desc: 'Stop sleep tracking' },
-  { cmd: 'BabyTracker, start feeding right breast', desc: 'Start a feeding session' },
-  { cmd: 'BabyTracker, stop feeding', desc: 'End and save the feeding session' },
-  { cmd: 'BabyTracker, pause feeding', desc: 'Pause an active feeding' },
-  { cmd: 'BabyTracker, resume feeding', desc: 'Resume a paused feeding' },
-  { cmd: 'BabyTracker, start tummy time', desc: 'Start tummy time' },
-  { cmd: 'BabyTracker, stop tummy time', desc: 'Stop tummy time' },
-  { cmd: 'BabyTracker, log diaper pee', desc: 'Log a pee diaper' },
-  { cmd: 'BabyTracker, log diaper poop', desc: 'Log a poop diaper' },
-  { cmd: 'BabyTracker, log painkiller', desc: 'Log a painkiller dose' },
-  { cmd: 'BabyTracker, add diapers to shopping list', desc: 'Add to shopping list' },
+  { cmd: 'Cradl, start sleep on left side', desc: 'Start sleep tracking' },
+  { cmd: 'Cradl, stop sleep', desc: 'Stop sleep tracking' },
+  { cmd: 'Cradl, start feeding right breast', desc: 'Start a feeding session' },
+  { cmd: 'Cradl, stop feeding', desc: 'End and save the feeding session' },
+  { cmd: 'Cradl, pause feeding', desc: 'Pause an active feeding' },
+  { cmd: 'Cradl, resume feeding', desc: 'Resume a paused feeding' },
+  { cmd: 'Cradl, start tummy time', desc: 'Start tummy time' },
+  { cmd: 'Cradl, stop tummy time', desc: 'Stop tummy time' },
+  { cmd: 'Cradl, log diaper pee', desc: 'Log a pee diaper' },
+  { cmd: 'Cradl, log diaper poop', desc: 'Log a poop diaper' },
+  { cmd: 'Cradl, log painkiller', desc: 'Log a painkiller dose' },
+  { cmd: 'Cradl, add diapers to shopping list', desc: 'Add to shopping list' },
 ];

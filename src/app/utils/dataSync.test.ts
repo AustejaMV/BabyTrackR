@@ -4,9 +4,17 @@
  * The retry engine is the only non-trivial logic here so we test it
  * through its observable outcomes: does the data eventually get saved?
  * does a new save cancel a stale retry? does a server conflict stop retrying?
+ *
+ * Also tests: saveData/loadAllDataFromServer guards, clearSyncedDataFromLocalStorage safety.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SYNCED_DATA_KEYS, SYNCED_DATA_DEFAULTS } from './dataSync';
+import {
+  SYNCED_DATA_KEYS,
+  SYNCED_DATA_DEFAULTS,
+  saveData,
+  loadAllDataFromServer,
+  clearSyncedDataFromLocalStorage,
+} from './dataSync';
 
 const RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 60_000] as const;
 
@@ -127,5 +135,39 @@ describe('Synced data keys and defaults', () => {
       expect(SYNCED_DATA_DEFAULTS).toHaveProperty(key);
       expect(SYNCED_DATA_DEFAULTS[key]).toBeDefined();
     }
+  });
+});
+
+describe('saveData and loadAllDataFromServer guards', () => {
+  it('saveData with empty key does not throw', () => {
+    expect(() => saveData('', [])).not.toThrow();
+    expect(() => saveData('', [], 'token')).not.toThrow();
+  });
+
+  it('saveData without token only writes to localStorage (no network)', () => {
+    const key = '__test_saveData_no_token_' + Date.now();
+    saveData(key, { foo: 1 });
+    try {
+      const raw = localStorage.getItem(key);
+      expect(raw).toBe(JSON.stringify({ foo: 1 }));
+    } finally {
+      localStorage.removeItem(key);
+    }
+  });
+
+  it('loadAllDataFromServer with empty token returns ok false and empty data', async () => {
+    const result = await loadAllDataFromServer('');
+    expect(result.ok).toBe(false);
+    expect(result.data).toEqual({});
+  });
+
+  it('loadAllDataFromServer with null-like token returns ok false', async () => {
+    const result = await loadAllDataFromServer(null as unknown as string);
+    expect(result.ok).toBe(false);
+    expect(result.data).toEqual({});
+  });
+
+  it('clearSyncedDataFromLocalStorage does not throw', () => {
+    expect(() => clearSyncedDataFromLocalStorage()).not.toThrow();
   });
 });

@@ -1,10 +1,10 @@
-# BabyTrackR — App description and features
+# Cradl — App description and features
 
 ## What this app is
 
-**BabyTrackR** is a mobile-first baby tracking app for caregivers. It helps you log and view feeds (breast and bottle), sleep, diaper changes, tummy time, pumping, and pain relief, and see a single baby’s stats and reminders on a dashboard. The app works fully offline: all core tracking is stored in the browser’s `localStorage`. Sign-in and cloud sync are optional; when you sign in, data can be synced to a backend so multiple family members can share the same baby’s data.
+**Cradl** is a mobile-first baby tracking app for caregivers. It helps you log and view feeds (breast and bottle), sleep, diaper changes, tummy time, pumping, and pain relief, and see a single baby’s stats and reminders on a dashboard. The app works fully offline: all core tracking is stored in the browser’s `localStorage`. Sign-in and cloud sync are optional; when you sign in, data can be synced to a backend so multiple family members can share the same baby’s data.
 
-The design is based on the [BabyTrackR Figma](https://www.figma.com/design/vmMQeSNjcXlJeUwX2HuCV0/BabyTrackR) and uses a warm, consistent theme (e.g. coral, peach, soft backgrounds) across the dashboard, log drawers, journey/milestones, more screen, and settings.
+The design is based on the [BabyTrackR Figma](https://www.figma.com/design/vmMQeSNjcXlJeUwX2HuCV0/BabyTrackR) (Cradl). and uses a warm, consistent theme (e.g. coral, peach, soft backgrounds) across the dashboard, log drawers, journey/milestones, more screen, and settings.
 
 ---
 

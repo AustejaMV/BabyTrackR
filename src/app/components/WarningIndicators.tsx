@@ -7,6 +7,7 @@ import { readAlertThresholds, isAlertDismissed, dismissAlert } from "../utils/al
 import type { AlertThresholds } from "../utils/alertThresholdsStorage";
 import type { WarningKey } from "../utils/warningUtils";
 import type { FeedingRecord, SleepRecord, DiaperRecord, TummyTimeRecord } from "../types";
+import { ReassuranceBanner } from "./ReassuranceBanner";
 
 function getTooltip(key: WarningKey, thresholds: { noPoopHours: number; noSleepHours: number; feedOverdueMinutes: number; tummyLowMinutes: number; tummyLowByHour: number }): string {
   switch (key) {
@@ -65,33 +66,38 @@ export function WarningIndicators() {
 
   useEffect(() => {
     const checkWarnings = () => {
-      const thresholds = readAlertThresholds();
-      const activeWarnings = computeWarnings({
-        feedingHistory: readStoredArray<FeedingRecord>("feedingHistory"),
-        sleepHistory: readStoredArray<SleepRecord>("sleepHistory"),
-        diaperHistory: readStoredArray<DiaperRecord>("diaperHistory"),
-        tummyTimeHistory: readStoredArray<TummyTimeRecord>("tummyTimeHistory"),
-        painkillerHistory: readStoredArray("painkillerHistory"),
-        feedingIntervalHours: readFeedingInterval(),
-        thresholds: {
-          noPoopHours: thresholds.noPoopHours,
-          noSleepHours: thresholds.noSleepHours,
-          feedOverdueMinutes: thresholds.feedOverdueMinutes,
-          tummyLowMinutes: thresholds.tummyLowMinutes,
-          tummyLowByHour: thresholds.tummyLowByHour,
-        },
-      });
-      setWarnings(activeWarnings);
-      setThresholds(thresholds);
+      try {
+        const thresholds = readAlertThresholds();
+        const activeWarnings = computeWarnings({
+          feedingHistory: readStoredArray<FeedingRecord>("feedingHistory"),
+          sleepHistory: readStoredArray<SleepRecord>("sleepHistory"),
+          diaperHistory: readStoredArray<DiaperRecord>("diaperHistory"),
+          tummyTimeHistory: readStoredArray<TummyTimeRecord>("tummyTimeHistory"),
+          painkillerHistory: readStoredArray("painkillerHistory"),
+          feedingIntervalHours: readFeedingInterval(),
+          thresholds: {
+            noPoopHours: thresholds.noPoopHours,
+            noSleepHours: thresholds.noSleepHours,
+            feedOverdueMinutes: thresholds.feedOverdueMinutes,
+            tummyLowMinutes: thresholds.tummyLowMinutes,
+            tummyLowByHour: thresholds.tummyLowByHour,
+          },
+        });
+        setWarnings(activeWarnings);
+        setThresholds(thresholds);
 
-      if (activeWarnings.includes("feeding-due")) maybeNotifyForWarning("feeding-due", "Feeding due", "Time for the next feeding.");
-      if (activeWarnings.includes("feeding-soon")) maybeNotifyForWarning("feeding-soon", "Feeding soon", "Feeding time is coming up soon.");
-      if (activeWarnings.includes("feed-overdue")) maybeNotifyForWarning("feed-overdue", "Feed overdue", "Last feed was more than your interval + 30 min ago.");
-      if (activeWarnings.includes("painkiller-due")) maybeNotifyForWarning("painkiller-due", "Painkiller reminder", "It's been 8+ hours — you can take another dose if needed.");
-      if (activeWarnings.includes("same-position")) maybeNotifyForWarning("same-position", "Sleep position", "Consider changing baby's sleep position.");
-      if (activeWarnings.includes("no-poop")) maybeNotifyForWarning("no-poop", "Diaper check", "No poop in 24 hours. Check with your pediatrician if concerned.");
-      if (activeWarnings.includes("no-sleep")) maybeNotifyForWarning("no-sleep", "Sleep check", "No sleep recorded in the last 6 hours.");
-      if (activeWarnings.includes("no-tummy-time")) maybeNotifyForWarning("no-tummy-time", "Tummy time", "No tummy time logged today yet.");
+        if (activeWarnings.includes("feeding-due")) maybeNotifyForWarning("feeding-due", "Feeding due", "Time for the next feeding.");
+        if (activeWarnings.includes("feeding-soon")) maybeNotifyForWarning("feeding-soon", "Feeding soon", "Feeding time is coming up soon.");
+        if (activeWarnings.includes("feed-overdue")) maybeNotifyForWarning("feed-overdue", "Feed overdue", "Last feed was more than your interval + 30 min ago.");
+        if (activeWarnings.includes("painkiller-due")) maybeNotifyForWarning("painkiller-due", "Painkiller reminder", "It's been 8+ hours — you can take another dose if needed.");
+        if (activeWarnings.includes("same-position")) maybeNotifyForWarning("same-position", "Sleep position", "Consider changing baby's sleep position.");
+        if (activeWarnings.includes("no-poop")) maybeNotifyForWarning("no-poop", "Diaper check", "No poop in 24 hours. Check with your pediatrician if concerned.");
+        if (activeWarnings.includes("no-sleep")) maybeNotifyForWarning("no-sleep", "Sleep check", "No sleep recorded in the last 6 hours.");
+        if (activeWarnings.includes("no-tummy-time")) maybeNotifyForWarning("no-tummy-time", "Tummy time", "No tummy time logged today yet.");
+      } catch (e) {
+        console.warn("[WarningIndicators] checkWarnings failed", e);
+        setWarnings([]);
+      }
     };
     checkWarnings();
     const interval = setInterval(checkWarnings, 60_000);
@@ -173,6 +179,7 @@ export function WarningIndicators() {
           );
         })}
       </div>
+      <ReassuranceBanner warningKeys={visible} />
       {activeKey && activeRect && typeof document !== "undefined" &&
         createPortal(
           <div

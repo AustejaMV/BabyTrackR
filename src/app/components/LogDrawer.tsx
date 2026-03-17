@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Utensils, ChevronRight, Moon, Baby, Activity, Milk, Droplets } from "lucide-react";
+import { NappyGuideSheet } from "./NappyGuideSheet";
 import { DurationPicker, MAX_DURATION_HISTORY_MS } from "./DurationPicker";
 import { saveData } from "../utils/dataSync";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
@@ -78,6 +79,7 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
   const feedTimer = useFeedTimer();
   const [sleepPosition, setSleepPosition] = useState("Left side");
   const [diaperType, setDiaperType] = useState<"pee" | "poop" | "both">("pee");
+  const [showNappyGuide, setShowNappyGuide] = useState(false);
   const [durationMs, setDurationMs] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
@@ -160,160 +162,228 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
 
   const handleSaveFeed = () => {
     if (!f) return;
-    const endTime = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
-    const duration = pastChecked ? durationMs : totalFeedDurationMs;
-    const startTime = endTime - duration;
-    const segmentsToSave = [...f.feedSegments];
-    if (f.timerRunning || f.timerPaused ? f.elapsedMs > 0 : !pastChecked && durationMs > 0) {
-      const currentDur = pastChecked ? durationMs : (f.timerRunning || f.timerPaused ? f.elapsedMs : durationMs);
-      segmentsToSave.push({ side: f.feedSide, durationMs: currentDur });
-    }
-    let runStart = startTime;
-    let segmentRecords = segmentsToSave.map((seg) => {
-      const segStart = runStart;
-      runStart += seg.durationMs;
-      const type = seg.side === "Both" ? "Both breasts" : `${seg.side} breast`;
-      return { type, startTime: segStart, endTime: segStart + seg.durationMs, durationMs: seg.durationMs };
-    });
-    if (segmentRecords.length === 0) {
-      const type = f.feedSide === "Both" ? "Both breasts" : `${f.feedSide} breast`;
-      segmentRecords = [{ type, startTime, endTime, durationMs: duration }];
-    }
-    const record: FeedingRecord = {
-      id: Date.now().toString(),
-      timestamp: endTime,
-      startTime,
-      endTime,
-      segments: segmentRecords,
-    };
-    let history: FeedingRecord[] = [];
     try {
-      history = JSON.parse(localStorage.getItem("feedingHistory") || "[]");
-    } catch {}
-    history.push(record);
-    localStorage.setItem("feedingHistory", JSON.stringify(history));
-    if (session?.access_token) saveData("feedingHistory", history, session.access_token);
-    const lastSide = segmentsToSave.length > 0 ? segmentsToSave[segmentsToSave.length - 1].side : f.feedSide;
-    if (lastSide === "Left") saveLastFeedSide("left");
-    else if (lastSide === "Right") saveLastFeedSide("right");
-    else saveLastFeedSide("both");
-    f.resetFeedTimer();
-    setFeedNotes("");
-    toast.success("Feed logged");
-    onSaved();
-    onClose();
+      const endTime = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
+      const duration = pastChecked ? durationMs : totalFeedDurationMs;
+      const startTime = endTime - duration;
+      const segmentsToSave = [...f.feedSegments];
+      if (f.timerRunning || f.timerPaused ? f.elapsedMs > 0 : !pastChecked && durationMs > 0) {
+        const currentDur = pastChecked ? durationMs : (f.timerRunning || f.timerPaused ? f.elapsedMs : durationMs);
+        segmentsToSave.push({ side: f.feedSide, durationMs: currentDur });
+      }
+      let runStart = startTime;
+      let segmentRecords = segmentsToSave.map((seg) => {
+        const segStart = runStart;
+        runStart += seg.durationMs;
+        const type = seg.side === "Both" ? "Both breasts" : `${seg.side} breast`;
+        return { type, startTime: segStart, endTime: segStart + seg.durationMs, durationMs: seg.durationMs };
+      });
+      if (segmentRecords.length === 0) {
+        const type = f.feedSide === "Both" ? "Both breasts" : `${f.feedSide} breast`;
+        segmentRecords = [{ type, startTime, endTime, durationMs: duration }];
+      }
+      const record: FeedingRecord = {
+        id: Date.now().toString(),
+        timestamp: endTime,
+        startTime,
+        endTime,
+        segments: segmentRecords,
+      };
+      let history: FeedingRecord[] = [];
+      try {
+        history = JSON.parse(localStorage.getItem("feedingHistory") || "[]");
+      } catch {
+        history = [];
+      }
+      history.push(record);
+      try {
+        localStorage.setItem("feedingHistory", JSON.stringify(history));
+      } catch (e) {
+        console.warn("[LogDrawer] feedingHistory setItem failed", e);
+      }
+      if (session?.access_token) saveData("feedingHistory", history, session.access_token);
+      const lastSide = segmentsToSave.length > 0 ? segmentsToSave[segmentsToSave.length - 1].side : f.feedSide;
+      if (lastSide === "Left") saveLastFeedSide("left");
+      else if (lastSide === "Right") saveLastFeedSide("right");
+      else saveLastFeedSide("both");
+      f.resetFeedTimer();
+      setFeedNotes("");
+      toast.success("Feed logged");
+      onSaved();
+      onClose();
+    } catch (e) {
+      console.warn("[LogDrawer] handleSaveFeed failed", e);
+      toast.error("Could not save feed. Try again.");
+    }
   };
 
   const handleSaveSleep = () => {
-    const endTime = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
-    const duration = pastChecked ? sleepDurationMs : (sleepTimerRunning ? sleepElapsedMs : sleepDurationMs);
-    const startTime = endTime - duration;
-    setSleepTimerRunning(false);
-    const record: SleepRecord = {
-      id: Date.now().toString(),
-      position: sleepPosition,
-      startTime,
-      endTime,
-    };
-    let history: SleepRecord[] = [];
     try {
-      history = JSON.parse(localStorage.getItem("sleepHistory") || "[]");
-    } catch {}
-    history.push(record);
-    localStorage.setItem("sleepHistory", JSON.stringify(history));
-    toast.success("Sleep logged");
-    onSaved();
-    onClose();
+      const endTime = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
+      const duration = pastChecked ? sleepDurationMs : (sleepTimerRunning ? sleepElapsedMs : sleepDurationMs);
+      const startTime = endTime - duration;
+      setSleepTimerRunning(false);
+      const record: SleepRecord = {
+        id: Date.now().toString(),
+        position: sleepPosition,
+        startTime,
+        endTime,
+      };
+      let history: SleepRecord[] = [];
+      try {
+        history = JSON.parse(localStorage.getItem("sleepHistory") || "[]");
+      } catch {
+        history = [];
+      }
+      history.push(record);
+      try {
+        localStorage.setItem("sleepHistory", JSON.stringify(history));
+      } catch (e) {
+        console.warn("[LogDrawer] sleepHistory setItem failed", e);
+      }
+      toast.success("Sleep logged");
+      onSaved();
+      onClose();
+    } catch (e) {
+      console.warn("[LogDrawer] handleSaveSleep failed", e);
+      toast.error("Could not save sleep. Try again.");
+    }
   };
 
   const handleSaveDiaper = () => {
-    setSleepTimerRunning(false);
-    setTimerRunning(false);
-    if (feedTimer) feedTimer.resetFeedTimer();
-    endCurrentSleepIfActive((sleepHistory) => {
-      try {
-        localStorage.setItem("sleepHistory", JSON.stringify(sleepHistory));
-        if (session?.access_token) {
-          saveData("sleepHistory", sleepHistory, session.access_token);
-          saveData("currentSleep", null, session.access_token);
-        }
-      } catch {}
-    });
-    const timestamp = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
-    const record: DiaperRecord = { id: Date.now().toString(), type: diaperType, timestamp };
-    let history: DiaperRecord[] = [];
     try {
-      history = JSON.parse(localStorage.getItem("diaperHistory") || "[]");
-    } catch {}
-    history.push(record);
-    localStorage.setItem("diaperHistory", JSON.stringify(history));
-    if (session?.access_token) saveData("diaperHistory", history, session.access_token);
-    toast.success("Diaper change logged");
-    onSaved();
-    onClose();
+      setSleepTimerRunning(false);
+      setTimerRunning(false);
+      if (feedTimer) feedTimer.resetFeedTimer();
+      endCurrentSleepIfActive((sleepHistory) => {
+        try {
+          localStorage.setItem("sleepHistory", JSON.stringify(sleepHistory));
+          if (session?.access_token) {
+            saveData("sleepHistory", sleepHistory, session.access_token);
+            saveData("currentSleep", null, session.access_token);
+          }
+        } catch {
+          // best effort
+        }
+      });
+      const timestamp = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
+      const record: DiaperRecord = { id: Date.now().toString(), type: diaperType, timestamp };
+      let history: DiaperRecord[] = [];
+      try {
+        history = JSON.parse(localStorage.getItem("diaperHistory") || "[]");
+      } catch {
+        history = [];
+      }
+      history.push(record);
+      try {
+        localStorage.setItem("diaperHistory", JSON.stringify(history));
+      } catch (e) {
+        console.warn("[LogDrawer] diaperHistory setItem failed", e);
+      }
+      if (session?.access_token) saveData("diaperHistory", history, session.access_token);
+      toast.success("Diaper change logged");
+      onSaved();
+      onClose();
+    } catch (e) {
+      console.warn("[LogDrawer] handleSaveDiaper failed", e);
+      toast.error("Could not save diaper change. Try again.");
+    }
   };
 
   const handleSaveTummy = () => {
-    const endTime = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
-    const duration = pastChecked ? durationMs : (timerRunning ? elapsedMs : durationMs);
-    const startTime = endTime - duration;
-    const record: TummyTimeRecord = { id: Date.now().toString(), startTime, endTime };
-    let history: TummyTimeRecord[] = [];
     try {
-      history = JSON.parse(localStorage.getItem("tummyTimeHistory") || "[]");
-    } catch {}
-    history.push(record);
-    localStorage.setItem("tummyTimeHistory", JSON.stringify(history));
-    if (session?.access_token) saveData("tummyTimeHistory", history, session.access_token);
-    toast.success("Tummy time logged");
-    onSaved();
-    onClose();
+      const endTime = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
+      const duration = pastChecked ? durationMs : (timerRunning ? elapsedMs : durationMs);
+      const startTime = endTime - duration;
+      const record: TummyTimeRecord = { id: Date.now().toString(), startTime, endTime };
+      let history: TummyTimeRecord[] = [];
+      try {
+        history = JSON.parse(localStorage.getItem("tummyTimeHistory") || "[]");
+      } catch {
+        history = [];
+      }
+      history.push(record);
+      try {
+        localStorage.setItem("tummyTimeHistory", JSON.stringify(history));
+      } catch (e) {
+        console.warn("[LogDrawer] tummyTimeHistory setItem failed", e);
+      }
+      if (session?.access_token) saveData("tummyTimeHistory", history, session.access_token);
+      toast.success("Tummy time logged");
+      onSaved();
+      onClose();
+    } catch (e) {
+      console.warn("[LogDrawer] handleSaveTummy failed", e);
+      toast.error("Could not save tummy time. Try again.");
+    }
   };
 
   const handleSaveBottle = () => {
-    setSleepTimerRunning(false);
-    setTimerRunning(false);
-    if (feedTimer) feedTimer.resetFeedTimer();
-    const timestamp = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
-    const record: BottleRecord = {
-      id: Date.now().toString(),
-      timestamp,
-      volumeMl: bottleVolumeMl,
-      feedType: bottleFeedType,
-    };
-    let history: BottleRecord[] = [];
     try {
-      history = JSON.parse(localStorage.getItem("bottleHistory") || "[]");
-    } catch {}
-    history.push(record);
-    localStorage.setItem("bottleHistory", JSON.stringify(history));
-    if (session?.access_token) saveData("bottleHistory", history, session.access_token);
-    toast.success("Bottle logged");
-    onSaved();
-    onClose();
+      setSleepTimerRunning(false);
+      setTimerRunning(false);
+      if (feedTimer) feedTimer.resetFeedTimer();
+      const timestamp = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
+      const record: BottleRecord = {
+        id: Date.now().toString(),
+        timestamp,
+        volumeMl: bottleVolumeMl,
+        feedType: bottleFeedType,
+      };
+      let history: BottleRecord[] = [];
+      try {
+        history = JSON.parse(localStorage.getItem("bottleHistory") || "[]");
+      } catch {
+        history = [];
+      }
+      history.push(record);
+      try {
+        localStorage.setItem("bottleHistory", JSON.stringify(history));
+      } catch (e) {
+        console.warn("[LogDrawer] bottleHistory setItem failed", e);
+      }
+      if (session?.access_token) saveData("bottleHistory", history, session.access_token);
+      toast.success("Bottle logged");
+      onSaved();
+      onClose();
+    } catch (e) {
+      console.warn("[LogDrawer] handleSaveBottle failed", e);
+      toast.error("Could not save bottle. Try again.");
+    }
   };
 
   const handleSavePump = () => {
-    const timestamp = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
-    const duration = pastChecked ? pumpDurationMs : (pumpTimerRunning ? pumpElapsedMs : pumpDurationMs);
-    const record: PumpRecord = {
-      id: Date.now().toString(),
-      timestamp,
-      side: pumpSide,
-      volumeLeftMl: pumpSide === "left" || pumpSide === "both" ? pumpVolumeLeft : undefined,
-      volumeRightMl: pumpSide === "right" || pumpSide === "both" ? pumpVolumeRight : undefined,
-      durationMs: duration,
-    };
-    let history: PumpRecord[] = [];
     try {
-      history = JSON.parse(localStorage.getItem("pumpHistory") || "[]");
-    } catch {}
-    history.push(record);
-    localStorage.setItem("pumpHistory", JSON.stringify(history));
-    if (session?.access_token) saveData("pumpHistory", history, session.access_token);
-    toast.success("Pump session logged");
-    onSaved();
-    onClose();
+      const timestamp = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
+      const duration = pastChecked ? pumpDurationMs : (pumpTimerRunning ? pumpElapsedMs : pumpDurationMs);
+      const record: PumpRecord = {
+        id: Date.now().toString(),
+        timestamp,
+        side: pumpSide,
+        volumeLeftMl: pumpSide === "left" || pumpSide === "both" ? pumpVolumeLeft : undefined,
+        volumeRightMl: pumpSide === "right" || pumpSide === "both" ? pumpVolumeRight : undefined,
+        durationMs: duration,
+      };
+      let history: PumpRecord[] = [];
+      try {
+        history = JSON.parse(localStorage.getItem("pumpHistory") || "[]");
+      } catch {
+        history = [];
+      }
+      history.push(record);
+      try {
+        localStorage.setItem("pumpHistory", JSON.stringify(history));
+      } catch (e) {
+        console.warn("[LogDrawer] pumpHistory setItem failed", e);
+      }
+      if (session?.access_token) saveData("pumpHistory", history, session.access_token);
+      toast.success("Pump session logged");
+      onSaved();
+      onClose();
+    } catch (e) {
+      console.warn("[LogDrawer] handleSavePump failed", e);
+      toast.error("Could not save pump session. Try again.");
+    }
   };
 
   const accent = type === "feed" || type === "bottle" ? "var(--coral)" : type === "sleep" ? "var(--blue)" : type === "diaper" ? "var(--grn)" : type === "tummy" ? "var(--purp)" : "var(--pink)";
@@ -513,6 +583,16 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
               </button>
             ))}
           </div>
+          {(diaperType === "poop" || diaperType === "both") && (
+            <button
+              type="button"
+              onClick={() => setShowNappyGuide(true)}
+              className="text-[12px] mb-3 block w-full text-left"
+              style={{ color: "var(--pink)" }}
+            >
+              Not sure what you&apos;re seeing? Check the nappy guide →
+            </button>
+          )}
           <PastPanel label="Log a past change instead" expanded={pastChecked} onToggle={() => setPastChecked((c) => !c)}>
             <div className={inputBlockStyle} style={inputBlockStyleBg}>
               <input type="date" value={pastDate} onChange={(e) => setPastDate(e.target.value)} className={inputStyle} style={inputStyleObj} />
@@ -522,6 +602,8 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
           <button type="button" onClick={handleSaveDiaper} className={saveBtnClass} style={{ ...saveBtnStyle, background: "var(--grn)" }}>Save change</button>
         </>
       )}
+
+      {showNappyGuide && <NappyGuideSheet onClose={() => setShowNappyGuide(false)} />}
 
       {type === "tummy" && (
         <>

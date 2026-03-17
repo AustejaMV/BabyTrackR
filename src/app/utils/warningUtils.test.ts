@@ -26,27 +26,27 @@ function base(overrides = {}) {
 describe('"Feeding overdue" banner', () => {
   it('appears when the last feeding ended more than 3 hours ago', () => {
     const f: FeedingRecord = { id: '1', timestamp: NOW - h(4), endTime: NOW - h(4) };
-    expect(computeWarnings(base({ feedingHistory: [f] }))).toContain('feeding-due');
+    expect(computeWarnings(base({ feedingHistory: [f] }))).toContain('feed-overdue');
   });
 
   it('appears even for old records without endTime (legacy data)', () => {
     const f: FeedingRecord = { id: '1', timestamp: NOW - h(4) };
-    expect(computeWarnings(base({ feedingHistory: [f] }))).toContain('feeding-due');
+    expect(computeWarnings(base({ feedingHistory: [f] }))).toContain('feed-overdue');
   });
 
   it('does not appear when feeding was recent', () => {
     const f: FeedingRecord = { id: '1', timestamp: NOW - h(1), endTime: NOW - h(1) };
-    expect(computeWarnings(base({ feedingHistory: [f] }))).not.toContain('feeding-due');
+    expect(computeWarnings(base({ feedingHistory: [f] }))).not.toContain('feed-overdue');
   });
 
   it('does not appear when no feedings have been recorded yet', () => {
-    expect(computeWarnings(base())).not.toContain('feeding-due');
+    expect(computeWarnings(base())).not.toContain('feed-overdue');
   });
 
   it('does not appear (and does not crash) when the stored timestamp is invalid', () => {
     const f = { id: '1', timestamp: NaN, endTime: NaN } as unknown as FeedingRecord;
     expect(() => computeWarnings(base({ feedingHistory: [f] }))).not.toThrow();
-    expect(computeWarnings(base({ feedingHistory: [f] }))).not.toContain('feeding-due');
+    expect(computeWarnings(base({ feedingHistory: [f] }))).not.toContain('feed-overdue');
   });
 });
 
@@ -169,7 +169,7 @@ describe('Multiple banners can appear at the same time', () => {
       feedingHistory: [{ id: '1', timestamp: NOW - h(5), endTime: NOW - h(5) } as FeedingRecord],
       sleepHistory:   [{ id: '1', position: 'Back', startTime: NOW - h(10) } as SleepRecord],
     }));
-    expect(w).toContain('feeding-due');
+    expect(w).toContain('feed-overdue');
     expect(w).toContain('no-sleep');
   });
 });

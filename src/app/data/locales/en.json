@@ -1,0 +1,25 @@
+{
+  "common": {
+    "close": "Close",
+    "save": "Save",
+    "cancel": "Cancel",
+    "next": "Next",
+    "back": "Back",
+    "skip": "Skip"
+  },
+  "home": {
+    "title": "Home",
+    "goodMorning": "Good morning"
+  },
+  "settings": {
+    "title": "Settings",
+    "accessibility": "Accessibility",
+    "language": "Language"
+  },
+  "nav": {
+    "home": "Home",
+    "journey": "Journey",
+    "village": "Village",
+    "more": "More"
+  }
+}

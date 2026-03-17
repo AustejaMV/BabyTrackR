@@ -3,6 +3,10 @@ import { Link } from "react-router";
 import { Navigation } from "../components/Navigation";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { AppointmentsSection } from "../components/AppointmentsSection";
+import { HealthHistorySection } from "../components/HealthHistorySection";
+import { useBaby } from "../contexts/BabyContext";
+import { BabySwitcher } from "../components/BabySwitcher";
+import { EmptyState } from "../components/EmptyState";
 
 const FAMILY_STORAGE = "babytrackr-family";
 const NOTES_STORAGE = "babytrackr-notes";
@@ -38,6 +42,7 @@ const DEFAULT_FAMILY: FamilyMember[] = [
 const PRESET_CHIPS = ["Diapers", "Wipes", "Formula", "Diaper cream", "Baby shampoo"];
 
 export function MoreScreen() {
+  const { activeBaby, babies, setActiveBabyId } = useBaby();
   const [family, setFamily] = useState<FamilyMember[]>(DEFAULT_FAMILY);
   const [inviteEmail, setInviteEmail] = useState("");
   const [notes, setNotes] = useState<NoteItem[]>([]);
@@ -137,8 +142,105 @@ export function MoreScreen() {
             </svg>
           </Link>
         </div>
+        <BabySwitcher babies={babies} activeBaby={activeBaby} onSwitch={setActiveBabyId} />
 
         <AppointmentsSection />
+
+        <Link
+          to="/gp-summary"
+          className="block rounded-[18px] border p-4 mb-3"
+          style={{ background: "var(--card)", borderColor: "var(--bd)" }}
+        >
+          <div className="text-[15px] font-medium" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
+            Prepare for GP visit
+          </div>
+          <div className="text-[12px] mt-0.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+            One-page summary for health visitor or GP
+          </div>
+        </Link>
+
+        <Link
+          to="/return-to-work"
+          className="block rounded-[18px] border p-4 mb-3"
+          style={{ background: "var(--card)", borderColor: "var(--bd)" }}
+        >
+          <div className="text-[15px] font-medium" style={{ color: "var(--tx)", fontFamily: "Georgia, serif" }}>
+            Return to work planner
+          </div>
+          <div className="text-[12px] mt-0.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+            Feeding transition, sleep shift, handoff doc for nursery or childminder
+          </div>
+        </Link>
+
+        <Link
+          to="/library"
+          className="block rounded-[18px] border p-4 mb-3"
+          style={{ background: "var(--card)", borderColor: "var(--bd)" }}
+        >
+          <div className="text-[15px] font-medium" style={{ color: "var(--tx)", fontFamily: "Georgia, serif" }}>
+            Library
+          </div>
+          <div className="text-[12px] mt-0.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+            NHS-aligned articles on sleep, feeding, nappies and when to call your GP
+          </div>
+        </Link>
+
+        <Link
+          to="/jaundice"
+          className="block rounded-[18px] border p-4 mb-3"
+          style={{ background: "var(--card)", borderColor: "var(--bd)" }}
+        >
+          <div className="text-[15px] font-medium" style={{ color: "var(--tx)", fontFamily: "Georgia, serif" }}>
+            Jaundice watch
+          </div>
+          <div className="text-[12px] mt-0.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+            Track skin checks in the first few weeks — when to call your midwife or 111
+          </div>
+        </Link>
+
+        <Link
+          to="/memories"
+          className="block rounded-[18px] border p-4 mb-3"
+          style={{ background: "var(--card)", borderColor: "var(--bd)" }}
+        >
+          <div className="text-[15px] font-medium" style={{ color: "var(--tx)", fontFamily: "Georgia, serif" }}>
+            Memory book
+          </div>
+          <div className="text-[12px] mt-0.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+            Photos and notes by day, monthly recaps, shareable with family (Premium)
+          </div>
+        </Link>
+
+        <HealthHistorySection />
+
+        <Link
+          to="/skin"
+          className="block rounded-[18px] border p-4 mb-3"
+          style={{ background: "var(--card)", borderColor: "var(--bd)" }}
+        >
+          <div className="text-[15px] font-medium" style={{ color: "var(--tx)", fontFamily: "Georgia, serif" }}>
+            Skin & eczema
+          </div>
+          <div className="text-[12px] mt-0.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+            Flares, creams, triggers — spot patterns
+          </div>
+        </Link>
+
+        <p className="text-[12px] uppercase tracking-widest mb-2 mt-4" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+          you
+        </p>
+        <Link
+          to="/mum"
+          className="block rounded-[18px] border p-4 mb-3"
+          style={{ background: "var(--card)", borderColor: "var(--bd)" }}
+        >
+          <div className="text-[15px] font-medium" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
+            You matter too
+          </div>
+          <div className="text-[12px] mt-0.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+            Recovery, pelvic floor, pain relief, mood check
+          </div>
+        </Link>
 
         <p className="text-[12px] uppercase tracking-widest mb-2 mt-1" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
           family
@@ -200,6 +302,15 @@ export function MoreScreen() {
           notes
         </p>
         <div className="rounded-[18px] border p-4 mb-3" style={{ background: "var(--card)", borderColor: "var(--bd)" }}>
+          {notes.length === 0 ? (
+            <EmptyState
+              illustration="note"
+              title="No notes yet"
+              body="Add a quick note for GP visits, reminders, or anything you want to remember."
+              compact
+              primaryAction={{ label: "Add a note", onClick: () => document.getElementById("note-input")?.focus() }}
+            />
+          ) : null}
           {notes.map((n) => (
             <div
               key={n.id}
@@ -227,6 +338,7 @@ export function MoreScreen() {
           <div className="flex gap-2 mt-2">
             <input
               type="text"
+              id="note-input"
               placeholder="Add a note..."
               value={noteInput}
               onChange={(e) => setNoteInput(e.target.value)}

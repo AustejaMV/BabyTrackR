@@ -1,0 +1,25 @@
+{
+  "common": {
+    "close": "Uždaryti",
+    "save": "Išsaugoti",
+    "cancel": "Atšaukti",
+    "next": "Toliau",
+    "back": "Atgal",
+    "skip": "Praleisti"
+  },
+  "home": {
+    "title": "Pradžia",
+    "goodMorning": "Labas rytas"
+  },
+  "settings": {
+    "title": "Nustatymai",
+    "accessibility": "Prieinamumas",
+    "language": "Kalba"
+  },
+  "nav": {
+    "home": "Pradžia",
+    "journey": "Kelionė",
+    "village": "Kaimas",
+    "more": "Daugiau"
+  }
+}

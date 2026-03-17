@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { DayPicker } from "react-day-picker";
 import { format, addMonths, subMonths } from "date-fns";
 import { getAppointments, saveAppointments, toDateStr, parseDateStr, type Appointment } from "../data/appointmentsStorage";
+import { getMedicationReminderConfig } from "../data/medicationReminderStorage";
+import { MedicationReminderModal } from "./MedicationReminderModal";
+import { scheduleNextMedicationReminder } from "../utils/medicationReminderScheduler";
 
 export function AppointmentsSection() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -12,10 +15,16 @@ export function AppointmentsSection() {
   const [newTime, setNewTime] = useState("");
   const [newType, setNewType] = useState<Appointment["type"]>("GP");
   const [newNotes, setNewNotes] = useState("");
+  const [reminderModalOpen, setReminderModalOpen] = useState(false);
+  const [reminderConfig, setReminderConfig] = useState(() => getMedicationReminderConfig());
 
   useEffect(() => {
     setAppointments(getAppointments());
   }, []);
+
+  useEffect(() => {
+    setReminderConfig(getMedicationReminderConfig());
+  }, [reminderModalOpen]);
 
   const now = Date.now();
   const past = appointments
@@ -29,6 +38,15 @@ export function AppointmentsSection() {
     const d = parseDateStr(a.date);
     return d ? format(d, "yyyy-MM-dd") : "";
   }).filter(Boolean));
+
+  const datesWithReminder = new Set<string>();
+  if (reminderConfig.enabled && reminderConfig.repeatDays.length > 0) {
+    const start = new Date(month.getFullYear(), month.getMonth(), 1);
+    const end = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      if (reminderConfig.repeatDays.includes(d.getDay())) datesWithReminder.add(format(d, "yyyy-MM-dd"));
+    }
+  }
 
   const addAppointment = () => {
     const d = pickDate || (newDate.trim() ? (() => {
@@ -83,9 +101,25 @@ export function AppointmentsSection() {
 
   return (
     <div className="rounded-[18px] border p-4 mb-3" style={{ background: "var(--card)", borderColor: "var(--bd)" }}>
-      <p className="text-[9px] uppercase tracking-widest mb-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
-        APPOINTMENTS
-      </p>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[9px] uppercase tracking-widest" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+          APPOINTMENTS
+        </p>
+        <button
+          type="button"
+          onClick={() => setReminderModalOpen(true)}
+          className="text-[12px] py-1.5 px-2 rounded-lg border"
+          style={{ borderColor: "var(--bd)", color: "var(--grn)", fontFamily: "system-ui, sans-serif" }}
+        >
+          Medication reminder
+        </button>
+      </div>
+
+      <MedicationReminderModal
+        open={reminderModalOpen}
+        onClose={() => setReminderModalOpen(false)}
+        onSaved={() => { setReminderConfig(getMedicationReminderConfig()); scheduleNextMedicationReminder(); }}
+      />
 
       <div className="w-full mb-4 rounded-xl overflow-hidden border" style={{ borderColor: "var(--bd)", background: "var(--bg2)" }}>
         <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: "var(--bd)" }}>
@@ -136,6 +170,12 @@ export function AppointmentsSection() {
           content: ''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
           width: 4px; height: 4px; border-radius: 50%; background: var(--pink);
         }
+        .rdp-appointments .rdp-day.rdp-has-reminder:not([aria-selected="true"])::before {
+          content: ''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
+          width: 4px; height: 4px; border-radius: 50%; background: var(--grn);
+        }
+        .rdp-appointments .rdp-day.rdp-has-appt.rdp-has-reminder::before { left: 30%; transform: translateX(-50%); }
+        .rdp-appointments .rdp-day.rdp-has-appt.rdp-has-reminder::after { left: 70%; transform: translateX(-50%); }
         .rdp-appointments .rdp-day { position: relative; }
         .rdp-appointments .rdp-caption { display: none; }
       `}</style>
@@ -145,6 +185,16 @@ export function AppointmentsSection() {
           <p className="text-[11px] font-medium mb-2" style={{ color: "var(--tx)" }}>
             {format(pickDate, "dd/MM/yyyy")}
           </p>
+          {reminderConfig.enabled && reminderConfig.repeatDays.includes(pickDate.getDay()) && (
+            <div className="p-2.5 rounded-lg border mb-2" style={{ borderColor: "var(--grn)", background: "color-mix(in srgb, var(--grn) 12%, transparent)" }}>
+              <p className="text-[11px] font-medium" style={{ color: "var(--tx)" }}>Medication reminder</p>
+              <p className="text-[10px] mt-0.5" style={{ color: "var(--mu)" }}>
+                {reminderConfig.mode === "remind_at"
+                  ? `Remind at ${reminderConfig.remindAtTime}`
+                  : `Every ${reminderConfig.intervalHours}h after last dose`}
+              </p>
+            </div>
+          )}
           <div className="space-y-2 mb-2">
             {appointmentsOnSelectedDay.length === 0 ? (
               <p className="text-[10px]" style={{ color: "var(--mu)" }}>No appointments this day.</p>

@@ -1,6 +1,6 @@
 const KEY = "babytrackr-moodLog";
 
-export type MoodKey = "great" | "good" | "okay" | "tired" | "struggling";
+export type MoodKey = "great" | "good" | "okay" | "tired" | "struggling" | "overwhelmed";
 
 export interface MoodEntry {
   date: string; // YYYY-MM-DD

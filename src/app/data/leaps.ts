@@ -34,3 +34,16 @@ export function getNextLeap(ageWeeks: number): { leap: Leap; inDays: number } | 
   const daysUntil = (next.startWeek - ageWeeks) * 7;
   return { leap: next, inDays: daysUntil };
 }
+
+export function isInLeap(ageInWeeks: number): boolean {
+  return getLeapAtWeek(ageInWeeks) != null;
+}
+
+/** Free preview text: "Currently in Leap X" or "Leap X incoming in Y days" */
+export function getFreePreviewText(ageInWeeks: number): string {
+  const current = getLeapAtWeek(ageInWeeks);
+  if (current) return `Currently in Leap ${current.leapNumber}`;
+  const next = getNextLeap(ageInWeeks);
+  if (next) return `Leap ${next.leap.leapNumber} incoming in ${next.inDays} days`;
+  return "";
+}

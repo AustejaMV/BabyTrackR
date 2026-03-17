@@ -1,6 +1,9 @@
 // Shared domain types used across pages, components, and utilities.
 // All tracking record types live here so they are never re-declared in individual files.
 
+import type { TemperatureEntry, SymptomEntry, MedicationEntry } from "./health";
+import type { CustomTrackerLogEntry } from "./customTracker";
+
 export interface SleepRecord {
   id: string;
   position: string;
@@ -10,6 +13,12 @@ export interface SleepRecord {
   excludedMs?: number;
   /** Server-assigned canonical start time (first-write-wins across devices). */
   serverStartTime?: number;
+  /** How baby fell asleep (e.g. "rocking", "nurse", "dummy", "self"). */
+  fallAsleepMethod?: string;
+  /** Mood on wake (e.g. "happy", "fussy", "crying"). */
+  wakeUpMood?: string;
+  /** Where baby slept (e.g. "cot", "moses", "bed", "pram"). */
+  sleepLocation?: string;
 }
 
 export interface FeedingSegment {
@@ -100,6 +109,8 @@ export interface ShoppingItem {
 export interface BabyProfile {
   birthDate: number; // epoch ms (start of day)
   name?: string;
+  /** Parent/caregiver first name (max 40 chars) for personalised address */
+  parentName?: string;
   /** Compressed image as data URL (JPEG, small size); set after client-side resize+compress */
   photoDataUrl?: string;
   weight?: number; // kg, optional
@@ -168,7 +179,7 @@ export interface GrowthMeasurement {
 }
 
 /** Unified timeline event for Today view (and PDF export) */
-export type TimelineEventKind = "feed" | "sleep" | "diaper" | "tummy" | "bottle" | "pump";
+export type TimelineEventKind = "feed" | "sleep" | "diaper" | "tummy" | "bottle" | "pump" | "health" | "custom";
 
 export interface TimelineEvent {
   id: string;
@@ -177,5 +188,5 @@ export interface TimelineEvent {
   timeLabel: string; // HH:mm or dd/mm/yyyy HH:mm for past days
   description: string;
   /** Original record for edit/delete */
-  record: FeedingRecord | SleepRecord | DiaperRecord | TummyTimeRecord | BottleRecord | PumpRecord;
+  record: FeedingRecord | SleepRecord | DiaperRecord | TummyTimeRecord | BottleRecord | PumpRecord | TemperatureEntry | SymptomEntry | MedicationEntry | CustomTrackerLogEntry;
 }
