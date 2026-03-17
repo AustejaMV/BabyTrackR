@@ -8,7 +8,7 @@ import { requestNotificationPermission, scheduleNotification } from "../utils/no
 import { scheduleNextMedicationReminder } from "../utils/medicationReminderScheduler";
 import { useAuth } from "../contexts/AuthContext";
 import { loadAllDataFromServer, saveData, clearSyncedDataFromLocalStorage, getPendingSavesCount, SYNCED_DATA_KEYS, SYNCED_DATA_DEFAULTS, POLL_MS_ACTIVE, POLL_MS_IDLE } from "../utils/dataSync";
-import { getTimeSince } from "../utils/dateUtils";
+import { getTimeSince, formatTimeAndAgo, formatLastAtAndAgo, formatNextFeedClock } from "../utils/dateUtils";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
 import { toast } from "sonner";
 import { Button } from "../components/ui/button";
@@ -26,12 +26,14 @@ import { WhyIsCryingCard } from "../components/WhyIsCryingCard";
 import { HealthLogDrawer } from "../components/HealthLogDrawer";
 import { SolidFoodDrawer } from "../components/SolidFoodDrawer";
 import { ActivityDrawer } from "../components/ActivityDrawer";
+import { SpitUpDrawer } from "../components/SpitUpDrawer";
 import { usePremium } from "../contexts/PremiumContext";
 import { useBaby } from "../contexts/BabyContext";
 import { BabySwitcher } from "../components/BabySwitcher";
 import { generateCryingReasons } from "../utils/cryingDiagnostic";
 import type { TimelineEvent } from "../types";
 import { readStoredArray, computeWarnings, readFeedingInterval } from "../utils/warningUtils";
+import { isFirstBaby } from "../utils/onboardingStorage";
 import { readAlertThresholds } from "../utils/alertThresholdsStorage";
 import { detectSleepRegression } from "../utils/sleepRegression";
 import { buildActiveTriggers, checkArticleTriggers } from "../utils/articleTrigger";
@@ -99,10 +101,10 @@ function hasActiveSession(data: Record<string, unknown>): boolean {
   return data?.feedingActiveSession != null || data?.currentSleep != null || data?.currentTummyTime != null;
 }
 
-const LOG_PAGES: readonly (readonly ("feed" | "sleep" | "diaper" | "tummy" | "bottle" | "pump" | "health" | "solids" | "activity")[])[] = [
+const LOG_PAGES: readonly (readonly ("feed" | "sleep" | "diaper" | "tummy" | "bottle" | "pump" | "health" | "solids" | "activity" | "spitup")[])[] = [
   ["feed", "sleep", "diaper", "tummy"],
   ["bottle", "pump", "health", "solids"],
-  ["activity"],
+  ["activity", "spitup"],
 ];
 
 export function Dashboard() {
@@ -127,7 +129,7 @@ export function Dashboard() {
       }
     : null;
   const [statsToday, setStatsToday] = useState<{ feeds: number; sleepH: string; diapers: number; tummyM: number; totalMl: number; activityM: number }>({ feeds: 0, sleepH: "0h", diapers: 0, tummyM: 0, totalMl: 0, activityM: 0 });
-  const [openDrawer, setOpenDrawer] = useState<"feed" | "sleep" | "diaper" | "tummy" | "bottle" | "pump" | "health" | "solids" | "activity" | null>(null);
+  const [openDrawer, setOpenDrawer] = useState<"feed" | "sleep" | "diaper" | "tummy" | "bottle" | "pump" | "health" | "solids" | "activity" | "spitup" | null>(null);
   const [sleepHistory, setSleepHistory] = useState<SleepRecord[]>([]);
   const [feedingHistory, setFeedingHistory] = useState<FeedingRecord[]>([]);
   const [diaperHistory, setDiaperHistory] = useState<DiaperRecord[]>([]);
@@ -702,7 +704,21 @@ export function Dashboard() {
               {lastFeeding ? "Next feed due soon" : "Log a feed when ready"}
             </div>
             <div className="text-[12px] mt-0.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
-              {lastFeeding ? `${getTimeSince(lastFeeding.endTime ?? lastFeeding.timestamp)} · usually every 3h` : "Tap Feed below to start"}
+              {lastFeeding
+                ? (() => {
+                    const lastEnd = lastFeeding.endTime ?? lastFeeding.timestamp;
+                    const intervalH = readFeedingInterval();
+                    const nextClock = formatNextFeedClock(lastEnd, intervalH);
+                    return (
+                      <>
+                        Last fed at {formatLastAtAndAgo(lastEnd)}
+                        {nextClock !== "now" && nextClock !== "—" && (
+                          <> · Next feed: {nextClock}</>
+                        )}
+                      </>
+                    );
+                  })()
+                : "Tap Feed below to start"}
             </div>
           </div>
           <button
@@ -724,9 +740,9 @@ export function Dashboard() {
                 compact
                 illustration="✨"
                 title="No logs yet today"
-                body="Tap a button below to log your first feed, sleep, or nappy change."
+                body={isFirstBaby() ? "Tap a button below to log your first feed, sleep, or nappy change." : "Log a feed or sleep below."}
                 primaryAction={{ label: "Log a feed", onClick: () => setOpenDrawer("feed") }}
-                secondaryAction={{ label: "Log sleep", onClick: () => setOpenDrawer("sleep") }}
+                secondaryAction={isFirstBaby() ? { label: "Log sleep", onClick: () => setOpenDrawer("sleep") } : undefined}
               />
             </div>
           ) : null;
@@ -764,6 +780,13 @@ export function Dashboard() {
           diaperHistory={diaperHistory}
           tummyHistory={tummyTimeHistory}
           parentName={babyProfile?.parentName ?? null}
+          ageInWeeks={
+            babyProfile?.birthDate != null
+              ? (Date.now() - (typeof babyProfile.birthDate === "number" ? babyProfile.birthDate : new Date(babyProfile.birthDate).getTime())) /
+                (7 * 24 * 60 * 60 * 1000)
+              : null
+          }
+          babyName={babyProfile?.name ?? activeBaby?.name ?? null}
         />
 
         {/* No DOB: prompt to set birth date */}
@@ -865,16 +888,20 @@ export function Dashboard() {
 
         {/* Log buttons — 4 per page with dots, swipe/scroll */}
         {(() => {
+          const feedSub = lastFeeding ? (() => { const { time, ago } = formatTimeAndAgo(lastFeeding.endTime ?? lastFeeding.timestamp); return `${time} · ${ago}`; })() : "No feed yet";
+          const sleepSub = currentSleep ? (() => { const { time, ago } = formatTimeAndAgo(currentSleep.startTime ?? 0); return `${time} · ${ago}`; })() : "Awake";
+          const diaperSub = recentDiapers.length > 0 ? (() => { const { time, ago } = formatTimeAndAgo(recentDiapers[recentDiapers.length - 1]!.timestamp); return `${time} · ${ago}`; })() : "No changes yet";
           const labels: Record<string, { title: string; sub: string; dot: string; iconBg: string; icon: React.ReactNode }> = {
-            feed: { title: "Log a feed", sub: lastFeeding ? getTimeSince(lastFeeding.endTime ?? lastFeeding.timestamp) : "No feed yet", dot: "var(--coral)", iconBg: "var(--pe)", icon: <><path d="M8 3v2.5M6 3.5A3 3 0 0 0 8 10a3 3 0 0 0 2-6.5" stroke="var(--coral)" strokeWidth="1.4" strokeLinecap="round" /><path d="M6.5 5.5h3" stroke="var(--coral)" strokeWidth="1.4" strokeLinecap="round" /></> },
-            sleep: { title: "Log sleep", sub: currentSleep ? getTimeSince(currentSleep.startTime ?? 0) : "Awake", dot: "var(--blue)", iconBg: "var(--sk)", icon: <><path d="M8 3a5 5 0 1 0 0 10A5 5 0 0 0 8 3z" stroke="var(--blue)" strokeWidth="1.4" /><path d="M8 6v3l1.5 1" stroke="var(--blue)" strokeWidth="1.4" strokeLinecap="round" /></> },
-            diaper: { title: "Diaper change", sub: recentDiapers.length > 0 ? getTimeSince(recentDiapers[recentDiapers.length - 1].timestamp) + " ago" : "No changes yet", dot: "var(--grn)", iconBg: "var(--sa)", icon: <><path d="M4 8c0-2 8-2 8 0s-.5 4.5-4 4.5S4 10 4 8z" stroke="var(--grn)" strokeWidth="1.4" /><path d="M8 8V5.5" stroke="var(--grn)" strokeWidth="1.4" strokeLinecap="round" /></> },
+            feed: { title: "Log a feed", sub: feedSub, dot: "var(--coral)", iconBg: "var(--pe)", icon: <><path d="M8 3v2.5M6 3.5A3 3 0 0 0 8 10a3 3 0 0 0 2-6.5" stroke="var(--coral)" strokeWidth="1.4" strokeLinecap="round" /><path d="M6.5 5.5h3" stroke="var(--coral)" strokeWidth="1.4" strokeLinecap="round" /></> },
+            sleep: { title: "Log sleep", sub: sleepSub, dot: "var(--blue)", iconBg: "var(--sk)", icon: <><path d="M8 3a5 5 0 1 0 0 10A5 5 0 0 0 8 3z" stroke="var(--blue)" strokeWidth="1.4" /><path d="M8 6v3l1.5 1" stroke="var(--blue)" strokeWidth="1.4" strokeLinecap="round" /></> },
+            diaper: { title: "Diaper change", sub: diaperSub, dot: "var(--grn)", iconBg: "var(--sa)", icon: <><path d="M4 8c0-2 8-2 8 0s-.5 4.5-4 4.5S4 10 4 8z" stroke="var(--grn)" strokeWidth="1.4" /><path d="M8 8V5.5" stroke="var(--grn)" strokeWidth="1.4" strokeLinecap="round" /></> },
             tummy: { title: "Tummy time", sub: statsToday.tummyM > 0 ? `${statsToday.tummyM} min today` : "No session today", dot: "var(--purp)", iconBg: "var(--la)", icon: <><rect x="3" y="8" width="10" height="5.5" rx="2" stroke="var(--purp)" strokeWidth="1.4" /><path d="M6 8V6.5a2 2 0 0 1 4 0V8" stroke="var(--purp)" strokeWidth="1.4" /></> },
             bottle: { title: "Bottle feed", sub: statsToday.totalMl > 0 ? `${statsToday.totalMl} ml today` : "No bottle yet", dot: "var(--coral)", iconBg: "var(--pe)", icon: <><path d="M5 4v6a3 3 0 0 0 6 0V4M6 3h2" stroke="var(--coral)" strokeWidth="1.4" strokeLinecap="round" /></> },
             pump: { title: "Pump", sub: "Log session", dot: "var(--pink)", iconBg: "var(--med-bg)", icon: <><rect x="7" y="2" width="4" height="14" rx="2" stroke="var(--pink)" strokeWidth="1.5" /><rect x="2" y="7" width="14" height="4" rx="2" stroke="var(--pink)" strokeWidth="1.5" /></> },
             health: { title: "Health", sub: "Temperature, symptoms, meds", dot: "#e87474", iconBg: "color-mix(in srgb, #e87474 25%, var(--card))", icon: <><path d="M8 2v3M8 11v3M5 5l2.5 2.5M10.5 10.5L8 13M5 11L7.5 8.5M10.5 6.5L8 4" stroke="#e87474" strokeWidth="1.4" strokeLinecap="round" /><circle cx="8" cy="8" r="2.5" stroke="#e87474" strokeWidth="1.4" fill="none" /></> },
             solids: { title: "Solids", sub: "First tastes & reactions", dot: "#7ab87a", iconBg: "color-mix(in srgb, #7ab87a 25%, var(--card))", icon: <><path d="M4 10h8M6 8v4M10 8v4" stroke="#7ab87a" strokeWidth="1.4" strokeLinecap="round" /><ellipse cx="8" cy="6" rx="3" ry="2" stroke="#7ab87a" strokeWidth="1.4" fill="none" /></> },
             activity: { title: "Activity", sub: statsToday.activityM > 0 ? `${statsToday.activityM}m play` : "Play, walk, bath…", dot: "#f5a623", iconBg: "color-mix(in srgb, #f5a623 25%, var(--card))", icon: <><path d="M8 3l1.5 4.5L14 8l-4.5 1.5L8 14l-1.5-4.5L2 8l4.5-1.5L8 3z" stroke="#f5a623" strokeWidth="1.4" fill="none" strokeLinejoin="round" /></> },
+            spitup: { title: "Spit-up", sub: "Reflux, GERD", dot: "var(--coral)", iconBg: "var(--pe)", icon: <><path d="M4 8c0-2 8-2 8 0s-.5 4.5-4 4.5S4 10 4 8z" stroke="var(--coral)" strokeWidth="1.4" /><path d="M8 6v2" stroke="var(--coral)" strokeWidth="1.4" strokeLinecap="round" /></> },
           };
           const headerClass = "w-full rounded-[18px] p-4 pt-3.5 pb-3.5 text-center border relative transition-colors";
           const renderButton = (drawerType: typeof LOG_PAGES[number][number]) => {
@@ -960,7 +987,8 @@ export function Dashboard() {
                   {openDrawer === "health" && <HealthLogDrawer onClose={() => setOpenDrawer(null)} onSaved={() => { loadLocalDataRef.current(); setOpenDrawer(null); }} />}
                   {openDrawer === "solids" && <SolidFoodDrawer onClose={() => setOpenDrawer(null)} onSaved={() => { loadLocalDataRef.current(); setOpenDrawer(null); }} />}
                   {openDrawer === "activity" && <ActivityDrawer onClose={() => setOpenDrawer(null)} onSaved={() => { loadLocalDataRef.current(); setOpenDrawer(null); }} />}
-                  {openDrawer !== "health" && openDrawer !== "solids" && openDrawer !== "activity" && <LogDrawer type={openDrawer} onClose={() => setOpenDrawer(null)} onSaved={() => { loadLocalDataRef.current(); setOpenDrawer(null); }} session={session} />}
+                  {openDrawer === "spitup" && <SpitUpDrawer onClose={() => setOpenDrawer(null)} onSaved={() => { loadLocalDataRef.current(); setOpenDrawer(null); }} session={session} />}
+                  {openDrawer && openDrawer !== "health" && openDrawer !== "solids" && openDrawer !== "activity" && openDrawer !== "spitup" && <LogDrawer type={openDrawer} onClose={() => setOpenDrawer(null)} onSaved={() => { loadLocalDataRef.current(); setOpenDrawer(null); }} session={session} />}
                 </div>
               )}
             </div>

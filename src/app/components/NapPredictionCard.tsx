@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { getSweetSpotPrediction } from "../utils/napPrediction";
 import { getLastWakeTime } from "../utils/napPrediction";
+import { getReassuranceForNapStatus } from "../utils/reassuranceUtils";
 import type { SleepRecord } from "../types";
 
 const ARC_SIZE = 44;
@@ -156,6 +157,14 @@ export function NapPredictionCard({ sleepHistory, babyDob, babyName }: NapPredic
               {prediction.status === "unknown" && "Nap window not yet open"}
             </span>
           </div>
+          {(prediction.status === "amber" || prediction.status === "red") && (() => {
+            const reassurance = getReassuranceForNapStatus(displayName, prediction.status);
+            return reassurance ? (
+              <p className="text-[12px] mt-2.5 pt-2 border-t" style={{ color: "var(--mu)", fontFamily: "Georgia, serif", borderColor: "var(--bd)" }}>
+                {reassurance}
+              </p>
+            ) : null;
+          })()}
         </div>
       </div>
     </div>

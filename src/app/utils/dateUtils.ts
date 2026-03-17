@@ -100,15 +100,39 @@ export function formatClockTime(ts: number | null | undefined, fallback = '—')
   }
 }
 
-/** Format as "HH:mm" and "Xm ago" / "Xh ago" for recent times. */
+/** Format as "HH:mm" and "Xm ago" / "Xh Ym ago" for recent times (clock times everywhere). */
 export function formatTimeAndAgo(ts: number | null | undefined, nowMs: number = Date.now()): { time: string; ago: string } {
   if (ts == null || !Number.isFinite(ts)) return { time: '—', ago: '' };
   const time = formatClockTime(ts, '—');
   const diffMs = nowMs - ts;
   const mins = Math.floor(diffMs / 60000);
   const hours = Math.floor(mins / 60);
-  const ago = hours >= 1 ? `${hours}h ago` : mins < 1 ? 'just now' : `${mins}m ago`;
+  const remainderMins = mins % 60;
+  const ago =
+    hours >= 1
+      ? remainderMins > 0
+        ? `${hours}h ${remainderMins}m ago`
+        : `${hours}h ago`
+      : mins < 1
+        ? 'just now'
+        : `${mins}m ago`;
   return { time, ago };
+}
+
+/** Format "Last fed at HH:mm · Xh Ym ago" or "Next feed: around HH:mm". */
+export function formatLastAtAndAgo(ts: number | null | undefined, nowMs: number = Date.now()): string {
+  if (ts == null || !Number.isFinite(ts)) return '—';
+  const { time, ago } = formatTimeAndAgo(ts, nowMs);
+  return `${time} · ${ago}`;
+}
+
+/** Next feed ETA as clock time: "around HH:mm" from lastFeedEndMs + intervalHours. */
+export function formatNextFeedClock(lastFeedEndMs: number | null | undefined, intervalHours: number, nowMs: number = Date.now()): string {
+  if (lastFeedEndMs == null || !Number.isFinite(lastFeedEndMs) || !Number.isFinite(intervalHours) || intervalHours <= 0)
+    return '—';
+  const nextMs = lastFeedEndMs + intervalHours * 60 * 60 * 1000;
+  if (nextMs <= nowMs) return 'now';
+  return `around ${formatClockTime(nextMs, '—')}`;
 }
 
 /** Format ETA e.g. "in 45m" or "at 14:30". */

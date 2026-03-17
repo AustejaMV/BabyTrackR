@@ -15,9 +15,12 @@ import type { BabyProfile, Milestone, SleepRecord, FeedingRecord, DiaperRecord, 
 import { readStoredArray } from "../utils/warningUtils";
 import { InsightsSection } from "../components/InsightsSection";
 import { ComparativeInsights } from "../components/ComparativeInsights";
+import { SleepPatternCard } from "../components/SleepPatternCard";
 import { FoodsIntroducedList } from "../components/FoodsIntroducedList";
 import { SupplyMonitorCard } from "../components/SupplyMonitorCard";
+import { PlaybookCard } from "../components/PlaybookCard";
 import { useBaby } from "../contexts/BabyContext";
+import { usePremium } from "../contexts/PremiumContext";
 import { BabySwitcher } from "../components/BabySwitcher";
 import { EmptyState } from "../components/EmptyState";
 
@@ -33,6 +36,7 @@ function formatAchieved(ms: number): string {
 
 export function JourneyScreen() {
   const { activeBaby, babies, setActiveBabyId } = useBaby();
+  const { isPremium } = usePremium();
   const navigate = useNavigate();
   const babyProfile: BabyProfile | null = activeBaby
     ? { birthDate: activeBaby.birthDate, name: activeBaby.name, photoDataUrl: activeBaby.photoDataUrl, weight: activeBaby.weight, height: activeBaby.height }
@@ -430,6 +434,15 @@ export function JourneyScreen() {
           diaperHistory={diaperHistory}
           tummyHistory={tummyHistory}
           babyProfile={babyProfile}
+        />
+
+        <SleepPatternCard sleepHistory={sleepHistory} babyName={babyProfile?.name} />
+
+        <PlaybookCard
+          sleepHistory={sleepHistory}
+          feedingHistory={feedingHistory}
+          babyName={babyProfile?.name ?? null}
+          isPremium={isPremium}
         />
 
         <FoodsIntroducedList

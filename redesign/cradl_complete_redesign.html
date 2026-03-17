@@ -1,0 +1,822 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+.app{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--color-background-secondary);padding:20px;border-radius:var(--border-radius-lg);display:flex;flex-direction:column;align-items:center;gap:12px}
+.label{font-size:12px;color:var(--color-text-secondary);text-align:center}
+.phone{width:340px;background:#fffbf5;border-radius:40px;border:2px solid #ddd0c4;overflow:hidden;position:relative}
+.sb{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:#fffbf5}
+.sb-time{font-size:15px;font-weight:600;color:#2c1f1f}
+.sb-icons{display:flex;gap:6px;align-items:center}
+.sb-icon{width:16px;height:16px;background:#9a8080;border-radius:2px;opacity:.6}
+.sc{height:580px;overflow-y:auto;overflow-x:hidden}
+.sc::-webkit-scrollbar{display:none}
+.bnav{background:#fff;border-top:1px solid #ede0d4;display:flex;align-items:stretch;height:68px}
+.ni{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;border:none;background:none;padding:0;transition:opacity .15s}
+.ni:active{opacity:.7}
+.ni-icon{width:22px;height:22px;display:flex;align-items:center;justify-content:center}
+.nl{font-size:9px;color:#b09080;font-weight:500}
+.ni.active .nl{color:#d4604a}
+.ni.active .ni-icon svg path,.ni.active .ni-icon svg circle,.ni.active .ni-icon svg rect{fill:#d4604a}
+
+.slbl{font-size:10px;color:#b09080;text-transform:uppercase;letter-spacing:.8px;padding:12px 16px 6px;font-weight:600}
+.card{background:#fff;border:1px solid #ede0d4;border-radius:16px;margin:0 12px 8px;padding:14px}
+.card-sm{background:#fff;border:1px solid #ede0d4;border-radius:14px;margin:0 12px 8px;padding:12px}
+.ct{font-size:13px;font-weight:600;color:#2c1f1f}
+.cs{font-size:11px;color:#9a8080;margin-top:2px;line-height:1.4}
+
+.tag{font-size:10px;font-weight:600;padding:3px 8px;border-radius:20px;display:inline-block}
+.tag-green{background:#e4f4e4;color:#2a6a2a}
+.tag-amber{background:#fef4e4;color:#8a5a00}
+.tag-red{background:#fce8e8;color:#8a2020}
+.tag-blue{background:#e4f0fc;color:#1a4a8a}
+.tag-purple{background:#f0eafe;color:#4a2a9a}
+.tag-coral{background:#feeae4;color:#8a3020}
+.tag-muted{background:#f0ece8;color:#7a6a60}
+
+.notice-card{background:#fff;border-left:3px solid #d4604a;border-radius:0 14px 14px 0;margin:0 12px 8px;padding:12px 14px}
+.notice-green{border-left-color:#4a8a4a}
+.notice-amber{border-left-color:#d4904a}
+.notice-blue{border-left-color:#4a6ab4}
+.notice-purple{border-left-color:#7a4ab4}
+
+.stat-row{display:flex;gap:6px;padding:0 12px 8px;overflow-x:auto}
+.stat-row::-webkit-scrollbar{display:none}
+.stat-pill{flex-shrink:0;background:#fff;border:1px solid #ede0d4;border-radius:20px;padding:6px 12px;text-align:center;min-width:54px}
+.sv{font-size:15px;font-weight:600;color:#2c1f1f}
+.sl{font-size:9px;color:#b09080;text-transform:uppercase;letter-spacing:.4px;margin-top:1px}
+
+.log-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:0 12px 8px}
+.lbtn{background:#fff;border:1px solid #ede0d4;border-radius:14px;padding:10px 6px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;transition:background .1s}
+.lbtn:active{background:#fef5f0}
+.lbtn-active{border-color:#d4604a;background:#fff8f5}
+.lbtn-ic{width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center}
+.lbtn-l{font-size:11px;font-weight:600;color:#2c1f1f}
+.lbtn-s{font-size:10px;color:#b09080;line-height:1.2;text-align:center}
+
+.screen{display:none}
+.screen.active{display:block}
+
+.mood-row{display:flex;justify-content:space-around;padding:8px 0}
+.mood-opt{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+.mood-face{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid transparent}
+.mood-face.sel{border-color:#d4604a}
+.mood-lbl{font-size:10px;color:#9a8080}
+
+.bar-track{height:8px;background:#f0e8e0;border-radius:4px;position:relative;overflow:visible}
+.bar-fill{position:absolute;top:0;height:100%;border-radius:4px}
+.bar-dot{position:absolute;top:-4px;width:16px;height:16px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.15);margin-left:-8px}
+
+.growth-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}
+.g-cell{background:#f8f4f0;border-radius:10px;padding:8px 6px;text-align:center}
+.g-val{font-size:17px;font-weight:600;color:#2c1f1f}
+.g-lbl{font-size:9px;color:#9a8080;margin-top:1px}
+.g-desc{font-size:10px;color:#6a9a6a;margin-top:3px;font-weight:500}
+
+.milestone-row{display:flex;overflow-x:auto;padding:4px 12px 8px;gap:0}
+.milestone-row::-webkit-scrollbar{display:none}
+.m-item{display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;width:72px}
+.m-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;position:relative;z-index:1}
+.m-line{height:2px;background:#ede0d4;width:100%;margin-top:-15px}
+.m-lbl{font-size:9px;color:#9a8080;text-align:center;line-height:1.2}
+.m-date{font-size:8px;color:#c4a8a0;text-align:center}
+
+.nap-arc-wrap{display:flex;align-items:center;gap:12px}
+.nap-text h3{font-size:16px;font-weight:600;color:#2c1f1f}
+.nap-text p{font-size:11px;color:#9a8080;margin-top:2px}
+.nap-text .personalised{font-size:11px;color:#9a7ab4;margin-top:4px}
+
+.why-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f4ece4}
+.why-row:last-child{border-bottom:none}
+.why-t{flex:1;font-size:11px;color:#2c1f1f;line-height:1.3}
+.why-cta{font-size:10px;color:#d4604a;font-weight:600;cursor:pointer;white-space:nowrap}
+
+.cal-event{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f4ece4}
+.cal-event:last-child{border-bottom:none}
+.cal-line{width:3px;height:36px;border-radius:2px;flex-shrink:0}
+.cal-time{font-size:10px;color:#9a8080;min-width:38px;text-align:center}
+.cal-title{font-size:11px;font-weight:600;color:#2c1f1f}
+.cal-sub{font-size:10px;color:#9a8080;margin-top:1px}
+
+.cradl-noticed-header{display:flex;align-items:center;gap:8px;padding:10px 16px 4px}
+.cnh-dot{width:7px;height:7px;border-radius:50%;background:#d4604a;flex-shrink:0}
+.cnh-label{font-size:10px;font-weight:600;color:#d4604a;text-transform:uppercase;letter-spacing:.8px}
+
+.village-card{background:#fff;border:1px solid #ede0d4;border-radius:14px;margin:0 12px 8px;overflow:hidden}
+.vc-header{padding:12px 14px 0}
+.vc-body{padding:8px 14px 12px}
+
+.place-row{display:flex;gap:8px;padding:0 12px 8px;overflow-x:auto}
+.place-row::-webkit-scrollbar{display:none}
+.place-card{flex-shrink:0;width:156px;background:#fff;border:1px solid #ede0d4;border-radius:14px;padding:12px}
+
+.qa-item{padding:10px 0;border-bottom:1px solid #f4ece4}
+.qa-item:last-child{border-bottom:none}
+.qa-q{font-size:11px;color:#2c1f1f;line-height:1.4;margin-bottom:6px}
+.qa-top-ans{background:#f8f4fc;border-radius:8px;padding:8px;margin-bottom:5px}
+.qa-ans-text{font-size:10px;color:#2c1f1f;line-height:1.4}
+.qa-meta{font-size:9px;color:#9a8080;margin-top:3px}
+
+.tools-grid{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 8px}
+.tool-chip{background:#fff;border:1px solid #ede0d4;border-radius:10px;padding:7px 11px;font-size:11px;font-weight:500;color:#2c1f1f;cursor:pointer;transition:background .1s}
+.tool-chip:active{background:#fef5f0}
+
+.recovery-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f4ece4}
+.recovery-row:last-child{border-bottom:none}
+.rec-icon{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px}
+.rec-title{font-size:11px;font-weight:600;color:#2c1f1f}
+.rec-sub{font-size:10px;color:#9a8080;margin-top:1px}
+.rec-action{font-size:10px;color:#d4604a;font-weight:600;margin-left:auto;cursor:pointer;white-space:nowrap}
+
+.tab-dots{display:flex;justify-content:center;gap:6px;margin-bottom:6px}
+.td{width:6px;height:6px;border-radius:50%;background:#ede0d4;cursor:pointer}
+.td.a{background:#d4604a;width:18px;border-radius:3px}
+</style>
+
+<div class="app">
+<div class="label">Tap the tabs to switch screens — all four complete views</div>
+<div class="phone">
+  <div class="sb">
+    <span class="sb-time">9:41</span>
+    <div class="sb-icons">
+      <div style="font-size:11px;font-weight:600;background:#feeae4;color:#8a3020;padding:2px 7px;border-radius:8px">PRO</div>
+    </div>
+  </div>
+
+  <!-- TODAY SCREEN -->
+  <div class="screen active" id="s-today">
+  <div class="sc">
+
+    <!-- Greeting -->
+    <div style="padding:8px 16px 6px;display:flex;align-items:center;gap:10px">
+      <div style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#fde8d8,#e8d4f5);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="8" r="4" fill="#d4604a"/><path d="M3 20c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="#d4604a" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+      </div>
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:600;color:#2c1f1f">Good morning, Austeja</div>
+        <div style="font-size:11px;color:#9a8080">Audrone · 14 weeks 2 days</div>
+      </div>
+      <div style="font-size:13px;cursor:pointer">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="3" width="14" height="13" rx="2" stroke="#9a8080" stroke-width="1.2"/><path d="M6 1v4M12 1v4M2 7h14" stroke="#9a8080" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stat-row">
+      <div class="stat-pill"><div class="sv" style="color:#c05030">6</div><div class="sl">Feeds</div></div>
+      <div class="stat-pill"><div class="sv" style="color:#4080a0">10h</div><div class="sl">Sleep</div></div>
+      <div class="stat-pill"><div class="sv" style="color:#4a8a4a">4</div><div class="sl">Nappies</div></div>
+      <div class="stat-pill"><div class="sv">L</div><div class="sl">Side</div></div>
+      <div class="stat-pill"><div class="sv">15m</div><div class="sl">Tummy</div></div>
+      <div class="stat-pill"><div class="sv">1h45</div><div class="sl">Awake</div></div>
+    </div>
+
+    <!-- Sleep sweet spot — the hero card -->
+    <div style="margin:0 12px 8px;background:#fff;border:2px solid #4a8a4a;border-radius:18px;padding:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-size:12px;font-weight:600;color:#2c1f1f">Sleep sweet spot</span>
+        <span class="tag tag-green">Open now</span>
+      </div>
+      <div class="nap-arc-wrap">
+        <svg width="60" height="60" viewBox="0 0 60 60">
+          <circle cx="30" cy="30" r="24" fill="none" stroke="#f0e8e0" stroke-width="6"/>
+          <circle cx="30" cy="30" r="24" fill="none" stroke="#f0e8e0" stroke-width="6" stroke-dasharray="30 121" stroke-dashoffset="0" transform="rotate(-90 30 30)"/>
+          <circle cx="30" cy="30" r="24" fill="none" stroke="#4a8a4a" stroke-width="6" stroke-dasharray="48 121" stroke-dashoffset="-30" stroke-linecap="round" transform="rotate(-90 30 30)"/>
+          <circle cx="30" cy="30" r="24" fill="none" stroke="#d4904a" stroke-width="6" stroke-dasharray="22 121" stroke-dashoffset="-78" stroke-linecap="round" transform="rotate(-90 30 30)"/>
+          <circle cx="30" cy="30" r="24" fill="none" stroke="#c04040" stroke-width="6" stroke-dasharray="21 121" stroke-dashoffset="-100" stroke-linecap="round" transform="rotate(-90 30 30)"/>
+          <circle cx="30" cy="52" r="5" fill="#4a8a4a" transform="rotate(40 30 30)"/>
+        </svg>
+        <div class="nap-text">
+          <h3>11:30 – 12:15</h3>
+          <p>She'll settle easily now · closes in 28m</p>
+          <p class="personalised">✦ Usually settles best around 11:45</p>
+        </div>
+      </div>
+      <div style="margin-top:10px;background:#e8f4e8;border-radius:10px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer">
+        <span style="font-size:11px;font-weight:600;color:#2a6a2a">She'll settle easily right now</span>
+        <span style="font-size:11px;color:#4a8a4a;font-weight:600">Start sleep →</span>
+      </div>
+    </div>
+
+    <!-- Why unsettled -->
+    <div class="card-sm">
+      <div style="font-size:12px;font-weight:600;color:#2c1f1f;margin-bottom:8px">If she's unsettled right now</div>
+      <div class="why-row">
+        <span class="tag tag-red" style="flex-shrink:0">Likely</span>
+        <span class="why-t">Nap time — sweet spot open, awake 1h 45m</span>
+        <span class="why-cta">Start →</span>
+      </div>
+      <div class="why-row">
+        <span class="tag tag-amber" style="flex-shrink:0">Possible</span>
+        <span class="why-t">Fed 2h 40m ago · usual interval 3h</span>
+        <span class="why-cta">Feed →</span>
+      </div>
+      <div class="why-row">
+        <span class="tag tag-muted" style="flex-shrink:0">Unlikely</span>
+        <span class="why-t">Nappy changed 45m ago</span>
+        <span class="why-cta">Check →</span>
+      </div>
+    </div>
+
+    <!-- LOG -->
+    <div class="slbl">Log</div>
+    <div class="log-grid">
+      <div class="lbtn lbtn-active">
+        <div class="lbtn-ic" style="background:#feeae4"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" fill="#d4604a"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="#d4604a" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg></div>
+        <span class="lbtn-l">Feed</span>
+        <span class="lbtn-s">2h 40m · L</span>
+      </div>
+      <div class="lbtn">
+        <div class="lbtn-ic" style="background:#e4eef8"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2C5.8 2 4 3.8 4 6c0 1.5.8 2.8 2 3.5V12h4V9.5C11.2 8.8 12 7.5 12 6c0-2.2-1.8-4-4-4z" fill="#4a7ab4"/><path d="M6 12h4v1a2 2 0 01-4 0v-1z" fill="#4a7ab4" opacity=".5"/></svg></div>
+        <span class="lbtn-l">Sleep</span>
+        <span class="lbtn-s">Awake 1h 45m</span>
+      </div>
+      <div class="lbtn">
+        <div class="lbtn-ic" style="background:#e4f4e4"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="6" width="10" height="7" rx="2" fill="#4a8a4a"/><path d="M5 6V4a3 3 0 016 0v2" stroke="#4a8a4a" stroke-width="1.3" fill="none"/></svg></div>
+        <span class="lbtn-l">Nappy</span>
+        <span class="lbtn-s">45m · wet</span>
+      </div>
+      <div class="lbtn">
+        <div class="lbtn-ic" style="background:#f0eafe"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3L5 8h3l-1 5 5-7H9l1-3-2 0z" fill="#7a4ab4"/></svg></div>
+        <span class="lbtn-l">Tummy</span>
+        <span class="lbtn-s">15m today</span>
+      </div>
+      <div class="lbtn">
+        <div class="lbtn-ic" style="background:#feeae4"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6a4 4 0 018 0v5a1 1 0 01-1 1H5a1 1 0 01-1-1V6z" fill="#d4604a" opacity=".7"/><circle cx="8" cy="6" r="1.5" fill="#d4604a"/></svg></div>
+        <span class="lbtn-l">Bottle</span>
+        <span class="lbtn-s">—</span>
+      </div>
+      <div class="lbtn">
+        <div class="lbtn-ic" style="background:#f4ece8" style="font-size:13px">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5" stroke="#9a7060" stroke-width="1.3"/><path d="M8 5v3l2 2" stroke="#9a7060" stroke-width="1.3" stroke-linecap="round"/></svg>
+        </div>
+        <span class="lbtn-l">More</span>
+        <span class="lbtn-s">pump · health</span>
+      </div>
+    </div>
+
+    <!-- Custom trackers -->
+    <div class="card-sm">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:600;color:#2c1f1f">Custom trackers</span>
+        <span style="font-size:11px;color:#d4604a;cursor:pointer;font-weight:600">+ Add</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:8px;height:8px;border-radius:50%;background:#9a7ab4;flex-shrink:0"></div>
+          <span style="flex:1;font-size:11px;color:#2c1f1f">Vitamin D drops</span>
+          <span style="font-size:10px;color:#9a8080">Not today</span>
+          <span style="font-size:10px;color:#d4604a;border:1px solid #feeae4;border-radius:7px;padding:2px 8px;cursor:pointer;background:#fff8f5;font-weight:600">Log</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:8px;height:8px;border-radius:50%;background:#4a7ab4;flex-shrink:0"></div>
+          <span style="flex:1;font-size:11px;color:#2c1f1f">Gripe water</span>
+          <span style="font-size:10px;color:#9a8080">3× today</span>
+          <span style="font-size:10px;color:#d4604a;border:1px solid #feeae4;border-radius:7px;padding:2px 8px;cursor:pointer;background:#fff8f5;font-weight:600">+1</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CRADL NOTICED -->
+    <div class="cradl-noticed-header">
+      <div class="cnh-dot"></div>
+      <div class="cnh-label">Cradl noticed</div>
+    </div>
+
+    <div class="notice-card notice-amber">
+      <div class="ct">More feeds than usual today</div>
+      <div class="cs" style="margin-top:4px">8 feeds vs her usual 5–6. This is common during growth spurts — she's 14 weeks, a classic window. She may also cluster feed before a longer sleep tonight. Both are normal, let her lead.</div>
+      <div style="margin-top:6px;font-size:10px;color:#b09080;cursor:pointer">Not a concern · dismiss</div>
+    </div>
+
+    <div class="notice-card notice-purple">
+      <div class="ct">Tummy time makes her naps longer</div>
+      <div class="cs" style="margin-top:4px">Naps average 52 min on days with 20+ min tummy time vs 31 min without. She hasn't had tummy time yet today — nap in about 45 min.</div>
+      <div style="margin-top:8px;background:#f0eafe;border-radius:8px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:11px;color:#4a2a9a;font-weight:500">Add tummy time now</span>
+        <span style="font-size:10px;color:#7a4ab4;font-weight:600;cursor:pointer">Start →</span>
+      </div>
+    </div>
+
+    <!-- Today's calendar -->
+    <div class="slbl">Today</div>
+    <div class="card-sm">
+      <div class="cal-event">
+        <div class="cal-time" style="font-size:11px;font-weight:600;color:#d4604a">2:00<br><span style="font-size:9px;font-weight:400;color:#9a8080">PM</span></div>
+        <div class="cal-line" style="background:#d4604a"></div>
+        <div style="flex:1">
+          <div class="cal-title">Health visitor check</div>
+          <div class="cal-sub">Bring red book · weight check</div>
+        </div>
+        <span class="tag tag-blue" style="font-size:9px">Synced</span>
+      </div>
+      <div class="cal-event" style="opacity:.5;cursor:pointer">
+        <div class="cal-time">+</div>
+        <div class="cal-line" style="background:#ede0d4"></div>
+        <div><div class="cal-title" style="color:#9a8080">Add appointment</div></div>
+      </div>
+    </div>
+
+    <!-- Pain relief -->
+    <div style="margin:0 12px 8px;background:#fff;border:1px solid #ede0d4;border-radius:14px;padding:12px;display:flex;align-items:center;gap:10px">
+      <div style="width:26px;height:26px;border-radius:8px;background:#feeae4;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="5.5" y="1" width="3" height="12" rx="1.5" fill="#c04030"/><rect x="1" y="5.5" width="12" height="3" rx="1.5" fill="#c04030"/></svg>
+      </div>
+      <div style="flex:1"><div class="ct" style="font-size:12px">Pain relief</div><div class="cs">Safe to take now · 6h since last dose</div></div>
+      <span style="font-size:10px;background:#e4f4e4;color:#2a6a2a;padding:4px 10px;border-radius:8px;font-weight:600;cursor:pointer">Log it</span>
+    </div>
+
+  </div>
+  </div>
+
+  <!-- STORY SCREEN -->
+  <div class="screen" id="s-story">
+  <div class="sc">
+
+    <!-- Header -->
+    <div style="padding:10px 16px 4px">
+      <div style="font-size:20px;font-weight:600;color:#2c1f1f;font-family:Georgia,serif">Audrone's story</div>
+      <div style="font-size:11px;color:#9a8080">14 weeks 2 days old</div>
+    </div>
+
+    <!-- Weekly narrative — emotional centrepiece -->
+    <div style="margin:8px 12px;background:linear-gradient(135deg,#fef5ee,#eef4f8);border:1px solid #ede0d4;border-radius:18px;padding:16px">
+      <div style="font-size:11px;color:#9a8080;margin-bottom:4px">Week 14 · 11–17 March</div>
+      <div style="font-size:17px;font-weight:600;color:#2c1f1f;font-family:Georgia,serif;margin-bottom:10px">A good week.</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <div style="flex:1;background:rgba(255,255,255,.7);border-radius:10px;padding:8px;text-align:center">
+          <div style="font-size:18px;font-weight:600;color:#c05030">5.8</div>
+          <div style="font-size:9px;color:#9a8080">feeds/day</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,.7);border-radius:10px;padding:8px;text-align:center">
+          <div style="font-size:18px;font-weight:600;color:#4080a0">10.5h</div>
+          <div style="font-size:9px;color:#9a8080">sleep/day</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,.7);border-radius:10px;padding:8px;text-align:center">
+          <div style="font-size:18px;font-weight:600;color:#4a8a4a">4.2</div>
+          <div style="font-size:9px;color:#9a8080">nappies/day</div>
+        </div>
+      </div>
+      <div style="height:34px;display:flex;align-items:flex-end;gap:3px;margin-bottom:4px">
+        <div style="flex:1;background:#7ab4d4;border-radius:2px 2px 0 0;height:65%;opacity:.6"></div>
+        <div style="flex:1;background:#7ab4d4;border-radius:2px 2px 0 0;height:80%;opacity:.7"></div>
+        <div style="flex:1;background:#7ab4d4;border-radius:2px 2px 0 0;height:72%;opacity:.75"></div>
+        <div style="flex:1;background:#7ab4d4;border-radius:2px 2px 0 0;height:92%;opacity:.85"></div>
+        <div style="flex:1;background:#7ab4d4;border-radius:2px 2px 0 0;height:76%;opacity:.9"></div>
+        <div style="flex:1;background:#7ab4d4;border-radius:2px 2px 0 0;height:100%"></div>
+        <div style="flex:1;background:#ede0d4;border-radius:2px 2px 0 0;height:35%;border:1px dashed #d0c0b4"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between"><span style="font-size:9px;color:#c4a8a0">Mon</span><span style="font-size:9px;color:#c4a8a0">Today</span></div>
+    </div>
+
+    <!-- CRADL NOTICED in Story -->
+    <div class="cradl-noticed-header">
+      <div class="cnh-dot"></div>
+      <div class="cnh-label">Cradl noticed</div>
+    </div>
+
+    <div class="notice-card notice-blue">
+      <div class="ct">Sleep is getting better this week</div>
+      <div class="cs" style="margin-top:4px">10h 30m/day average — up 45 minutes from last week. She's also down to 2 night wakings from 3. The 4-month sleep regression arrives in 3 days — enjoy this week.</div>
+    </div>
+
+    <div class="notice-card notice-green">
+      <div class="ct">Feeds spacing out — a good sign</div>
+      <div class="cs" style="margin-top:4px">Average gap between feeds: 2h 55m this week, up from 2h 20m last week. Her stomach is growing. No action needed — she's leading this change herself.</div>
+    </div>
+
+    <!-- GROWTH -->
+    <div class="slbl">Growth</div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:13px;font-weight:600;color:#2c1f1f">Audrone is growing well</span>
+        <span class="tag tag-green" style="font-size:10px">Gaining steadily</span>
+      </div>
+      <div style="font-size:11px;color:#4a8a4a;margin-bottom:10px">Up 320g in the last 4 weeks — right on track</div>
+      <div class="growth-grid">
+        <div class="g-cell">
+          <div class="g-val">6.2kg</div>
+          <div class="g-lbl">Weight</div>
+          <div class="g-desc">Heavier than most</div>
+        </div>
+        <div class="g-cell">
+          <div class="g-val">62cm</div>
+          <div class="g-lbl">Length</div>
+          <div class="g-desc" style="color:#4a7ab4">Average</div>
+        </div>
+        <div class="g-cell">
+          <div class="g-val">40cm</div>
+          <div class="g-lbl">Head</div>
+          <div class="g-desc" style="color:#7a4ab4">Larger than most</div>
+        </div>
+      </div>
+
+      <!-- Weight bar -->
+      <div style="margin-top:10px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">
+          <span style="font-size:11px;font-weight:600;color:#2c1f1f">Weight</span>
+          <span style="font-size:10px;color:#4a8a4a;font-weight:500">Normal — heavier than most ✓</span>
+        </div>
+        <div style="font-size:11px;color:#2c1f1f;margin-bottom:6px;line-height:1.4">6.2kg — well within the healthy range for her age (typical: 5.0–7.2kg)</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="left:20%;width:60%;background:#e4f4e4"></div>
+          <div class="bar-dot" style="left:65%;background:#d4604a"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:5px">
+          <span style="font-size:9px;color:#c4a8a0">Lighter</span>
+          <span style="font-size:9px;color:#4a8a4a;font-weight:500">Typical range</span>
+          <span style="font-size:9px;color:#c4a8a0">Heavier</span>
+        </div>
+      </div>
+
+      <!-- What percentile means — collapsible -->
+      <div style="margin-top:10px;border-top:1px solid #f4ece4;padding-top:8px">
+        <div style="font-size:10px;color:#c4a8a0;cursor:pointer">What does "heavier than most" mean? ↓</div>
+        <div style="font-size:10px;color:#9a8080;margin-top:5px;line-height:1.5">About 65 out of 100 babies her age weigh less than Audrone. She's in a healthy range. What matters most is consistent growth — not which number she's at.</div>
+      </div>
+
+      <div style="margin-top:8px;text-align:right"><span style="font-size:11px;color:#d4604a;font-weight:600;cursor:pointer">+ Log measurement</span></div>
+    </div>
+
+    <!-- IS THIS NORMAL -->
+    <div class="slbl">Is this normal?</div>
+    <div style="font-size:11px;color:#9a8080;padding:0 16px 8px;line-height:1.4">Based on WHO data for 14-week-olds. A dot in the green zone means she's in the typical range.</div>
+
+    <div class="card">
+      <div style="display:flex;flex-direction:column;gap:12px">
+
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+            <span style="font-size:12px;font-weight:600;color:#2c1f1f">Feeds today</span>
+            <span style="font-size:10px;color:#4a8a4a;font-weight:500">Normal ✓</span>
+          </div>
+          <div style="font-size:11px;color:#2c1f1f;margin-bottom:6px">6 feeds — right in the middle of the typical 5–8 range</div>
+          <div class="bar-track">
+            <div class="bar-fill" style="left:20%;width:55%;background:#e4f4e4"></div>
+            <div class="bar-dot" style="left:47%;background:#d4604a"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px">
+            <span style="font-size:9px;color:#c4a8a0">2</span>
+            <span style="font-size:9px;color:#4a8a4a">Typical 5–8</span>
+            <span style="font-size:9px;color:#c4a8a0">12</span>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid #f4ece4;padding-top:12px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+            <span style="font-size:12px;font-weight:600;color:#2c1f1f">Sleep today</span>
+            <span style="font-size:10px;color:#4a8a4a;font-weight:500">Normal ✓</span>
+          </div>
+          <div style="font-size:11px;color:#2c1f1f;margin-bottom:6px">10 hours — a little less than average but completely normal (typical: 10–14h)</div>
+          <div class="bar-track">
+            <div class="bar-fill" style="left:20%;width:55%;background:#e4eef8"></div>
+            <div class="bar-dot" style="left:20%;background:#4a7ab4"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px">
+            <span style="font-size:9px;color:#c4a8a0">8h</span>
+            <span style="font-size:9px;color:#4a7ab4">Typical 10–14h</span>
+            <span style="font-size:9px;color:#c4a8a0">18h</span>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid #f4ece4;padding-top:12px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+            <span style="font-size:12px;font-weight:600;color:#2c1f1f">Tummy time</span>
+            <span style="font-size:10px;color:#d4904a;font-weight:500">A little low</span>
+          </div>
+          <div style="font-size:11px;color:#2c1f1f;margin-bottom:6px">15 min — below the 20–40 min/day recommended. Not a problem today, just something to build toward.</div>
+          <div class="bar-track">
+            <div class="bar-fill" style="left:15%;width:50%;background:#fef0e0"></div>
+            <div class="bar-dot" style="left:12%;background:#d4904a"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px">
+            <span style="font-size:9px;color:#c4a8a0">0m</span>
+            <span style="font-size:9px;color:#d4904a">Aim for 20–40m</span>
+            <span style="font-size:9px;color:#c4a8a0">60m</span>
+          </div>
+          <div style="margin-top:6px;background:#fef4e4;border-radius:8px;padding:6px 9px;font-size:10px;color:#8a5a00">Try one 5-min session after the next nappy change.</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- MILESTONES -->
+    <div class="slbl">Milestones</div>
+    <div class="milestone-row">
+      <div class="m-item">
+        <div class="m-dot" style="background:#4a8a4a;color:#fff;z-index:1">✓</div>
+        <div class="m-line"></div>
+        <div class="m-lbl">First smile</div>
+        <div class="m-date">16 Feb</div>
+      </div>
+      <div class="m-item">
+        <div class="m-dot" style="background:#4a8a4a;color:#fff;z-index:1">✓</div>
+        <div class="m-line"></div>
+        <div class="m-lbl">Tracks objects</div>
+        <div class="m-date">2 Mar</div>
+      </div>
+      <div class="m-item">
+        <div class="m-dot" style="background:#d4604a;color:#fff;z-index:1">★</div>
+        <div class="m-line"></div>
+        <div class="m-lbl" style="color:#2c1f1f;font-weight:600">Coos & laughs</div>
+        <div class="m-date" style="color:#d4604a">Now ✦</div>
+      </div>
+      <div class="m-item">
+        <div class="m-dot" style="background:#ede0d4;color:#9a8080;z-index:1">○</div>
+        <div class="m-line"></div>
+        <div class="m-lbl">Rolls over</div>
+        <div class="m-date">~4 mo</div>
+      </div>
+      <div class="m-item">
+        <div class="m-dot" style="background:#ede0d4;color:#9a8080;z-index:1">○</div>
+        <div class="m-line"></div>
+        <div class="m-lbl">Sits up</div>
+        <div class="m-date">~5 mo</div>
+      </div>
+    </div>
+
+    <!-- LEAP -->
+    <div style="margin:0 12px 8px;background:#f8f4fc;border:1px solid #e4d4f4;border-radius:14px;padding:12px;display:flex;align-items:center;gap:10px">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="12" fill="#e8d8f8"/><path d="M14 7v7l4 3" stroke="#7a4ab4" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600;color:#2c1f1f">Developmental leap 4 — in 3 days</div>
+        <div style="font-size:10px;color:#9a8080;margin-top:2px">The Relationships leap · extra fussiness is completely normal</div>
+      </div>
+      <span class="tag tag-purple" style="font-size:9px">PRO details</span>
+    </div>
+
+    <!-- Schedule -->
+    <div class="slbl">Suggested schedule</div>
+    <div class="card-sm">
+      <div style="font-size:12px;font-weight:600;color:#2c1f1f;margin-bottom:2px">Newborn · 4–5 naps</div>
+      <div style="font-size:10px;color:#9a8080;margin-bottom:10px">Wake 07:00 · Bedtime 19:30</div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:7px;height:7px;border-radius:50%;background:#4a8a4a"></div><span style="font-size:11px;color:#4a8a4a;width:42px;font-weight:500">07:00</span><span style="font-size:11px;color:#2c1f1f">Wake</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:7px;height:7px;border-radius:50%;background:#4a7ab4"></div><span style="font-size:11px;color:#4a7ab4;width:42px;font-weight:500">09:07</span><span style="font-size:11px;color:#2c1f1f">Nap 1</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:7px;height:7px;border-radius:50%;background:#4a7ab4"></div><span style="font-size:11px;color:#4a7ab4;width:42px;font-weight:500">11:37</span><span style="font-size:11px;color:#2c1f1f">Nap 2</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:7px;height:7px;border-radius:50%;background:#4a7ab4"></div><span style="font-size:11px;color:#4a7ab4;width:42px;font-weight:500">14:07</span><span style="font-size:11px;color:#2c1f1f">Nap 3</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:7px;height:7px;border-radius:50%;background:#7a4ab4"></div><span style="font-size:11px;color:#7a4ab4;width:42px;font-weight:500">19:30</span><span style="font-size:11px;color:#2c1f1f">Bedtime</span></div>
+      </div>
+      <div style="margin-top:8px;font-size:10px;color:#9a8080">A guide based on her age — adjust to her cues.</div>
+    </div>
+
+  </div>
+  </div>
+
+  <!-- VILLAGE SCREEN -->
+  <div class="screen" id="s-village">
+  <div class="sc">
+    <div style="padding:10px 16px 8px">
+      <div style="font-size:20px;font-weight:600;color:#2c1f1f;font-family:Georgia,serif">The Village</div>
+      <div style="font-size:11px;color:#9a8080">For parents, by parents</div>
+    </div>
+
+    <!-- Night card -->
+    <div style="margin:0 12px 8px;background:#1c1428;border-radius:16px;padding:14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div style="width:8px;height:8px;border-radius:50%;background:#c4a0d4"></div>
+        <span style="font-size:12px;font-weight:600;color:#e4d4f4">34 parents nearby are also up</span>
+      </div>
+      <div style="font-size:11px;color:#9080a0;line-height:1.5">Anonymous count only — no names, no locations. Just knowing you're not alone at 3am.</div>
+      <div style="margin-top:8px;font-size:11px;color:#c4a0d4;font-style:italic">"The nights feel endless. They aren't. You're doing brilliantly."</div>
+    </div>
+
+    <!-- Places -->
+    <div class="slbl">Baby-friendly places near you</div>
+    <div class="place-row">
+      <div class="place-card">
+        <div style="font-size:12px;font-weight:600;color:#2c1f1f;margin-bottom:3px">The Bean & Bump</div>
+        <div style="font-size:10px;color:#9a8080;margin-bottom:7px">Café · 0.4 miles</div>
+        <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:7px">
+          <span class="tag tag-green" style="font-size:9px">Changing ✓</span>
+          <span class="tag tag-blue" style="font-size:9px">BF-friendly</span>
+          <span class="tag tag-purple" style="font-size:9px">Pram easy</span>
+        </div>
+        <div style="font-size:11px;color:#4a8a4a;font-weight:600">Most would return ✓</div>
+        <div style="font-size:10px;color:#b09080">12 reviews</div>
+      </div>
+      <div class="place-card">
+        <div style="font-size:12px;font-weight:600;color:#2c1f1f;margin-bottom:3px">Hackney Library</div>
+        <div style="font-size:10px;color:#d4604a;font-weight:500;margin-bottom:3px">Baby group Mon 10am</div>
+        <div style="font-size:10px;color:#9a8080;margin-bottom:7px">Library · 0.8 miles</div>
+        <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:7px">
+          <span class="tag tag-green" style="font-size:9px">Changing ✓</span>
+          <span class="tag tag-green" style="font-size:9px">Free</span>
+        </div>
+        <div style="font-size:11px;color:#4a8a4a;font-weight:600">Most would return ✓</div>
+        <div style="font-size:10px;color:#b09080">7 reviews</div>
+      </div>
+      <div style="flex-shrink:0;width:72px;background:#fef8f4;border:1.5px dashed #ede0d4;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;padding:12px">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 4v12M4 10h12" stroke="#c4a8a0" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span style="font-size:10px;color:#c4a8a0;text-align:center;line-height:1.2">Add a place</span>
+      </div>
+    </div>
+
+    <!-- Groups -->
+    <div class="slbl">My groups</div>
+    <div style="margin:0 12px 8px;background:#fff;border:1px solid #ede0d4;border-radius:14px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f4ece4">
+        <div style="width:32px;height:32px;border-radius:50%;background:#feeae4;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">👶</div>
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:600;color:#2c1f1f">NCT March 2026</div>
+          <div style="font-size:10px;color:#9a8080">Sarah: "anyone else's baby refusing naps?"</div>
+        </div>
+        <div style="width:18px;height:18px;border-radius:50%;background:#d4604a;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:700">3</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f4ece4">
+        <div style="width:32px;height:32px;border-radius:50%;background:#e4eef8;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">👨‍👩‍👧</div>
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:600;color:#2c1f1f">Family — Audrone</div>
+          <div style="font-size:10px;color:#9a8080">Grandma: "free Tuesday if you need a break"</div>
+        </div>
+        <svg width="7" height="12" viewBox="0 0 7 12" fill="none"><path d="M1 1l5 5-5 5" stroke="#c4a8a0" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;opacity:.6">
+        <div style="width:32px;height:32px;border-radius:50%;background:#f4ece8;border:1.5px dashed #ede0d4;display:flex;align-items:center;justify-content:center;font-size:18px;color:#c4a8a0">+</div>
+        <div style="font-size:12px;color:#9a8080">Create or join a group</div>
+      </div>
+    </div>
+
+    <!-- Q&A -->
+    <div class="slbl">Ask · 14-week babies</div>
+    <div class="card-sm">
+      <div class="qa-item">
+        <div class="qa-q">"My 14-week-old screams before every nap even though she's clearly tired. Anyone else?"</div>
+        <div class="qa-top-ans">
+          <div class="qa-ans-text">"Overtired cycle — try putting down 10 min earlier than you think. Takes 3 days to break."</div>
+          <div class="qa-meta">❤ 14 · Most helpful · 14-week babies</div>
+        </div>
+        <div style="font-size:10px;color:#b09080">8 answers</div>
+      </div>
+      <div class="qa-item">
+        <div class="qa-q">"When did yours first sleep 5+ hours in a row? Genuinely asking at 3am"</div>
+        <div style="font-size:10px;color:#b09080">23 answers · 14-week babies</div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:center;padding:8px 0 4px">
+      <div style="background:#d4604a;color:#fff;border-radius:20px;padding:10px 24px;font-size:12px;font-weight:600;cursor:pointer">Ask a question</div>
+    </div>
+
+  </div>
+  </div>
+
+  <!-- ME SCREEN -->
+  <div class="screen" id="s-me">
+  <div class="sc">
+
+    <!-- Personal hero -->
+    <div style="margin:10px 12px 8px;background:linear-gradient(150deg,#fde8d8,#ede0f8,#d4eaf7);border-radius:20px;padding:16px">
+      <div style="font-size:20px;font-weight:600;color:#2c1f1f;font-family:Georgia,serif">Morning, Austeja.</div>
+      <div style="font-size:11px;color:#7a6050;margin-top:2px;margin-bottom:10px">14 weeks postpartum</div>
+      <div style="font-size:11px;color:#2c1f1f;line-height:1.6;margin-bottom:12px;font-style:italic">"Audrone's sweet spot opens at 11:30. That's 45 minutes. What would you do with 45 minutes just for you?"</div>
+      <div style="display:flex;gap:7px">
+        <div style="flex:1;background:rgba(255,255,255,.65);border-radius:11px;padding:8px;text-align:center">
+          <div style="font-size:16px;font-weight:600;color:#2c1f1f">4h</div>
+          <div style="font-size:9px;color:#9a8080">Your sleep</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,.65);border-radius:11px;padding:8px;text-align:center">
+          <div style="font-size:16px;font-weight:600;color:#2c1f1f">✓</div>
+          <div style="font-size:9px;color:#9a8080">Pelvic floor</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,.65);border-radius:11px;padding:8px;text-align:center">
+          <div style="font-size:16px;font-weight:600;color:#2c1f1f">😊</div>
+          <div style="font-size:9px;color:#9a8080">Mood</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mood check -->
+    <div class="card-sm">
+      <div style="font-size:12px;font-weight:600;color:#2c1f1f;margin-bottom:8px">How are you feeling today?</div>
+      <div class="mood-row">
+        <div class="mood-opt"><div class="mood-face" style="background:#feeae4">😊</div><span class="mood-lbl">Good</span></div>
+        <div class="mood-opt"><div class="mood-face" style="background:#f4f0ec">😐</div><span class="mood-lbl">Okay</span></div>
+        <div class="mood-opt"><div class="mood-face" style="background:#f0eef4">😔</div><span class="mood-lbl">Struggling</span></div>
+        <div class="mood-opt"><div class="mood-face" style="background:#f4ecec">😤</div><span class="mood-lbl">Overwhelmed</span></div>
+      </div>
+    </div>
+
+    <!-- Your sleep -->
+    <div class="card-sm">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:600;color:#2c1f1f">Your sleep this week</span>
+        <span style="font-size:11px;color:#d4604a;font-weight:600;cursor:pointer">Log tonight →</span>
+      </div>
+      <div style="height:32px;display:flex;align-items:flex-end;gap:4px;margin-bottom:5px">
+        <div style="flex:1;background:#e8d4f5;border-radius:3px 3px 0 0;height:40%"></div>
+        <div style="flex:1;background:#e8d4f5;border-radius:3px 3px 0 0;height:60%"></div>
+        <div style="flex:1;background:#e8d4f5;border-radius:3px 3px 0 0;height:50%"></div>
+        <div style="flex:1;background:#e8d4f5;border-radius:3px 3px 0 0;height:80%"></div>
+        <div style="flex:1;background:#c4a0d4;border-radius:3px 3px 0 0;height:68%"></div>
+        <div style="flex:1;background:#c4a0d4;border-radius:3px 3px 0 0;height:55%"></div>
+        <div style="flex:1;background:#ede0d4;border-radius:3px 3px 0 0;height:20%;border:1.5px dashed #d0c0b4"></div>
+      </div>
+      <div style="font-size:11px;color:#2c1f1f;margin-bottom:4px;line-height:1.4">Under 6 hours for 5 nights. This is genuinely hard on your body and mind.</div>
+      <div style="background:#fef0e0;border-radius:8px;padding:7px 9px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:10px;color:#8a5000">Ask someone to cover today if you can</span>
+        <span style="font-size:10px;color:#d4904a;font-weight:600;cursor:pointer">Send message →</span>
+      </div>
+    </div>
+
+    <!-- CRADL NOTICED for mum -->
+    <div class="cradl-noticed-header">
+      <div class="cnh-dot"></div>
+      <div class="cnh-label">Cradl noticed</div>
+    </div>
+
+    <div class="notice-card notice-amber">
+      <div class="ct">You've logged 'overwhelmed' 3 times this week</div>
+      <div class="cs" style="margin-top:4px">That's a signal worth paying attention to — not because something is wrong with you, but because you might need more support than you're getting. Your GP or health visitor can help. PANDAS helpline: 0808 1961 776.</div>
+    </div>
+
+    <!-- Recovery -->
+    <div class="slbl">Recovery</div>
+    <div class="card-sm">
+      <div class="recovery-row">
+        <div class="rec-icon" style="background:#e4f4e4"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1C4.2 1 2 3.2 2 6c0 2 1.1 3.7 2.8 4.6L5 12h4l.2-1.4C10.9 9.7 12 8 12 6c0-2.8-2.2-5-5-5z" fill="#4a8a4a"/></svg></div>
+        <div style="flex:1"><div class="rec-title">Body recovery</div><div class="rec-sub">Pelvic floor ✓ · wound check due today</div></div>
+        <span class="rec-action">Check →</span>
+      </div>
+      <div class="recovery-row">
+        <div class="rec-icon" style="background:#fce8e8"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2a1.5 1.5 0 000 3 1.5 1.5 0 000-3z" fill="#c04030"/><path d="M7 6v5M5 9h4" stroke="#c04030" stroke-width="1.3" stroke-linecap="round"/></svg></div>
+        <div style="flex:1"><div class="rec-title">Postnatal check</div><div class="rec-sub">Wellbeing screen · due in 5 days</div></div>
+        <span class="tag tag-coral" style="font-size:9px">Due</span>
+        <span class="rec-action">Start →</span>
+      </div>
+      <div class="recovery-row">
+        <div class="rec-icon" style="background:#f0eafe"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2L4 8h3l-1 4 5-6H8l1-4-2 0z" fill="#7a4ab4"/></svg></div>
+        <div style="flex:1"><div class="rec-title">Relationship check-in</div><div class="rec-sub">Weekly · completely private</div></div>
+        <span class="rec-action">Take it →</span>
+      </div>
+    </div>
+
+    <!-- Time capsule -->
+    <div style="margin:0 12px 8px;background:#faf6ff;border:1px solid #e4d4f4;border-radius:14px;padding:14px">
+      <div style="font-size:11px;color:#9a8080;margin-bottom:5px">14 weeks in</div>
+      <div style="font-size:13px;font-weight:600;color:#2c1f1f;margin-bottom:6px;font-family:Georgia,serif;line-height:1.4">What would you tell the version of you who just came home from hospital?</div>
+      <div style="font-size:11px;color:#9a7ab4;cursor:pointer;font-weight:500">Write a note to your future self →</div>
+    </div>
+
+    <!-- Tools — secondary chip grid -->
+    <div class="slbl" style="color:#c4a8a0">Tools & admin</div>
+    <div class="tools-grid">
+      <div class="tool-chip">GP visit prep</div>
+      <div class="tool-chip">Handoff card</div>
+      <div class="tool-chip">Return to work</div>
+      <div class="tool-chip">Health log</div>
+      <div class="tool-chip">Skin tracker</div>
+      <div class="tool-chip">Memory book</div>
+      <div class="tool-chip">Family sharing</div>
+      <div class="tool-chip">Export data</div>
+      <div class="tool-chip" style="border-color:#f4d4d4;color:#9a7070">Safety</div>
+    </div>
+    <div style="display:flex;justify-content:center;padding:8px 0 4px">
+      <span style="font-size:11px;color:#b09080;cursor:pointer">Settings →</span>
+    </div>
+
+  </div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bnav">
+    <button class="ni active" id="btn-today" onclick="showTab('today')">
+      <div class="ni-icon">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="#d4604a" stroke-width="1.5"/><path d="M10 6v4l3 2" stroke="#d4604a" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <span class="nl" style="color:#d4604a">Today</span>
+    </button>
+    <button class="ni" id="btn-story" onclick="showTab('story')">
+      <div class="ni-icon">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 4h12v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" stroke="#b09080" stroke-width="1.5"/><path d="M7 8h6M7 11h4" stroke="#b09080" stroke-width="1.3" stroke-linecap="round"/></svg>
+      </div>
+      <span class="nl">Story</span>
+    </button>
+    <button class="ni" id="btn-village" onclick="showTab('village')">
+      <div class="ni-icon">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="7" cy="8" r="3" stroke="#b09080" stroke-width="1.5"/><circle cx="14" cy="6" r="2.5" stroke="#b09080" stroke-width="1.3"/><path d="M2 17c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="#b09080" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M14 10c1.7 0 3 1.3 3 3" stroke="#b09080" stroke-width="1.3" stroke-linecap="round" fill="none"/></svg>
+      </div>
+      <span class="nl">Village</span>
+    </button>
+    <button class="ni" id="btn-me" onclick="showTab('me')">
+      <div class="ni-icon">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 3a4 4 0 100 8 4 4 0 000-8z" stroke="#b09080" stroke-width="1.5"/><path d="M3 18c0-3.9 3.1-7 7-7s7 3.1 7 7" stroke="#b09080" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+      </div>
+      <span class="nl">Me</span>
+    </button>
+  </div>
+</div>
+</div>
+
+<script>
+function showTab(tab) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
+  document.getElementById('s-' + tab).classList.add('active');
+  document.getElementById('btn-' + tab).classList.add('active');
+  var btn = document.getElementById('btn-' + tab);
+  btn.querySelector('.nl').style.color = '#d4604a';
+  ['today','story','village','me'].filter(t => t !== tab).forEach(function(t) {
+    var b = document.getElementById('btn-' + t);
+    b.querySelector('.nl').style.color = '';
+  });
+}
+</script>

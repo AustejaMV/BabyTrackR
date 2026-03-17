@@ -1,0 +1,51 @@
+Let me look at the app first.Only got the shell — it's a client-side React app so the content doesn't render server-side. Let me fetch the JS to understand the structure.Can't crawl the live app directly since it's client-rendered. But based on everything we've discussed across this entire conversation — all the features, the architecture, the complexity — I have a very clear picture of what the problem is. Let me design the solution visually first, then give you the prompts.Good. I can't crawl the React app directly but I know the codebase deeply from our entire conversation. Let me design the new UI.Now let me show the Journey screen and the new "Me" tab replacing the bloated More screen.Here's what the redesign does and why, then the prompt.
+
+---
+
+## The core problems with the current app
+
+Based on everything I know about the codebase:
+
+**Problem 1 — "More" is a junk drawer.** Everything that didn't fit elsewhere got stuffed into More. Users can't discover features because they're buried three taps deep in a generic list. Notes, shopping, appointments, exports, settings, family — none of these belong in the same place.
+
+**Problem 2 — The dashboard is data without meaning.** Raw numbers and log buttons don't tell a parent what to do. A sleep-deprived mum at 3am doesn't want a dashboard — she wants the answer to "what does she need right now."
+
+**Problem 3 — Too many taps to log.** The most frequent action in the app (logging a feed) should be one tap, not two or three.
+
+**Problem 4 — Features for the mum have no home.** Pain relief, mood, recovery — they're floating somewhere in More with no clear identity. Mums feel like an afterthought.
+
+---
+
+## The redesign logic
+
+**Home** becomes a smart assistant screen, not a dashboard. It leads with the nap prediction arc and the "why is she crying" card — the two features that make Cradl different. Then stats. Then log buttons. Information before action.
+
+**Journey** gets growth, milestones, and insights in one vertical scroll. This is where you go to understand your baby over time.
+
+**Village** stays as designed — the community layer.
+
+**"More" becomes "Me"** — this is the most important rename in the app. The fourth tab is no longer a junk drawer, it's explicitly the parent's space. Her name at the top. Her wellbeing first. Baby tools second. Account last. The hierarchy signals that she matters.
+
+---
+
+## The Cursor prompt
+
+> "Redesign the navigation and information architecture of BabyTrackR. The goal is to reduce cognitive load, surface the most useful information immediately, and give the mum her own space in the app.
+>
+> CHANGE 1 — Rename and restructure the bottom navigation. Four tabs only: Home (house icon), Journey (seedling/path icon), Village (three circles icon), Me (person icon). Remove the existing 'More' tab entirely. Every feature currently in More is redistributed as follows.
+>
+> CHANGE 2 — Home screen information hierarchy. Reorder the home screen sections strictly in this order from top to bottom: (1) Greeting card with baby photo, name, age in weeks and days, parent name. (2) Stats strip — horizontal scrollable pills: feeds today, sleep today, nappies today, last side, tummy time. Show actual clock time + ago format everywhere, never just 'ago'. (3) Nap prediction card — always visible when DOB is set, shows the coloured arc, best nap time range, and personalised pattern note. (4) 'Why is she unsettled?' card — only shown when baby is awake and at least one reason has likelihood not 'unlikely'. (5) Log button grid — 3 columns, 3 rows maximum. Primary row: Feed, Sleep, Nappy. Secondary row: Tummy, Bottle, Health. Tertiary row: Pump, Activity, Solids. Each button shows the last logged time below its label. (6) Smart cards — regression, readiness advisor, article cards, daily summary — in that order, only shown when relevant. Remove all other content from the home screen. The home screen must not require scrolling to reach the log buttons on a standard phone screen (iPhone 14 size). If the nap card and why card are both showing, they should collapse to a compact 2-line format to preserve space.
+>
+> CHANGE 3 — Journey screen. A single vertical scroll with these sections in order: Growth chart (weight/height/head, with the chart visible without tapping), Milestones horizontal track (scrollable, showing done/active/upcoming), Insights (first 2 free, rest premium gated), Schedule creator (collapsible), Developmental leaps card, Comparative insights ('Is this normal?' range bars). Remove the existing tabs within Journey — make it one continuous scroll with section headers. Each section header has a small 'See all' link for features that have a full detail screen.
+>
+> CHANGE 4 — 'Me' tab (replacing More). This is the parent's personal space. Structure: (1) A hero card at the top showing the parent's name, weeks postpartum, and three quick stats: their sleep last night, pelvic floor done today (yes/no), today's mood. Background: a soft gradient using peach and lavender. (2) Section 'Wellbeing' containing: Pain relief (with next-dose countdown visible in the list item subtitle), Mood check-in (badge if not logged today), Recovery tracker, Your sleep tracker, Postnatal check (EPDS — show only if due). (3) Section 'Baby tools' containing: GP visit prep, Handoff card, Return to work planner, Knowledge library (badge showing article count triggered today), Memory book (premium badge), Time capsule. (4) Section 'Account' containing: Settings, Premium, Family sharing, Export data (PDF + CSV in one item), Safety. Remove from Me everything that was in the old More that is now duplicated in Journey or Home. The shopping list and appointments move into Settings or are accessed via a long-press on the Home screen greeting card.
+>
+> CHANGE 5 — Appointments and shopping. Move appointments into a dedicated 'Appointments' item inside Me > Baby tools (not a separate tab). Move shopping list to a floating action sheet accessible by long-pressing the greeting card on Home, or from Me > Baby tools. Neither feature needs a tab of its own.
+>
+> CHANGE 6 — Settings. Settings is now a single screen accessible from Me > Account > Settings. It contains: Baby profile, Alert thresholds, Notifications, Theme, Language, Accessibility, Family sharing (move from main nav), Danger zone. Remove any Settings entry for features that have their own dedicated screen in Me.
+>
+> CHANGE 7 — Visual updates. (a) All section labels use 10px uppercase letter-spaced muted text, matching the existing app style. (b) All menu items in the Me tab have a coloured rounded square icon (28px, 8px radius) on the left, a label and subtitle, and a right chevron. Use the app accent colours: wellbeing items use peach/lavender/sage backgrounds, baby tools use coral/sky/green, account uses grey/cream. (c) The log buttons use a 32px rounded square icon area inside the button card. (d) The bottom nav uses filled icons for active state and outline icons for inactive. The active tab label uses the app pink colour. No changes to the colour palette — keep cream, coral, sage, sky, lavender, rose as defined.
+>
+> CHANGE 8 — Remove these from the main UI surface entirely (they still exist but are accessed only when relevant): Voice commands (accessed via a microphone icon in the log section header), Notes (accessed via long-press on timeline entries), Shopping list (accessed via Me or long-press greeting card), Mood history (accessed from within the Me > Mood check-in screen, not surfaced on home). The principle: features that are used occasionally should not take up permanent space.
+>
+> Write tests for: Home screen renders log buttons in correct order (Feed first, Nappy third). Home screen with nap card + why card both showing: both render in compact mode, log buttons still visible without scrolling on a 844px-height screen. Journey screen sections render in correct order. Me tab hero card shows parent name from babyProfile.parentName. Me tab shows 'Mood check-in' badge when no mood logged today. Settings accessible from Me > Account > Settings. Bottom nav has exactly 4 tabs. 'More' tab does not exist anywhere in the navigation."

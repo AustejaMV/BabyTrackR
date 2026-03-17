@@ -5,6 +5,7 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { AppointmentsSection } from "../components/AppointmentsSection";
 import { HealthHistorySection } from "../components/HealthHistorySection";
 import { useBaby } from "../contexts/BabyContext";
+import { getSpitUpHistory, getSpitUpWeeklySummary } from "../utils/spitUpStorage";
 import { BabySwitcher } from "../components/BabySwitcher";
 import { EmptyState } from "../components/EmptyState";
 
@@ -210,6 +211,24 @@ export function MoreScreen() {
             Photos and notes by day, monthly recaps, shareable with family (Premium)
           </div>
         </Link>
+
+        {(() => {
+          const spitUpEntries = getSpitUpHistory();
+          const weeklySummary = getSpitUpWeeklySummary(spitUpEntries, activeBaby?.name ?? null);
+          return weeklySummary ? (
+            <div className="rounded-[18px] border p-4 mb-3" style={{ background: "var(--card)", borderColor: "var(--bd)" }}>
+              <div className="text-[15px] font-medium mb-1" style={{ color: "var(--tx)", fontFamily: "Georgia, serif" }}>
+                Spit-up & reflux
+              </div>
+              <p className="text-[13px] mb-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+                {weeklySummary}
+              </p>
+              <p className="text-[12px]" style={{ color: "var(--pink)", fontFamily: "system-ui, sans-serif" }}>
+                Log more from Home → Spit-up
+              </p>
+            </div>
+          ) : null;
+        })()}
 
         <HealthHistorySection />
 

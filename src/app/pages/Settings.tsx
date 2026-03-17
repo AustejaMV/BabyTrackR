@@ -21,6 +21,7 @@ import { getAccessibleFontScale, setAccessibleFontScale } from '../utils/useAcce
 import { useLanguage } from '../contexts/LanguageContext';
 import { LOCALE_LABELS, type SupportedLocale } from '../utils/languageStorage';
 import { villageDeleteMyData } from '../utils/villageApi';
+import { isFirstBaby, setFirstBaby } from '../utils/onboardingStorage';
 
 const REDUCE_MOTION_KEY = 'cradl-reduce-motion';
 const HIGH_CONTRAST_KEY = 'cradl-high-contrast';
@@ -64,6 +65,7 @@ export function Settings() {
   const { language, setLanguage: setAppLanguage } = useLanguage();
   const [languageSheetOpen, setLanguageSheetOpen] = useState(false);
   const [villageDeleteLoading, setVillageDeleteLoading] = useState(false);
+  const [firstBaby, setFirstBabyState] = useState(() => isFirstBaby());
 
   useEffect(() => {
     if (session?.access_token && familyId) {
@@ -571,6 +573,40 @@ export function Settings() {
             >
               <UserCircle className="w-4 h-4" />
               Partner view
+            </button>
+          </div>
+        </div>
+
+        {/* Experience: first vs second baby */}
+        <div className={cardClass} style={cardStyle}>
+          <h2 className="text-base font-medium mb-1" style={{ color: 'var(--tx)' }}>Experience</h2>
+          <p className="text-[13px] mb-3" style={labelStyle}>
+            First baby: more guidance and tips. Second baby: compact, faster logging.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => { setFirstBaby(true); setFirstBabyState(true); }}
+              className="flex-1 py-3 px-4 rounded-xl border text-sm font-medium"
+              style={{
+                borderColor: firstBaby ? 'var(--pink)' : 'var(--bd)',
+                background: firstBaby ? 'color-mix(in srgb, var(--pink) 15%, transparent)' : 'var(--card)',
+                color: 'var(--tx)',
+              }}
+            >
+              First baby
+            </button>
+            <button
+              type="button"
+              onClick={() => { setFirstBaby(false); setFirstBabyState(false); }}
+              className="flex-1 py-3 px-4 rounded-xl border text-sm font-medium"
+              style={{
+                borderColor: !firstBaby ? 'var(--pink)' : 'var(--bd)',
+                background: !firstBaby ? 'color-mix(in srgb, var(--pink) 15%, transparent)' : 'var(--card)',
+                color: 'var(--tx)',
+              }}
+            >
+              Second baby
             </button>
           </div>
         </div>

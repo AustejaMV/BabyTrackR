@@ -6,7 +6,7 @@ import { saveData } from "../utils/dataSync";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
 import { getLastFeedSide, saveLastFeedSide } from "../utils/lastFeedSideStorage";
 import { format } from "date-fns";
-import { getTimeSince } from "../utils/dateUtils";
+import { formatTimeAndAgo } from "../utils/dateUtils";
 import { useFeedTimer } from "../contexts/FeedTimerContext";
 import { toast } from "sonner";
 import type { FeedingRecord, SleepRecord, DiaperRecord, TummyTimeRecord, BottleRecord, PumpRecord } from "../types";
@@ -99,6 +99,14 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
   const [pumpTimerRunning, setPumpTimerRunning] = useState(false);
   const [pumpElapsedMs, setPumpElapsedMs] = useState(0);
   const [feedNotes, setFeedNotes] = useState("");
+  /** Sleep mood / environment (optional) */
+  const [fallAsleepMethod, setFallAsleepMethod] = useState<string>("");
+  const [wakeUpMood, setWakeUpMood] = useState<string>("");
+  const [sleepLocation, setSleepLocation] = useState<string>("");
+  const [whiteNoise, setWhiteNoise] = useState<boolean | null>(null);
+  const [roomTempC, setRoomTempC] = useState<string>("");
+  const [lightLevel, setLightLevel] = useState<string>("");
+  const [sleepAid, setSleepAid] = useState<string>("");
 
   useEffect(() => {
     if (!pumpTimerRunning) return;
@@ -139,7 +147,8 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
       const t = lastRecord.endTime ?? lastRecord.timestamp;
       const seg = lastRecord.segments?.[0];
       const side = seg?.type?.includes("Left") ? "Left" : seg?.type?.includes("Right") ? "Right" : "Both";
-      setLastFeedLabel(`Last: ${side} breast - ${getTimeSince(t)}`);
+      const { time, ago } = formatTimeAndAgo(t);
+      setLastFeedLabel(`Last: ${side} breast - ${time} · ${ago}`);
     } catch {
       setLastFeedLabel(null);
     }
@@ -228,6 +237,13 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
         position: sleepPosition,
         startTime,
         endTime,
+        ...(fallAsleepMethod?.trim() && { fallAsleepMethod: fallAsleepMethod.trim() }),
+        ...(wakeUpMood?.trim() && { wakeUpMood: wakeUpMood.trim() }),
+        ...(sleepLocation?.trim() && { sleepLocation: sleepLocation.trim() }),
+        ...(whiteNoise !== null && { whiteNoise }),
+        ...(roomTempC.trim() && (() => { const n = parseFloat(roomTempC); return Number.isFinite(n) && n >= 10 && n <= 35 ? { roomTempC: n } : {}; })()),
+        ...(lightLevel === "dark" || lightLevel === "dim" || lightLevel === "light" ? { lightLevel: lightLevel as "dark" | "dim" | "light" } : {}),
+        ...(sleepAid?.trim() && { sleepAid: sleepAid.trim() }),
       };
       let history: SleepRecord[] = [];
       try {
@@ -551,6 +567,37 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
             >
               {sleepTimerRunning ? "Stop" : "Start"}
           </button>
+          </div>
+          <p className={sectionLabelClass} style={sectionLabelStyle}>How did she fall asleep? (optional)</p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {["—", "Independent", "Nursing", "Rocking", "Dummy", "Car", "Pram", "Being held", "Co-sleeping"].map((opt) => pill(opt === "—" ? "—" : opt, opt === "—" ? "" : opt, fallAsleepMethod, setFallAsleepMethod))}
+          </div>
+          <p className={sectionLabelClass} style={sectionLabelStyle}>Mood on waking (optional)</p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {["—", "Happy", "Calm", "Grumpy", "Crying", "Still tired"].map((opt) => pill(opt === "—" ? "—" : opt, opt === "—" ? "" : opt, wakeUpMood, setWakeUpMood))}
+          </div>
+          <p className={sectionLabelClass} style={sectionLabelStyle}>Where did she sleep? (optional)</p>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {["—", "Cot", "Pram", "Car seat", "Arms", "Co-sleeping", "Floor"].map((opt) => pill(opt === "—" ? "—" : opt, opt === "—" ? "" : opt, sleepLocation, setSleepLocation))}
+          </div>
+          <p className={sectionLabelClass} style={sectionLabelStyle}>Sleep environment (optional)</p>
+          <div className="flex flex-wrap gap-2 mb-2">
+            <span className="text-[12px] mr-2" style={{ color: "var(--mu)" }}>White noise?</span>
+            {(["Yes", "No", "—"] as const).map((opt) => (
+              <button key={opt} type="button" onClick={() => setWhiteNoise(opt === "Yes" ? true : opt === "No" ? false : null)} className="px-3 py-2 rounded-[20px] border text-[13px] min-h-[40px]" style={{ borderColor: (whiteNoise === true && opt === "Yes") || (whiteNoise === false && opt === "No") || (whiteNoise === null && opt === "—") ? "var(--ro)" : "var(--bd)", background: (whiteNoise === true && opt === "Yes") || (whiteNoise === false && opt === "No") || (whiteNoise === null && opt === "—") ? "var(--pe)" : "var(--card)", color: "var(--tx)" }}>{opt}</button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 mb-2">
+            <label className="text-[12px]" style={{ color: "var(--mu)" }}>Room temp (°C)</label>
+            <input type="number" inputMode="decimal" min={10} max={35} step={0.5} value={roomTempC} onChange={(e) => setRoomTempC(e.target.value)} placeholder="—" className="w-16 rounded-lg border px-2 py-2 text-[14px] outline-none" style={{ borderColor: "var(--bd)", background: "var(--card)", color: "var(--tx)" }} />
+          </div>
+          <div className="flex flex-wrap gap-2 mb-2">
+            <span className="text-[12px] mr-2" style={{ color: "var(--mu)" }}>Light</span>
+            {["—", "dark", "dim", "light"].map((opt) => pill(opt === "—" ? "—" : opt, opt === "—" ? "" : opt, lightLevel, setLightLevel))}
+          </div>
+          <div className="flex flex-wrap gap-2 mb-4">
+            <span className="text-[12px] mr-2 w-full" style={{ color: "var(--mu)" }}>Sleep aid</span>
+            {["—", "Dummy", "Swaddle", "Sleeping bag", "Nothing"].map((opt) => pill(opt === "—" ? "—" : opt, opt === "—" ? "" : opt, sleepAid, setSleepAid))}
           </div>
           <PastPanel label="Log a past sleep instead" expanded={pastChecked} onToggle={() => setPastChecked((c) => !c)}>
             <div className={inputBlockStyle} style={inputBlockStyleBg}>

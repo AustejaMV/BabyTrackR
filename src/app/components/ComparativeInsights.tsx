@@ -5,6 +5,7 @@
 import { useMemo } from "react";
 import { RangeBar } from "./RangeBar";
 import { getNormalRange, assessMetric } from "../data/normalRanges";
+import { getReassuranceForMetric } from "../utils/reassuranceUtils";
 import type { SleepRecord, FeedingRecord, DiaperRecord, TummyTimeRecord, BabyProfile } from "../types";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -212,6 +213,15 @@ export function ComparativeInsights({
                 {assessment.message}
               </p>
             )}
+            {assessment.status === "low" || assessment.status === "high" ? (() => {
+              const babyName = babyProfile?.name ?? null;
+              const reassurance = getReassuranceForMetric(babyName, row.metric, row.value, assessment.status);
+              return reassurance ? (
+                <p className="text-[12px] mt-1 pl-0.5" style={{ color: "var(--mu)", fontFamily: "Georgia, serif" }}>
+                  {reassurance}
+                </p>
+              ) : null;
+            })() : null}
           </div>
         );
       })}

@@ -10,7 +10,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { Navigation } from "../components/Navigation";
 import { LogDrawer } from "../components/LogDrawer";
 import { TodayTimelineModal } from "../components/TodayTimelineModal";
-import { getTimeSince } from "../utils/dateUtils";
+import { formatTimeAndAgo } from "../utils/dateUtils";
 import type { SleepRecord, FeedingRecord, DiaperRecord } from "../types";
 import { LayoutDashboard } from "lucide-react";
 
@@ -68,10 +68,13 @@ export function PartnerHomeScreen() {
 
   const babyName = activeBaby?.name ?? "Baby";
 
+  const feedSub = lastFeeding ? (() => { const { time, ago } = formatTimeAndAgo(lastFeeding.endTime ?? lastFeeding.timestamp); return `${time} · ${ago}`; })() : "No feed yet";
+  const sleepSub = currentSleep ? (() => { const { time, ago } = formatTimeAndAgo(currentSleep.startTime ?? 0); return `${time} · ${ago}`; })() : "Awake";
+  const diaperSub = recentDiapers.length > 0 ? (() => { const { time, ago } = formatTimeAndAgo(recentDiapers[recentDiapers.length - 1]!.timestamp); return `${time} · ${ago}`; })() : "No changes yet";
   const logButtons = [
-    { type: "feed" as const, label: "Feed", sub: lastFeeding ? getTimeSince(lastFeeding.endTime ?? lastFeeding.timestamp) : "No feed yet", dot: "var(--coral)" },
-    { type: "sleep" as const, label: "Sleep", sub: currentSleep ? getTimeSince(currentSleep.startTime ?? 0) : "Awake", dot: "var(--blue)" },
-    { type: "diaper" as const, label: "Diaper", sub: recentDiapers.length > 0 ? getTimeSince(recentDiapers[recentDiapers.length - 1]!.timestamp) + " ago" : "No changes yet", dot: "var(--grn)" },
+    { type: "feed" as const, label: "Feed", sub: feedSub, dot: "var(--coral)" },
+    { type: "sleep" as const, label: "Sleep", sub: sleepSub, dot: "var(--blue)" },
+    { type: "diaper" as const, label: "Diaper", sub: diaperSub, dot: "var(--grn)" },
     { type: "bottle" as const, label: "Bottle", sub: "Log bottle", dot: "var(--coral)" },
   ];
 

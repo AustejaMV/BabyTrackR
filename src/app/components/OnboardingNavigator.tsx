@@ -12,6 +12,7 @@ import {
   saveOnboardingStep,
   markOnboardingComplete,
   clearOnboardingStep,
+  setFirstBaby,
 } from "../utils/onboardingStorage";
 import { requestNotificationPermission } from "../utils/notifications";
 import { compressBabyPhoto } from "../utils/imageCompress";
@@ -70,7 +71,7 @@ export function OnboardingNavigator({ onComplete }: OnboardingNavigatorProps) {
     return () => clearInterval(t);
   }, [step]);
 
-  const handleStep2Next = () => {
+  const handleStep3Next = () => {
     if (!birthDate.trim()) return;
     const birthMs = new Date(`${birthDate}T${birthTime}:00`).getTime();
     const baby = addBaby({
@@ -80,16 +81,16 @@ export function OnboardingNavigator({ onComplete }: OnboardingNavigatorProps) {
       photoDataUrl: photoDataUrl ?? undefined,
     });
     setActiveBabyId(baby.id);
-    go(3);
-  };
-
-  const handleStep3Next = () => {
-    const trimmed = parentName.trim().slice(0, 40);
-    if (trimmed) updateActiveBaby({ parentName: trimmed });
     go(4);
   };
 
-  const handleStep5Complete = async () => {
+  const handleStep4Next = () => {
+    const trimmed = parentName.trim().slice(0, 40);
+    if (trimmed) updateActiveBaby({ parentName: trimmed });
+    go(5);
+  };
+
+  const handleStep6Complete = async () => {
     try {
       await requestNotificationPermission();
     } catch {}
@@ -125,7 +126,7 @@ export function OnboardingNavigator({ onComplete }: OnboardingNavigatorProps) {
     >
       {/* Progress dots */}
       <div className="flex justify-center gap-2 pt-6 pb-2">
-        {[0, 1, 2, 3, 4, 5].map((i) => (
+        {[0, 1, 2, 3, 4, 5, 6].map((i) => (
           <div
             key={i}
             className="w-2 h-2 rounded-full"
@@ -139,7 +140,7 @@ export function OnboardingNavigator({ onComplete }: OnboardingNavigatorProps) {
       </div>
 
       {/* Back button where applicable */}
-      {step >= 2 && step <= 5 && (
+      {step >= 2 && step <= 6 && (
         <button
           type="button"
           onClick={() => go(step - 1)}
@@ -193,8 +194,37 @@ export function OnboardingNavigator({ onComplete }: OnboardingNavigatorProps) {
           </div>
         )}
 
-        {/* Step 2: BabySetup */}
+        {/* Step 2: First baby? */}
         {step === 2 && (
+          <div className="w-full max-w-sm flex flex-col items-center text-center">
+            <h2 className="text-xl font-serif mb-2" style={{ color: "var(--tx)" }}>
+              Is this your first baby?
+            </h2>
+            <p className="text-sm mb-6" style={{ color: "var(--mu)" }}>
+              We&apos;ll tailor the app to you — first-time parents get more guidance; experienced parents get a faster, compact view.
+            </p>
+            <div className="flex gap-4">
+              <Button
+                type="button"
+                onClick={() => { setFirstBaby(true); go(3); }}
+                className="min-h-[48px] px-8 flex-1"
+              >
+                Yes
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => { setFirstBaby(false); go(3); }}
+                className="min-h-[48px] px-8 flex-1"
+              >
+                No
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: BabySetup */}
+        {step === 3 && (
           <div className="w-full max-w-sm flex flex-col items-center text-center">
             <h2 className="text-xl font-serif mb-2" style={{ color: "var(--tx)" }}>
               Add your baby
@@ -282,7 +312,7 @@ export function OnboardingNavigator({ onComplete }: OnboardingNavigatorProps) {
             </Button>
             <Button
               type="button"
-              onClick={handleStep2Next}
+              onClick={handleStep3Next}
               disabled={!birthDate.trim()}
               className="min-h-[48px] px-8"
             >
@@ -291,8 +321,8 @@ export function OnboardingNavigator({ onComplete }: OnboardingNavigatorProps) {
           </div>
         )}
 
-        {/* Step 3: ParentSetup */}
-        {step === 3 && (
+        {/* Step 4: ParentSetup */}
+        {step === 4 && (
           <div className="w-full max-w-sm flex flex-col items-center text-center">
             <h2 className="text-xl font-serif mb-2" style={{ color: "var(--tx)" }}>
               And what&apos;s your name?
@@ -309,30 +339,7 @@ export function OnboardingNavigator({ onComplete }: OnboardingNavigatorProps) {
               maxLength={40}
               aria-label="Your first name"
             />
-            <Button type="button" onClick={handleStep3Next} className="min-h-[48px] px-8 mb-2">
-              Continue
-            </Button>
-            <button
-              type="button"
-              onClick={() => go(4)}
-              className="text-sm underline"
-              style={{ color: "var(--mu)" }}
-            >
-              Skip
-            </button>
-          </div>
-        )}
-
-        {/* Step 4: Account */}
-        {step === 4 && (
-          <div className="w-full max-w-sm flex flex-col items-center text-center">
-            <h2 className="text-xl font-serif mb-2" style={{ color: "var(--tx)" }}>
-              Sign in to sync across devices
-            </h2>
-            <p className="text-sm mb-6" style={{ color: "var(--mu)" }}>
-              Optional. You can use Cradl offline and sign in later from Settings.
-            </p>
-            <Button type="button" onClick={() => go(5)} className="min-h-[48px] px-8 mb-2">
+            <Button type="button" onClick={handleStep4Next} className="min-h-[48px] px-8 mb-2">
               Continue
             </Button>
             <button
@@ -346,8 +353,31 @@ export function OnboardingNavigator({ onComplete }: OnboardingNavigatorProps) {
           </div>
         )}
 
-        {/* Step 5: Permissions */}
+        {/* Step 5: Account */}
         {step === 5 && (
+          <div className="w-full max-w-sm flex flex-col items-center text-center">
+            <h2 className="text-xl font-serif mb-2" style={{ color: "var(--tx)" }}>
+              Sign in to sync across devices
+            </h2>
+            <p className="text-sm mb-6" style={{ color: "var(--mu)" }}>
+              Optional. You can use Cradl offline and sign in later from Settings.
+            </p>
+            <Button type="button" onClick={() => go(6)} className="min-h-[48px] px-8 mb-2">
+              Continue
+            </Button>
+            <button
+              type="button"
+              onClick={() => go(6)}
+              className="text-sm underline"
+              style={{ color: "var(--mu)" }}
+            >
+              Skip
+            </button>
+          </div>
+        )}
+
+        {/* Step 6: Permissions */}
+        {step === 6 && (
           <div className="w-full max-w-sm flex flex-col items-center text-center">
             <h2 className="text-xl font-serif mb-2" style={{ color: "var(--tx)" }}>
               Almost there
@@ -357,7 +387,7 @@ export function OnboardingNavigator({ onComplete }: OnboardingNavigatorProps) {
             </p>
             <Button
               type="button"
-              onClick={handleStep5Complete}
+              onClick={handleStep6Complete}
               className="min-h-[48px] px-8"
             >
               Go to Cradl

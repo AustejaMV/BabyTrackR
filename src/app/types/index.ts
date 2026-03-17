@@ -19,6 +19,14 @@ export interface SleepRecord {
   wakeUpMood?: string;
   /** Where baby slept (e.g. "cot", "moses", "bed", "pram"). */
   sleepLocation?: string;
+  /** Was white noise used (sleep environment). */
+  whiteNoise?: boolean;
+  /** Room temperature in °C. */
+  roomTempC?: number;
+  /** Light level: dark / dim / light. */
+  lightLevel?: "dark" | "dim" | "light";
+  /** Sleep aid: dummy, swaddle, sleeping bag, nothing. */
+  sleepAid?: string;
 }
 
 export interface FeedingSegment {

@@ -88,6 +88,7 @@ export const SYNCED_DATA_KEYS = [
   'memoryMonthlyRecaps',
   'customTrackers',
   'customTrackerLogs',
+  'spitUpHistory',
 ] as const;
 
 /** Default value when server doesn't return a key. */
@@ -126,6 +127,7 @@ export const SYNCED_DATA_DEFAULTS: Record<(typeof SYNCED_DATA_KEYS)[number], unk
   memoryMonthlyRecaps: [] as { id: string; yearMonth: string; note: string; createdAt: number }[],
   customTrackers: [] as { id: string; name: string; icon: string; unit?: string | null; createdAt: number }[],
   customTrackerLogs: [] as { id: string; trackerId: string; timestamp: number; value?: number | null; note?: string | null }[],
+  spitUpHistory: [] as { id: string; timestamp: number; severity: string; timing: string; note: string | null }[],
 };
 
 /** Poll interval when any live session is active (feeding, sleep, tummy time). */
