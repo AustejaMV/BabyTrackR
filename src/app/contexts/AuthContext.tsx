@@ -9,6 +9,7 @@ interface AuthContextType {
   loading: boolean;
   signInWithEmail: (email: string, password: string) => Promise<{ error?: Error | null }>;
   signUpWithEmail: (email: string, password: string) => Promise<{ error?: Error | null }>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   familyId: string | null;
   refreshFamily: () => Promise<string | null>;
@@ -192,6 +193,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return {};
   };
 
+  const signInWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + '/auth/callback',
+      },
+    });
+    if (error) {
+      console.error('Error signing in with Google:', error);
+      throw error;
+    }
+  };
+
   const signOut = async () => {
     if (user) {
       try {
@@ -224,7 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, session, loading, signInWithEmail, signUpWithEmail, signOut, familyId, refreshFamily, setFamilyIdFromCreate }}
+      value={{ user, session, loading, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut, familyId, refreshFamily, setFamilyIdFromCreate }}
     >
       {children}
     </AuthContext.Provider>

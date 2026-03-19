@@ -20,6 +20,7 @@ const COUNTDOWN_MESSAGES: Record<number, string> = {
   3: "3 days to go. It's okay to feel overwhelmed. You're not failing; you're human.",
   2: "2 days. Breathe. You've got this. One step at a time.",
   1: "1 day to go. You have done something extraordinary this year. Tomorrow is just the next chapter.",
+  0: "Today's the day. You've prepared. You're ready. And you'll be home before you know it.",
 };
 
 function parseReturnDate(returnDate: string): Date {
@@ -134,27 +135,72 @@ export function generateReturnPlan(params: GenerateReturnPlanParams): ReturnToWo
 
   const feedingTransitionPlan: FeedingTransitionWeek[] = [];
   if (currentFeedingType === "breast" && weeksUntilReturn > 0) {
-    const numWeeks = Math.min(4, weeksUntilReturn);
     const startFeeds = Math.max(1, Math.round(currentFeedsPerDay));
+    const targetFeeds = weeksUntilReturn >= 4 ? 2 : 0;
+
+    if (weeksUntilReturn >= 4) {
+      const numWeeks = 4;
+      const breastGuidance = [
+        "Replace one daytime breast feed with a bottle (expressed milk if possible). Let your body adjust for 3–4 days before dropping the next.",
+        "Drop a second breast feed. Aim for morning and evening breast feeds only. Offer a bottle for mid-day feeds.",
+        "If comfortable, keep morning and bedtime breast feeds. All other feeds via bottle. This protects your supply for comfort feeds.",
+        "Final week: your rhythm is set. Morning and bedtime breast feeds stay; everything else is bottle. You're ready.",
+      ];
+      for (let i = 0; i < numWeeks; i++) {
+        const t = (i + 1) / numWeeks;
+        const lerped = Math.round(startFeeds + (targetFeeds - startFeeds) * t);
+        const weekStart = new Date(returnD);
+        weekStart.setDate(weekStart.getDate() - (numWeeks - i) * 7);
+        feedingTransitionPlan.push({
+          weekNumber: i + 1,
+          weekStartDate: toDateOnlyISO(weekStart),
+          currentFeedsPerDay: startFeeds,
+          targetFeedsPerDay: Math.max(0, lerped),
+          bottleFeeds: startFeeds - Math.max(0, lerped),
+          guidance: breastGuidance[i],
+        });
+      }
+    } else {
+      for (let day = 0; day < daysUntilReturn; day++) {
+        const t = (day + 1) / daysUntilReturn;
+        const lerped = Math.round(startFeeds + (0 - startFeeds) * t);
+        const d = new Date(today);
+        d.setDate(d.getDate() + day);
+        feedingTransitionPlan.push({
+          weekNumber: day + 1,
+          weekStartDate: toDateOnlyISO(d),
+          currentFeedsPerDay: startFeeds,
+          targetFeedsPerDay: Math.max(0, lerped),
+          bottleFeeds: startFeeds - Math.max(0, lerped),
+          guidance: day === 0
+            ? "Start today: replace one breast feed with a bottle. Move quickly but gently."
+            : `Day ${day + 1}: aim for ${Math.max(0, lerped)} breast feeds, ${startFeeds - Math.max(0, lerped)} bottle feeds.`,
+        });
+      }
+    }
+  } else if (currentFeedingType === "mixed" && weeksUntilReturn > 0) {
+    const startFeeds = Math.max(1, Math.round(currentFeedsPerDay));
+    const numWeeks = Math.min(4, weeksUntilReturn);
+    const mixedGuidance = [
+      "You're already doing both — great. This week, shift one more daytime breast feed to bottle. Keep the feeds that feel most important to you.",
+      "Aim for breast feeds only at wake-up and bedtime. All mid-day feeds via bottle so the transition feels familiar to your baby.",
+      "Your baby is used to bottles during the day now. Keep your morning and evening breast feeds if you'd like — they're yours to keep.",
+      "Almost there. Your routine is set. If you want to keep breast feeding morning and night, you absolutely can — it's not all or nothing.",
+    ];
     for (let i = 0; i < numWeeks; i++) {
-      const weekNum = numWeeks - i;
-      const targetFeeds = Math.max(1, startFeeds - i);
+      const t = (i + 1) / numWeeks;
+      const target = Math.round(startFeeds * (1 - t * 0.6));
       const weekStart = new Date(returnD);
       weekStart.setDate(weekStart.getDate() - (numWeeks - i) * 7);
-      const guidance =
-        i === 0
-          ? `This week: introduce one bottle feed to replace a breast feed. Use expressed milk if possible.`
-          : `Week ${weekNum}: aim for ${targetFeeds} breast feeds per day; add bottle as needed for when you're at work.`;
       feedingTransitionPlan.push({
-        weekNumber: weekNum,
+        weekNumber: i + 1,
         weekStartDate: toDateOnlyISO(weekStart),
         currentFeedsPerDay: startFeeds,
-        targetFeedsPerDay: targetFeeds,
-        bottleFeeds: i + 1,
-        guidance,
+        targetFeedsPerDay: Math.max(1, target),
+        bottleFeeds: startFeeds - Math.max(1, target),
+        guidance: mixedGuidance[i] ?? `Week ${i + 1}: continue shifting daytime feeds to bottle.`,
       });
     }
-    feedingTransitionPlan.reverse();
   }
 
   const requiredWakeMinutes = Math.max(0, minutesFromMidnight(workStartTime) - 90);
@@ -212,7 +258,7 @@ export function generateReturnPlan(params: GenerateReturnPlanParams): ReturnToWo
   };
 
   const countdownMessages: CountdownMessage[] = [];
-  for (let d = 7; d >= 1; d--) {
+  for (let d = 7; d >= 0; d--) {
     const msg = COUNTDOWN_MESSAGES[d];
     if (msg) countdownMessages.push({ daysLeft: d, message: msg });
   }
@@ -230,20 +276,18 @@ export function generateReturnPlan(params: GenerateReturnPlanParams): ReturnToWo
   };
 }
 
-/** Get today's countdown message if return is within 7 days. */
+/** Get today's countdown message if return is within 7 days (inclusive of day 0). */
 export function getCountdownMessageForToday(plan: ReturnToWorkPlan | null): string | null {
   if (!plan) return null;
-  const today = toDateOnlyISO(new Date());
-  const returnD = plan.returnDate;
-  const daysLeft = daysBetween(new Date(), parseReturnDate(returnD));
-  if (daysLeft < 1 || daysLeft > 7) return null;
+  const daysLeft = daysBetween(new Date(), parseReturnDate(plan.returnDate));
+  if (daysLeft < 0 || daysLeft > 7) return null;
   const msg = plan.countdownMessages.find((m) => m.daysLeft === daysLeft);
   return msg?.message ?? null;
 }
 
-/** Return date is within the next 7 days. */
+/** Return date is within the next 7 days (inclusive of day 0). */
 export function isReturnWithinSevenDays(plan: ReturnToWorkPlan | null): boolean {
   if (!plan) return false;
   const daysLeft = daysBetween(new Date(), parseReturnDate(plan.returnDate));
-  return daysLeft >= 1 && daysLeft <= 7;
+  return daysLeft >= 0 && daysLeft <= 7;
 }

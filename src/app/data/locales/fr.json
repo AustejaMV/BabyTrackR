@@ -1,0 +1,50 @@
+{
+  "common": {
+    "close": "Fermer",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "next": "Suivant",
+    "back": "Retour",
+    "skip": "Passer",
+    "done": "Terminé",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "add": "Ajouter",
+    "ok": "OK",
+    "yes": "Oui",
+    "no": "Non",
+    "loading": "Chargement…",
+    "error": "Quelque chose s'est mal passé",
+    "retry": "Réessayer",
+    "search": "Rechercher",
+    "noData": "Pas encore de données",
+    "premium": "Premium",
+    "upgradeToPremium": "Passer à Premium",
+    "free": "Gratuit",
+    "today": "Aujourd'hui",
+    "yesterday": "Hier",
+    "thisWeek": "Cette semaine",
+    "nav": {
+      "today": "Aujourd'hui",
+      "journey": "Parcours",
+      "village": "Village",
+      "me": "Moi"
+    },
+    "baby": "Bébé",
+    "age": {
+      "days_one": "{{count}} jour",
+      "days_other": "{{count}} jours",
+      "weeks_one": "{{count}} semaine",
+      "weeks_other": "{{count}} semaines",
+      "months_one": "{{count}} mois",
+      "months_other": "{{count}} mois"
+    },
+    "time": {
+      "hoursAgo_one": "il y a {{count}} heure",
+      "hoursAgo_other": "il y a {{count}} heures",
+      "minutesAgo_one": "il y a {{count}} minute",
+      "minutesAgo_other": "il y a {{count}} minutes",
+      "justNow": "À l'instant"
+    }
+  }
+}

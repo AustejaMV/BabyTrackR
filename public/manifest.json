@@ -1,11 +1,11 @@
 {
-  "name": "Baby Care Tracker",
-  "short_name": "Baby Care",
-  "description": "Track your baby's sleep, feeding, diaper changes, and tummy time",
+  "name": "Cradl",
+  "short_name": "Cradl",
+  "description": "The baby tracker that tells you why she's crying before you have to figure it out",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#3b82f6",
+  "background_color": "#fffbf5",
+  "theme_color": "#FAF7F2",
   "orientation": "portrait",
   "icons": [
     {
@@ -23,21 +23,7 @@
   ],
   "shortcuts": [
     {
-      "name": "Log Pee",
-      "short_name": "Pee",
-      "description": "Quick log a pee diaper",
-      "url": "/?action=pee",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "Log Poop",
-      "short_name": "Poop",
-      "description": "Quick log a poop diaper",
-      "url": "/?action=poop",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "Log Feeding",
+      "name": "Log Feed",
       "short_name": "Feed",
       "description": "Quick log a feeding",
       "url": "/?action=feed",
@@ -48,6 +34,13 @@
       "short_name": "Sleep",
       "description": "Start tracking sleep",
       "url": "/?action=sleep",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Log Nappy",
+      "short_name": "Nappy",
+      "description": "Quick log a nappy change",
+      "url": "/?action=pee",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]

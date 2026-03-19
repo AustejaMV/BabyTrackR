@@ -31,7 +31,7 @@ export async function requestNotificationPermission() {
 export async function sendNotification(title: string, options?: NotificationOptions) {
   if (!Notification || Notification.permission !== "granted") return;
 
-  const opts: NotificationOptions = { icon: "/favicon.ico", badge: "/favicon.ico", ...options };
+  const opts: NotificationOptions = { icon: "/icon-192.png", badge: "/icon-192.png", ...options };
 
   try {
     new Notification(title, opts);

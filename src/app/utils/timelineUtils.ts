@@ -3,7 +3,7 @@
  * Used by Today view and PDF export.
  */
 import { format } from "date-fns";
-import { formatDurationMs } from "./dateUtils";
+import { formatDurationMs, DATETIME_DISPLAY, TIME_DISPLAY } from "./dateUtils";
 import type {
   TimelineEvent,
   TimelineEventKind,
@@ -16,9 +16,9 @@ import type {
 } from "../types";
 import type { TemperatureEntry, SymptomEntry, MedicationEntry } from "../types/health";
 import type { CustomTrackerDefinition, CustomTrackerLogEntry } from "../types/customTracker";
-import { getIconEmoji } from "../data/customTrackerIcons";
+import { getIconLabel } from "../data/customTrackerIcons";
 
-const DATE_DISPLAY = "dd/MM/yyyy";
+// Uses centralized DATETIME_DISPLAY() and TIME_DISPLAY() from dateUtils
 
 function dayStart(ts: number): number {
   const d = new Date(ts);
@@ -115,7 +115,7 @@ export function getTimelineEventsForDay(
         id: r.id,
         kind: "feed",
         forDatetime: t,
-        timeLabel: useDate ? format(t, `${DATE_DISPLAY} HH:mm`) : format(t, "HH:mm"),
+        timeLabel: useDate ? format(t, DATETIME_DISPLAY()) : format(t, TIME_DISPLAY()),
         description: feedDescription(r),
         record: r,
       });
@@ -129,7 +129,7 @@ export function getTimelineEventsForDay(
         id: r.id,
         kind: "sleep",
         forDatetime: t,
-        timeLabel: useDate ? format(t, `${DATE_DISPLAY} HH:mm`) : format(t, "HH:mm"),
+        timeLabel: useDate ? format(t, DATETIME_DISPLAY()) : format(t, TIME_DISPLAY()),
         description: sleepDescription(r),
         record: r,
       });
@@ -142,7 +142,7 @@ export function getTimelineEventsForDay(
         id: r.id,
         kind: "diaper",
         forDatetime: r.timestamp,
-        timeLabel: useDate ? format(r.timestamp, `${DATE_DISPLAY} HH:mm`) : format(r.timestamp, "HH:mm"),
+        timeLabel: useDate ? format(r.timestamp, DATETIME_DISPLAY()) : format(r.timestamp, TIME_DISPLAY()),
         description: diaperDescription(r),
         record: r,
       });
@@ -156,7 +156,7 @@ export function getTimelineEventsForDay(
         id: r.id,
         kind: "tummy",
         forDatetime: t,
-        timeLabel: useDate ? format(t, `${DATE_DISPLAY} HH:mm`) : format(t, "HH:mm"),
+        timeLabel: useDate ? format(t, DATETIME_DISPLAY()) : format(t, TIME_DISPLAY()),
         description: tummyDescription(r),
         record: r,
       });
@@ -169,7 +169,7 @@ export function getTimelineEventsForDay(
         id: r.id,
         kind: "bottle",
         forDatetime: r.timestamp,
-        timeLabel: useDate ? format(r.timestamp, `${DATE_DISPLAY} HH:mm`) : format(r.timestamp, "HH:mm"),
+        timeLabel: useDate ? format(r.timestamp, DATETIME_DISPLAY()) : format(r.timestamp, TIME_DISPLAY()),
         description: bottleDescription(r),
         record: r,
       });
@@ -182,7 +182,7 @@ export function getTimelineEventsForDay(
         id: r.id,
         kind: "pump",
         forDatetime: r.timestamp,
-        timeLabel: useDate ? format(r.timestamp, `${DATE_DISPLAY} HH:mm`) : format(r.timestamp, "HH:mm"),
+        timeLabel: useDate ? format(r.timestamp, DATETIME_DISPLAY()) : format(r.timestamp, TIME_DISPLAY()),
         description: pumpDescription(r),
         record: r,
       });
@@ -196,7 +196,7 @@ export function getTimelineEventsForDay(
         id: entry.id,
         kind: "health",
         forDatetime: ts,
-        timeLabel: useDate ? format(ts, `${DATE_DISPLAY} HH:mm`) : format(ts, "HH:mm"),
+        timeLabel: useDate ? format(ts, DATETIME_DISPLAY()) : format(ts, TIME_DISPLAY()),
         description: healthDescription(entry),
         record: entry,
       });
@@ -218,8 +218,8 @@ export function getTimelineEventsForDay(
         id: r.id,
         kind: "custom",
         forDatetime: r.timestamp,
-        timeLabel: useDate ? format(r.timestamp, `${DATE_DISPLAY} HH:mm`) : format(r.timestamp, "HH:mm"),
-        description: `${getIconEmoji(tracker?.icon ?? "star")} ${name}${valuePart}${notePart}`.trim(),
+        timeLabel: useDate ? format(r.timestamp, DATETIME_DISPLAY()) : format(r.timestamp, TIME_DISPLAY()),
+        description: `${getIconLabel(tracker?.icon ?? "star")} ${name}${valuePart}${notePart}`.trim(),
         record: r,
       });
     }

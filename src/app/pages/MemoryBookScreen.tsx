@@ -2,15 +2,18 @@
  * Memory book: day entries and monthly recaps (Premium).
  */
 
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Link } from "react-router";
 import { ChevronLeft, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { PremiumGate } from "../components/PremiumGate";
 import { DayCard } from "../components/DayCard";
+import { DayCardModal } from "../components/DayCardModal";
 import { MonthlyRecapCard } from "../components/MonthlyRecapCard";
+import { AutoMonthlyRecap } from "../components/AutoMonthlyRecap";
 import { AddDayMemorySheet } from "../components/AddDayMemorySheet";
 import { AddMonthlyRecapSheet } from "../components/AddMonthlyRecapSheet";
+import { useBaby } from "../contexts/BabyContext";
 import {
   getMemoryDays,
   getMonthlyRecaps,
@@ -19,6 +22,8 @@ import {
 } from "../utils/memoryStorage";
 import type { MemoryDayEntry, MemoryMonthlyRecap } from "../types/memory";
 
+const INITIAL_MONTHS = 3;
+
 function MemoryBookContent() {
   const [days, setDays] = useState(getMemoryDays());
   const [recaps, setRecaps] = useState(getMonthlyRecaps());
@@ -26,6 +31,14 @@ function MemoryBookContent() {
   const [recapSheetOpen, setRecapSheetOpen] = useState(false);
   const [editingDay, setEditingDay] = useState<MemoryDayEntry | null>(null);
   const [editingRecap, setEditingRecap] = useState<MemoryMonthlyRecap | null>(null);
+  const [modalEntry, setModalEntry] = useState<MemoryDayEntry | null>(null);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_MONTHS);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const { activeBaby } = useBaby();
+
+  const babyDob = activeBaby?.birthDate
+    ? (typeof activeBaby.birthDate === "number" ? activeBaby.birthDate : new Date(activeBaby.birthDate).getTime())
+    : null;
 
   const refresh = () => {
     setDays(getMemoryDays());
@@ -38,7 +51,23 @@ function MemoryBookContent() {
     acc[ym].push(e);
     return acc;
   }, {});
-  const monthKeys = Object.keys(byMonth).sort((a, b) => b.localeCompare(a));
+  const allMonthKeys = Object.keys(byMonth).sort((a, b) => b.localeCompare(a));
+  const monthKeys = allMonthKeys.slice(0, visibleCount);
+
+  const loadMore = useCallback(() => {
+    setVisibleCount((c) => Math.min(c + 3, allMonthKeys.length));
+  }, [allMonthKeys.length]);
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0]?.isIntersecting) loadMore(); },
+      { rootMargin: "200px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   const handleShareRecap = (recap: MemoryMonthlyRecap) => {
     const [y, m] = recap.yearMonth.split("-");
@@ -91,17 +120,22 @@ function MemoryBookContent() {
                     <h3 className="text-[13px] font-medium mb-2 uppercase tracking-wide" style={{ color: "var(--mu)" }}>{label}</h3>
                     <div className="space-y-3">
                       {byMonth[ym].map((entry) => (
-                        <DayCard
-                          key={entry.id}
-                          entry={entry}
-                          onEdit={() => { setEditingDay(entry); setDaySheetOpen(true); }}
-                          onDelete={() => { deleteMemoryDay(entry.id); refresh(); }}
-                        />
+                        <div key={entry.id} onClick={() => setModalEntry(entry)} style={{ cursor: "pointer" }}>
+                          <DayCard
+                            entry={entry}
+                            onEdit={() => { setEditingDay(entry); setDaySheetOpen(true); }}
+                            onDelete={() => { deleteMemoryDay(entry.id); refresh(); }}
+                          />
+                        </div>
                       ))}
                     </div>
+                    <AutoMonthlyRecap yearMonth={ym} babyDob={babyDob} />
                   </div>
                 );
               })}
+              {visibleCount < allMonthKeys.length && (
+                <div ref={sentinelRef} style={{ height: 1 }} />
+              )}
             </div>
           )}
         </section>
@@ -150,6 +184,12 @@ function MemoryBookContent() {
           existing={editingRecap}
           onClose={() => { setRecapSheetOpen(false); setEditingRecap(null); }}
           onSaved={refresh}
+        />
+      )}
+      {modalEntry && (
+        <DayCardModal
+          entry={modalEntry}
+          onClose={() => setModalEntry(null)}
         />
       )}
     </div>

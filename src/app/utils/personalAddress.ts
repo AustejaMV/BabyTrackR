@@ -2,6 +2,9 @@
  * Personalised greetings and "you moment" messaging.
  */
 
+import { format } from 'date-fns';
+import { TIME_DISPLAY } from './dateUtils';
+
 export function getGreeting(
   parentName: string | null,
   babyName: string | null,
@@ -45,7 +48,7 @@ export function getWeeklyYouMoment(
     const today = now.toISOString().slice(0, 10);
     if (last === today) return null;
   } catch {}
-  const timeStr = napWindowOpensAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const timeStr = format(napWindowOpensAt, TIME_DISPLAY());
   const mins = Math.round(diffMin);
   const who = (parentName ?? "You").trim();
   return `${who}, ${babyName ?? "baby"}'s nap window opens at ${timeStr}. That's ${mins} minutes. What would you do with ${mins} minutes just for you?`;

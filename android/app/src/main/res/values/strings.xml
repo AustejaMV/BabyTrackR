@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Cradl</string>
+    <string name="title_activity_main">Cradl</string>
+    <string name="package_name">com.cradl.app</string>
+    <string name="custom_url_scheme">com.cradl.app</string>
+    <string name="widget_description">Quick view of baby\'s last feed, sleep, and nappy with quick log buttons</string>
+</resources>

@@ -122,7 +122,7 @@ export function SpitUpDrawer({ onClose, onSaved, session }: SpitUpDrawerProps) {
         className="text-[12px] mb-2 block"
         style={{ color: "var(--pink)" }}
       >
-        {pastChecked ? "✓ Log for a past time" : "Log for a past time"}
+        {pastChecked ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Log for a past time</span> : "Log for a past time"}
       </button>
       {pastChecked && (
         <div className="flex gap-2 mb-4">

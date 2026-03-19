@@ -188,11 +188,38 @@ const DATA_TYPES = [
   "feedingHistory",
   "diaperHistory",
   "tummyTimeHistory",
+  "bottleHistory",
+  "pumpHistory",
   "currentSleep",
   "currentTummyTime",
   "feedingInterval",
+  "feedingActiveSession",
   "painkillerHistory",
-  "notes",
+  "cradl-notes",
+  "shoppingList",
+  "babyProfile",
+  "milestones",
+  "temperatureHistory",
+  "symptomHistory",
+  "medicationHistory",
+  "solidFoodHistory",
+  "growthMeasurements",
+  "activityHistory",
+  "woundCareHistory",
+  "pelvicFloorHistory",
+  "breastPainHistory",
+  "epdsResponses",
+  "skinFlares",
+  "skinCreams",
+  "skinTriggers",
+  "mumSleepHistory",
+  "returnToWorkPlan",
+  "memoryDays",
+  "memoryMonthlyRecaps",
+  "customTrackers",
+  "customTrackerLogs",
+  "spitUpHistory",
+  "babytrackr-appointments",
 ];
 
 app.post("/data/save", async (c) => {
@@ -635,8 +662,90 @@ app.post("/village/groups/:id/board", async (c) => {
   return c.json({ id }, 201);
 });
 
+// ── Ask Cradl AI ───────────────────────────────────────────────────────
+app.post("/ask-cradl", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error || !user) return c.json({ error: error ?? "auth" }, 401);
+
+  const body = await c.req.json();
+  const { question, babyAgeWeeks, recentContext } = body;
+  const trimmed = (question ?? "").trim();
+  if (!trimmed || trimmed.length > 500) return c.json({ error: "invalid_question" }, 400);
+
+  const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY");
+  if (!OPENAI_KEY) {
+    return c.json({
+      answer: "Ask Cradl AI is not configured yet. Set the OPENAI_API_KEY secret in your Supabase Edge Function.",
+      escalationLevel: "routine",
+      escalationMessage: "This feature needs an OpenAI API key to work.",
+      disclaimer: "This is general information, not medical advice.",
+    });
+  }
+
+  const dailyKey = `ask_cradl_daily:${user.id}:${new Date().toISOString().slice(0, 10)}`;
+  const dailyCount: number = (await kvGet(dailyKey)) ?? 0;
+  if (dailyCount >= 10) {
+    return c.json({ error: "daily_limit", answer: "You've used all 10 questions for today. Try again tomorrow." }, 429);
+  }
+
+  const contextStr = recentContext
+    ? `Recent: feed ${recentContext.lastFeedHoursAgo ?? "unknown"}h ago, sleep ${recentContext.lastSleepHoursAgo ?? "unknown"}h ago, nappy ${recentContext.lastDiaperHoursAgo ?? "unknown"}h ago.`
+    : "";
+
+  const systemPrompt = `You are a caring baby health advisor for a ${babyAgeWeeks ?? "young"}-week-old baby. ${contextStr}
+Give evidence-based, reassuring answers in plain English. Never use medical jargon without explaining it.
+If the question suggests an emergency (breathing difficulty, unresponsive, seizure), say to call 999/911 immediately.
+Keep answers under 150 words. End with one word on a new line: "routine", "monitor", or "urgent".`;
+
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_KEY}` },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: trimmed }],
+        max_tokens: 300,
+        temperature: 0.4,
+      }),
+    });
+
+    const data = await res.json();
+    const raw = data.choices?.[0]?.message?.content ?? "";
+    const lines = raw.trim().split("\n");
+    const lastLine = lines[lines.length - 1]?.trim().toLowerCase();
+    const level = lastLine === "urgent" ? "urgent" : lastLine === "monitor" ? "monitor" : "routine";
+    const answer = level !== "routine" || lastLine === "routine"
+      ? lines.slice(0, -1).join("\n").trim() || raw.trim()
+      : raw.trim();
+
+    await kvSet(dailyKey, dailyCount + 1);
+
+    const escalationMessage = level === "urgent"
+      ? "Please seek immediate medical help — call 999 or go to A&E."
+      : level === "monitor"
+        ? "Keep an eye on this. Contact your GP or call 111 if it worsens."
+        : "This sounds normal. You're doing great.";
+
+    return c.json({
+      answer: answer || "I couldn't answer that. Try rephrasing your question.",
+      escalationLevel: level,
+      escalationMessage,
+      disclaimer: "This is general information, not medical advice. Always consult your GP or health visitor if you're worried.",
+    });
+  } catch (err) {
+    console.error("OpenAI call failed:", err);
+    return c.json({
+      answer: "Sorry, I couldn't get an answer right now. Please try again in a moment.",
+      escalationLevel: "routine",
+      escalationMessage: "If it's urgent, call 111 or your GP.",
+      disclaimer: "This is general information, not medical advice.",
+    }, 500);
+  }
+});
+
 const registeredRoutes = [
   "GET /health",
+  "POST /ask-cradl",
   "GET /family",
   "POST /family/create",
   "POST /family/invite",

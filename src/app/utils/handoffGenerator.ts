@@ -2,9 +2,11 @@
  * Generate handoff session from current localStorage state. Safe defaults; never throws.
  */
 
+import { format } from 'date-fns';
 import type { HandoffSession, HandoffLog } from '../types/handoff';
 import { getSweetSpotPrediction } from './napPrediction';
 import { getMoodForDate } from './moodStorage';
+import { TIME_DISPLAY } from './dateUtils';
 
 const HANDOFF_SESSIONS_KEY = 'cradl-handoff-sessions';
 const DEFAULT_FEED_INTERVAL_MS = 3 * 60 * 60 * 1000;
@@ -28,8 +30,7 @@ function toISO(ms: number): string {
 
 function formatTime(ms: number): string {
   try {
-    const d = new Date(ms);
-    return d.toISOString().slice(11, 16);
+    return format(new Date(ms), TIME_DISPLAY());
   } catch {
     return '—';
   }
@@ -193,6 +194,33 @@ export function updateHandoffSessionLogs(sessionId: string, logs: HandoffLog[]):
     }
   } catch {
     // ignore
+  }
+}
+
+/**
+ * Add a log entry directly to a locally-stored handoff session.
+ * Used as fallback when the server API is unavailable.
+ */
+export function addLocalHandoffLog(
+  sessionId: string,
+  log: { type: 'feed' | 'sleep' | 'diaper'; loggedByName: string; note: string | null },
+): HandoffLog | null {
+  try {
+    const list = safeJson<HandoffSession[]>(HANDOFF_SESSIONS_KEY, []);
+    const idx = list.findIndex((s) => s.id === sessionId);
+    if (idx < 0) return null;
+    const entry: HandoffLog = {
+      id: `local_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      type: log.type,
+      loggedAt: new Date().toISOString(),
+      loggedByName: log.loggedByName,
+      note: log.note,
+    };
+    list[idx] = { ...list[idx], logs: [...(list[idx].logs || []), entry] };
+    localStorage.setItem(HANDOFF_SESSIONS_KEY, JSON.stringify(list));
+    return entry;
+  } catch {
+    return null;
   }
 }
 

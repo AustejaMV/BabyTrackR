@@ -5,21 +5,198 @@
     "cancel": "Atšaukti",
     "next": "Toliau",
     "back": "Atgal",
-    "skip": "Praleisti"
+    "skip": "Praleisti",
+    "done": "Atlikta",
+    "delete": "Ištrinti",
+    "edit": "Redaguoti",
+    "add": "Pridėti",
+    "ok": "Gerai",
+    "yes": "Taip",
+    "no": "Ne",
+    "loading": "Kraunama…",
+    "error": "Kažkas nutiko",
+    "retry": "Bandyti dar kartą",
+    "search": "Ieškoti",
+    "noData": "Dar nėra duomenų",
+    "premium": "Premium",
+    "upgradeToPremium": "Atnaujinti į Premium",
+    "free": "Nemokama",
+    "today": "Šiandien",
+    "yesterday": "Vakar",
+    "thisWeek": "Šią savaitę",
+    "nav": {
+      "today": "Šiandien",
+      "journey": "Kelionė",
+      "village": "Kaimas",
+      "me": "Aš"
+    },
+    "baby": "Kūdikis",
+    "age": {
+      "days_one": "{{count}} diena",
+      "days_few": "{{count}} dienos",
+      "days_other": "{{count}} dienų",
+      "weeks_one": "{{count}} savaitė",
+      "weeks_few": "{{count}} savaitės",
+      "weeks_other": "{{count}} savaičių",
+      "months_one": "{{count}} mėnuo",
+      "months_few": "{{count}} mėnesiai",
+      "months_other": "{{count}} mėnesių"
+    },
+    "time": {
+      "hoursAgo_one": "prieš {{count}} valandą",
+      "hoursAgo_few": "prieš {{count}} valandas",
+      "hoursAgo_other": "prieš {{count}} valandų",
+      "minutesAgo_one": "prieš {{count}} minutę",
+      "minutesAgo_few": "prieš {{count}} minutes",
+      "minutesAgo_other": "prieš {{count}} minučių",
+      "justNow": "Ką tik"
+    }
   },
-  "home": {
-    "title": "Pradžia",
-    "goodMorning": "Labas rytas"
+
+  "today": {
+    "title": "Šiandien",
+    "goodMorning": "Labas rytas",
+    "goodAfternoon": "Laba diena",
+    "goodEvening": "Labas vakaras",
+    "greeting": "Sveiki, {{name}}",
+    "summary": "Štai jūsų diena",
+    "nextFeed": "Kitas maitinimas",
+    "lastFeed": "Paskutinis maitinimas",
+    "lastNap": "Paskutinis miegas",
+    "lastDiaper": "Paskutinė sauskelnė",
+    "totalFeeds_one": "{{count}} maitinimas šiandien",
+    "totalFeeds_few": "{{count}} maitinimai šiandien",
+    "totalFeeds_other": "{{count}} maitinimų šiandien",
+    "totalNaps_one": "{{count}} miegas šiandien",
+    "totalNaps_few": "{{count}} miegai šiandien",
+    "totalNaps_other": "{{count}} miegų šiandien",
+    "totalDiapers_one": "{{count}} sauskelnė šiandien",
+    "totalDiapers_few": "{{count}} sauskelnės šiandien",
+    "totalDiapers_other": "{{count}} sauskelnių šiandien",
+    "sleepSweetSpot": "Miego langas",
+    "sweetSpotWindow": "Langas: {{start}} – {{end}}",
+    "statsRow": {
+      "feeds": "Maitinimai",
+      "sleep": "Miegas",
+      "nappies": "Sauskelnės",
+      "growth": "Augimas"
+    },
+    "cradlNoticed": "Cradl pastebėjo",
+    "weeklyNarrative": "Jūsų savaitė",
+    "isThisNormal": "Ar tai normalu?",
+    "logActivity": "Registruoti veiklą",
+    "logFeed": "Registruoti maitinimą",
+    "logSleep": "Registruoti miegą",
+    "logNappy": "Registruoti sauskelnę",
+    "logTummyTime": "Registruoti gulėjimą ant pilvo"
   },
+
+  "story": {
+    "title": "Kelionė",
+    "weekNumber": "{{week}} savaitė",
+    "dayNumber": "{{day}} diena",
+    "milestones": "Pasiekimai",
+    "leaps": "Šuoliai ir nuostabios savaitės",
+    "leapWarning": "{{number}} šuolis gali prasidėti netrukus",
+    "growthSpurt": "Tikėtinas augimo šuolis",
+    "development": "Raida",
+    "whatToExpect": "Ko tikėtis šią savaitę",
+    "playbook": "Veiklų knygelė",
+    "tipsForThisWeek": "Patarimai {{week}} savaitei"
+  },
+
+  "village": {
+    "title": "Kaimas",
+    "description": "Jūsų palaikymo tinklas",
+    "inviteMember": "Pakviesti žmogų",
+    "handoff": "Perdavimo užrašai",
+    "handoffDescription": "Trumpi užrašai globėjams",
+    "qa": "Klausimai ir atsakymai",
+    "askQuestion": "Užduoti klausimą",
+    "members_one": "{{count}} narys",
+    "members_few": "{{count}} nariai",
+    "members_other": "{{count}} narių",
+    "groups": "Grupės",
+    "createGroup": "Sukurti grupę",
+    "pending": "Laukiama",
+    "accepted": "Priimta"
+  },
+
+  "me": {
+    "title": "Aš",
+    "mumHealth": "Mamos sveikata",
+    "breathingExercise": "Kvėpavimo pratimas",
+    "dailyCheckIn": "Dienos patikrinimas",
+    "epdsScreening": "EPDS klausimynas",
+    "painRelief": "Skausmo malšinimo žurnalas",
+    "goodEnough": "Jums puikiai sekasi",
+    "goodEnoughMessage": "Nė vienas tėvas nėra tobulas — ir tai visiškai gerai.",
+    "wellbeing": "Savijauta",
+    "sleep": "Mano miegas",
+    "mood": "Nuotaika",
+    "settings": "Nustatymai"
+  },
+
+  "onboarding": {
+    "welcome": "Sveiki atvykę į Cradl",
+    "welcomeSubtitle": "Švelnus palydėjimas per pirmuosius metus",
+    "babyName": "Kūdikio vardas",
+    "babyNamePlaceholder": "Įveskite kūdikio vardą",
+    "dateOfBirth": "Gimimo data",
+    "dueDate": "Numatyta data (jei neišnešiotas)",
+    "feedingMethod": "Maitinimo būdas",
+    "breast": "Krūtimi",
+    "bottle": "Buteliuku",
+    "mixed": "Mišrus",
+    "letsGo": "Pradėkime",
+    "step": "{{current}} žingsnis iš {{total}}"
+  },
+
   "settings": {
     "title": "Nustatymai",
     "accessibility": "Prieinamumas",
-    "language": "Kalba"
+    "language": "Kalba",
+    "notifications": "Pranešimai",
+    "darkMode": "Tamsusis režimas",
+    "dataExport": "Eksportuoti duomenis",
+    "deleteData": "Ištrinti visus duomenis",
+    "deleteDataConfirm": "Ar tikrai? Tai negalima atšaukti.",
+    "about": "Apie Cradl",
+    "version": "Versija",
+    "privacyPolicy": "Privatumo politika",
+    "termsOfService": "Paslaugų sąlygos",
+    "feedback": "Siųsti atsiliepimą",
+    "units": "Matavimo vienetai",
+    "metric": "Metrinė (kg, cm)",
+    "imperial": "Imperialinė (lb, in)"
   },
-  "nav": {
-    "home": "Pradžia",
-    "journey": "Kelionė",
-    "village": "Kaimas",
-    "more": "Daugiau"
+
+  "_medical_content_in_english": "Medical, safety, and screening content is kept in English for clinical accuracy. Do not translate without professional medical review.",
+
+  "health": {
+    "title": "Sveikata ir sauga",
+    "jaundiceGuidance": "Jaundice guidance",
+    "jaundiceInfo": "Mild jaundice is common in newborns. If your baby's skin or eyes look very yellow, or they're very sleepy and hard to wake for feeds, contact your midwife or GP promptly.",
+    "mastitisWarning": "Mastitis warning signs",
+    "mastitisInfo": "Red, hot, swollen area on your breast with flu-like symptoms — see your GP within 24 hours. Continue breastfeeding or expressing from the affected breast.",
+    "gpPrep": "GP visit prep",
+    "gpPrepInfo": "Bring a list of concerns, your baby's feeding and nappy log, and any temperature readings. Don't feel rushed — ask everything you need to.",
+    "epds": "Edinburgh Postnatal Depression Scale",
+    "epdsInfo": "The EPDS is a validated 10-question screening tool. A score of 13 or above suggests you should speak with your health visitor or GP.",
+    "warningIndicators": "Warning indicators",
+    "seekHelp": "When to seek help"
+  },
+
+  "safety": {
+    "title": "Sauga",
+    "safeSleep": "Safe sleep",
+    "safeSleepTips": "Always place baby on their back. Firm, flat mattress. No loose bedding, pillows, or toys.",
+    "firstAid": "First aid basics",
+    "choking": "Choking",
+    "burns": "Burns",
+    "fever": "Fever",
+    "feverInfo": "A temperature of 38°C or above is a fever. In babies under 3 months, always seek medical advice for any fever.",
+    "emergencyNumbers": "Emergency numbers",
+    "callEmergency": "Call {{number}}"
   }
 }

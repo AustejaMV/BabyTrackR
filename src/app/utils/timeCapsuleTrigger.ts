@@ -46,6 +46,6 @@ export function getTimeCapsuleShowBack(ageInWeeks: number): TimeCapsuleEntry | n
 }
 
 /** Default show-back is milestone + 6 months (e.g. write at 6mo, show back at 12mo). */
-export function getDefaultShowBackWeeks(milestoneWeeks: TimeCapsuleMilestone): number {
+export function getDefaultShowBackWeeks(milestoneWeeks: number): number {
   return milestoneWeeks + 26;
 }

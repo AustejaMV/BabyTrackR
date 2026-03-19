@@ -5,21 +5,187 @@
     "cancel": "Cancel",
     "next": "Next",
     "back": "Back",
-    "skip": "Skip"
+    "skip": "Skip",
+    "done": "Done",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "ok": "OK",
+    "yes": "Yes",
+    "no": "No",
+    "loading": "Loading…",
+    "error": "Something went wrong",
+    "retry": "Retry",
+    "search": "Search",
+    "noData": "No data yet",
+    "premium": "Premium",
+    "upgradeToPremium": "Upgrade to Premium",
+    "free": "Free",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "thisWeek": "This week",
+    "nav": {
+      "today": "Today",
+      "journey": "Journey",
+      "village": "Village",
+      "me": "Me"
+    },
+    "baby": "Baby",
+    "age": {
+      "days_one": "{{count}} day",
+      "days_other": "{{count}} days",
+      "weeks_one": "{{count}} week",
+      "weeks_other": "{{count}} weeks",
+      "months_one": "{{count}} month",
+      "months_other": "{{count}} months"
+    },
+    "time": {
+      "hoursAgo_one": "{{count}} hour ago",
+      "hoursAgo_other": "{{count}} hours ago",
+      "minutesAgo_one": "{{count}} minute ago",
+      "minutesAgo_other": "{{count}} minutes ago",
+      "justNow": "Just now"
+    }
   },
-  "home": {
-    "title": "Home",
-    "goodMorning": "Good morning"
+
+  "today": {
+    "title": "Today",
+    "goodMorning": "Good morning",
+    "goodAfternoon": "Good afternoon",
+    "goodEvening": "Good evening",
+    "greeting": "Hello, {{name}}",
+    "summary": "Here's your day so far",
+    "nextFeed": "Next feed",
+    "lastFeed": "Last feed",
+    "lastNap": "Last nap",
+    "lastDiaper": "Last nappy",
+    "totalFeeds_one": "{{count}} feed today",
+    "totalFeeds_other": "{{count}} feeds today",
+    "totalNaps_one": "{{count}} nap today",
+    "totalNaps_other": "{{count}} naps today",
+    "totalDiapers_one": "{{count}} nappy today",
+    "totalDiapers_other": "{{count}} nappies today",
+    "sleepSweetSpot": "Sleep sweet spot",
+    "sweetSpotWindow": "Window: {{start}} – {{end}}",
+    "statsRow": {
+      "feeds": "Feeds",
+      "sleep": "Sleep",
+      "nappies": "Nappies",
+      "growth": "Growth"
+    },
+    "cradlNoticed": "Cradl noticed",
+    "weeklyNarrative": "Your week",
+    "isThisNormal": "Is this normal?",
+    "logActivity": "Log activity",
+    "logFeed": "Log feed",
+    "logSleep": "Log sleep",
+    "logNappy": "Log nappy",
+    "logTummyTime": "Log tummy time"
   },
+
+  "story": {
+    "title": "Journey",
+    "weekNumber": "Week {{week}}",
+    "dayNumber": "Day {{day}}",
+    "milestones": "Milestones",
+    "leaps": "Leaps & wonder weeks",
+    "leapWarning": "Leap {{number}} may start soon",
+    "growthSpurt": "Growth spurt likely",
+    "development": "Development",
+    "whatToExpect": "What to expect this week",
+    "playbook": "Playbook",
+    "tipsForThisWeek": "Tips for week {{week}}"
+  },
+
+  "village": {
+    "title": "Village",
+    "description": "Your support network",
+    "inviteMember": "Invite someone",
+    "handoff": "Handoff notes",
+    "handoffDescription": "Quick notes for carers",
+    "qa": "Q & A",
+    "askQuestion": "Ask a question",
+    "members_one": "{{count}} member",
+    "members_other": "{{count}} members",
+    "groups": "Groups",
+    "createGroup": "Create group",
+    "pending": "Pending",
+    "accepted": "Accepted"
+  },
+
+  "me": {
+    "title": "Me",
+    "mumHealth": "Mum's health",
+    "breathingExercise": "Breathing exercise",
+    "dailyCheckIn": "Daily check-in",
+    "epdsScreening": "EPDS screening",
+    "painRelief": "Pain relief log",
+    "goodEnough": "You're doing great",
+    "goodEnoughMessage": "No parent is perfect — and that's perfectly OK.",
+    "wellbeing": "Wellbeing",
+    "sleep": "My sleep",
+    "mood": "Mood",
+    "settings": "Settings"
+  },
+
+  "onboarding": {
+    "welcome": "Welcome to Cradl",
+    "welcomeSubtitle": "Gentle guidance for the first year",
+    "babyName": "Baby's name",
+    "babyNamePlaceholder": "Enter baby's name",
+    "dateOfBirth": "Date of birth",
+    "dueDate": "Due date (if premature)",
+    "feedingMethod": "Feeding method",
+    "breast": "Breast",
+    "bottle": "Bottle",
+    "mixed": "Mixed",
+    "letsGo": "Let's go",
+    "step": "Step {{current}} of {{total}}"
+  },
+
   "settings": {
     "title": "Settings",
     "accessibility": "Accessibility",
-    "language": "Language"
+    "language": "Language",
+    "notifications": "Notifications",
+    "darkMode": "Dark mode",
+    "dataExport": "Export data",
+    "deleteData": "Delete all data",
+    "deleteDataConfirm": "Are you sure? This cannot be undone.",
+    "about": "About Cradl",
+    "version": "Version",
+    "privacyPolicy": "Privacy policy",
+    "termsOfService": "Terms of service",
+    "feedback": "Send feedback",
+    "units": "Units",
+    "metric": "Metric (kg, cm)",
+    "imperial": "Imperial (lb, in)"
   },
-  "nav": {
-    "home": "Home",
-    "journey": "Journey",
-    "village": "Village",
-    "more": "More"
+
+  "health": {
+    "title": "Health & safety",
+    "jaundiceGuidance": "Jaundice guidance",
+    "jaundiceInfo": "Mild jaundice is common in newborns. If your baby's skin or eyes look very yellow, or they're very sleepy and hard to wake for feeds, contact your midwife or GP promptly.",
+    "mastitisWarning": "Mastitis warning signs",
+    "mastitisInfo": "Red, hot, swollen area on your breast with flu-like symptoms — see your GP within 24 hours. Continue breastfeeding or expressing from the affected breast.",
+    "gpPrep": "GP visit prep",
+    "gpPrepInfo": "Bring a list of concerns, your baby's feeding and nappy log, and any temperature readings. Don't feel rushed — ask everything you need to.",
+    "epds": "Edinburgh Postnatal Depression Scale",
+    "epdsInfo": "The EPDS is a validated 10-question screening tool. A score of 13 or above suggests you should speak with your health visitor or GP.",
+    "warningIndicators": "Warning indicators",
+    "seekHelp": "When to seek help"
+  },
+
+  "safety": {
+    "title": "Safety",
+    "safeSleep": "Safe sleep",
+    "safeSleepTips": "Always place baby on their back. Firm, flat mattress. No loose bedding, pillows, or toys.",
+    "firstAid": "First aid basics",
+    "choking": "Choking",
+    "burns": "Burns",
+    "fever": "Fever",
+    "feverInfo": "A temperature of 38°C or above is a fever. In babies under 3 months, always seek medical advice for any fever.",
+    "emergencyNumbers": "Emergency numbers",
+    "callEmergency": "Call {{number}}"
   }
 }

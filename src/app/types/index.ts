@@ -52,6 +52,7 @@ export interface FeedingRecord {
   excludedMs?: number;
   /** Multi-segment session (e.g. 30m left, 10m right, 20m formula 60ml). */
   segments?: FeedingSegment[];
+  note?: string;
 }
 
 /** In-flight segment during an active feeding session. */
@@ -124,6 +125,8 @@ export interface BabyProfile {
   weight?: number; // kg, optional
   height?: number; // cm, optional
   headCircumference?: number; // cm, optional
+  sex?: "girl" | "boy" | "prefer_not_to_say";
+  bloodType?: string;
 }
 
 /** Developmental milestone with typical range and user-set date */
@@ -143,6 +146,7 @@ export interface BottleRecord {
   timestamp: number;
   volumeMl: number;
   feedType: "formula" | "expressed" | "mixed";
+  note?: string;
 }
 
 /** Pump session log */

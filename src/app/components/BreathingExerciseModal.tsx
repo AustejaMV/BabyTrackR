@@ -1,108 +1,195 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
-const PHASES = ["inhale", "hold1", "exhale", "rest"] as const;
-const PHASE_LABELS: Record<(typeof PHASES)[number], string> = {
-  inhale: "Breathe in...",
-  hold1: "Hold...",
-  exhale: "Breathe out...",
-  rest: "Rest...",
-};
-const PHASE_DURATION_MS = { inhale: 4000, hold1: 4000, exhale: 4000, rest: 2000 };
-const TOTAL_ROUNDS = 4;
+interface Props {
+  open: boolean;
+  onClose: () => void;
+}
 
-export function BreathingExerciseModal({ onClose }: { onClose: () => void }) {
+const PHASES = [
+  { label: "Breathe in...", duration: 4000 },
+  { label: "Hold...", duration: 4000 },
+  { label: "Breathe out...", duration: 4000 },
+  { label: "Rest...", duration: 2000 },
+] as const;
+
+const CYCLE_MS = PHASES.reduce((sum, p) => sum + p.duration, 0);
+const TOTAL_CYCLES = 4;
+const TOTAL_MS = CYCLE_MS * TOTAL_CYCLES;
+
+export function BreathingExerciseModal({ open, onClose }: Props) {
   const [phaseIndex, setPhaseIndex] = useState(0);
-  const [round, setRound] = useState(1);
-  const [done, setDone] = useState(false);
+  const [finished, setFinished] = useState(false);
+  const startRef = useRef<number | null>(null);
+  const rafRef = useRef<number>(0);
 
-  const phase = PHASES[phaseIndex];
-  const scale = phase === "inhale" || phase === "hold1" ? 1 : 0.6;
-  const transitionMs = phase === "inhale" || phase === "exhale" ? 4000 : 0;
+  const tick = useCallback(() => {
+    if (startRef.current == null) return;
 
-  const advance = useCallback(() => {
-    setPhaseIndex((i) => {
-      const next = i + 1;
-      if (next >= PHASES.length) {
-        setRound((r) => {
-          if (r >= TOTAL_ROUNDS) setDone(true);
-          return r + 1;
-        });
-        return 0;
+    const elapsed = Date.now() - startRef.current;
+    if (elapsed >= TOTAL_MS) {
+      setFinished(true);
+      return;
+    }
+
+    const posInCycle = elapsed % CYCLE_MS;
+    let acc = 0;
+    for (let i = 0; i < PHASES.length; i++) {
+      acc += PHASES[i].duration;
+      if (posInCycle < acc) {
+        setPhaseIndex(i);
+        break;
       }
-      return next;
-    });
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
   }, []);
 
   useEffect(() => {
-    if (done) return;
-    const dur = PHASE_DURATION_MS[phase];
-    const t = setTimeout(advance, dur);
-    return () => clearTimeout(t);
-  }, [phase, phaseIndex, done, advance]);
+    if (!open) return;
+    setFinished(false);
+    setPhaseIndex(0);
+    startRef.current = Date.now();
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [open, tick]);
 
-  const handleSkip = () => onClose();
+  const handleClose = () => {
+    cancelAnimationFrame(rafRef.current);
+    startRef.current = null;
+    onClose();
+  };
 
-  const isDark = typeof document !== "undefined" && document.documentElement?.classList?.contains("dark");
-  const bg = isDark ? "#1a1428" : "#2a1e35";
-  const textColor = "rgba(240, 235, 230, 0.95)";
+  if (!open) return null;
 
-  if (done) {
-    return (
-      <div
-        className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-6"
-        style={{ background: bg }}
-        role="dialog"
-        aria-label="Breathing exercise complete"
-      >
-        <p className="text-center text-[18px] font-serif mb-6" style={{ color: textColor }}>
-          Take your time. You're doing great.
-        </p>
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-8 py-3 rounded-xl border border-white/30 text-white font-medium"
-        >
-          Done
-        </button>
-      </div>
-    );
-  }
+  const phase = PHASES[phaseIndex];
+  const isInhale = phaseIndex === 0;
+  const isExhale = phaseIndex === 2;
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-6"
-      style={{ background: bg }}
-      role="dialog"
-      aria-label="Breathing exercise"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        background: "#1a1428",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        fontFamily: "system-ui, sans-serif",
+      }}
     >
-      <div
-        className="w-48 h-48 rounded-full flex items-center justify-center"
-        style={{ background: "rgba(255,255,255,0.08)" }}
-      >
-        <div
-          className="w-40 h-40 rounded-full border-2 border-white/20 ease-in-out"
-          style={{
-            transform: `scale(${scale})`,
-            transition: transitionMs ? `transform ${transitionMs}ms ease-in-out` : "none",
-          }}
-        />
-      </div>
+      <style>{`
+        @keyframes cradl-inhale {
+          0%   { transform: scale(0.5); opacity: 0.5; }
+          100% { transform: scale(1);   opacity: 1;   }
+        }
+        @keyframes cradl-hold {
+          0%, 100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes cradl-exhale {
+          0%   { transform: scale(1);   opacity: 1;   }
+          100% { transform: scale(0.5); opacity: 0.5; }
+        }
+        @keyframes cradl-rest {
+          0%, 100% { transform: scale(0.5); opacity: 0.5; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .cradl-breath-circle {
+            animation: none !important;
+            transform: scale(0.75) !important;
+            opacity: 0.75 !important;
+          }
+        }
+      `}</style>
 
-      <p className="mt-8 text-center text-[18px] font-serif" style={{ color: textColor, fontFamily: "Georgia, serif" }}>
-        {PHASE_LABELS[phase]}
-      </p>
-      <p className="mt-2 text-sm opacity-80" style={{ color: textColor }}>
-        Round {round} of {TOTAL_ROUNDS}
-      </p>
-
+      {/* Close / X button */}
       <button
-        type="button"
-        onClick={handleSkip}
-        className="absolute bottom-8 left-0 right-0 text-center text-sm opacity-60 hover:opacity-90"
-        style={{ color: textColor }}
+        onClick={handleClose}
+        aria-label="Close"
+        style={{
+          position: "absolute",
+          top: 16,
+          right: 16,
+          background: "none",
+          border: "none",
+          color: "rgba(255,255,255,0.6)",
+          fontSize: 24,
+          cursor: "pointer",
+          padding: 8,
+          lineHeight: 1,
+        }}
       >
-        Skip
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
+
+      {finished ? (
+        <div style={{ textAlign: "center", padding: 24 }}>
+          <div
+            style={{
+              fontFamily: "Georgia, serif",
+              fontSize: 22,
+              color: "#fff",
+              lineHeight: 1.5,
+              marginBottom: 24,
+            }}
+          >
+            Take your time.
+            <br />
+            You're doing great.
+          </div>
+          <button
+            onClick={handleClose}
+            style={{
+              background: "rgba(255,255,255,0.15)",
+              color: "#fff",
+              border: "1px solid rgba(255,255,255,0.25)",
+              borderRadius: 12,
+              padding: "12px 40px",
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: "system-ui, sans-serif",
+            }}
+          >
+            Done
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Animated circle */}
+          <div
+            className="cradl-breath-circle"
+            style={{
+              width: 160,
+              height: 160,
+              borderRadius: "50%",
+              background:
+                "radial-gradient(circle, rgba(196,160,212,0.6), rgba(122,179,212,0.3))",
+              animation: isInhale
+                ? "cradl-inhale 4s ease-in-out forwards"
+                : isExhale
+                  ? "cradl-exhale 4s ease-in-out forwards"
+                  : phaseIndex === 1
+                    ? "cradl-hold 4s ease-in-out forwards"
+                    : "cradl-rest 2s ease-in-out forwards",
+              marginBottom: 32,
+            }}
+          />
+
+          {/* Phase label */}
+          <div
+            style={{
+              fontFamily: "Georgia, serif",
+              fontSize: 20,
+              color: "#fff",
+              opacity: 0.9,
+            }}
+          >
+            {phase.label}
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -101,7 +101,7 @@ export function SolidFoodDrawer({ onClose, onSaved }: SolidFoodDrawerProps) {
         note: note.trim() || null,
         allergenFlags,
       });
-      if (isFirstTime) toast.success("First taste! 🎉");
+      if (isFirstTime) toast.success("First taste logged!");
       else toast.success("Solid food logged");
       onSaved();
       onClose();

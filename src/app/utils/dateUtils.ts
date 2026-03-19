@@ -1,21 +1,79 @@
-import { format } from 'date-fns';
+import { format, type Locale } from 'date-fns';
+import { enGB } from 'date-fns/locale/en-GB';
+import { lt } from 'date-fns/locale/lt';
+import { de } from 'date-fns/locale/de';
+import { fr } from 'date-fns/locale/fr';
+import { es } from 'date-fns/locale/es';
+import type { SupportedLocale } from './languageStorage';
+import {
+  userDatePattern,
+  userTimePattern,
+  userDateTimePattern,
+  userShortDatePattern,
+  userShortDateTimePattern,
+  userDayDateTimePattern,
+} from './formatPreferencesStorage';
 
-/** User-facing short date: dd/mm/yyyy */
-export const DATE_DISPLAY = 'dd/MM/yyyy';
-/** User-facing long date: e.g. 8 March 2025 */
+/** User-facing short date — respects user preference (dd/MM/yyyy or MM/dd/yyyy). */
+export function DATE_DISPLAY(): string { return userDatePattern(); }
+/** User-facing long date: e.g. 8 March 2025 — locale-dependent for month names */
 export const DATE_DISPLAY_LONG = 'd MMMM yyyy';
+/** User-facing time pattern — respects user preference (HH:mm or h:mm a). */
+export function TIME_DISPLAY(): string { return userTimePattern(); }
+/** Combined date + time pattern. */
+export function DATETIME_DISPLAY(): string { return userDateTimePattern(); }
+/** Short date without year (dd/MM or MM/dd). */
+export function SHORT_DATE_DISPLAY(): string { return userShortDatePattern(); }
+/** "d MMM HH:mm" / "d MMM h:mm a" */
+export function SHORT_DATETIME_DISPLAY(): string { return userShortDateTimePattern(); }
+/** "EEE d MMM · HH:mm" / "EEE d MMM · h:mm a" */
+export function DAY_DATETIME_DISPLAY(): string { return userDayDateTimePattern(); }
+
+const dateFnsLocales: Record<SupportedLocale, Locale> = {
+  en: enGB,
+  lt,
+  de,
+  fr,
+  es,
+};
+
+export function getDateLocale(locale: SupportedLocale): Locale {
+  return dateFnsLocales[locale] ?? enGB;
+}
 
 /**
  * Safely format a timestamp. Returns fallback when the value is
  * null/undefined/NaN/0 so pages never throw "Invalid time value".
+ * Accepts an optional locale for patterns that contain month/day names.
  */
-export function safeFormat(ts: number | null | undefined, pattern: string, fallback = '—'): string {
+export function safeFormat(
+  ts: number | null | undefined,
+  pattern: string,
+  fallback = '—',
+  locale?: SupportedLocale,
+): string {
   if (ts == null || !Number.isFinite(ts) || ts === 0) return fallback;
   try {
-    return format(new Date(ts), pattern);
+    const opts = locale ? { locale: dateFnsLocales[locale] } : undefined;
+    return format(new Date(ts), pattern, opts);
   } catch {
     return fallback;
   }
+}
+
+/**
+ * Convenience: format a timestamp using the user's chosen date format.
+ */
+export function formatDate(ts: number | null | undefined, fallback = '—'): string {
+  return safeFormat(ts, DATE_DISPLAY(), fallback);
+}
+
+/**
+ * Convenience: format a timestamp as a long date with locale-aware month name.
+ * e.g. "8 March 2025" (en) or "8 kovo 2025" (lt).
+ */
+export function formatDateLong(ts: number | null | undefined, locale: SupportedLocale = 'en', fallback = '—'): string {
+  return safeFormat(ts, DATE_DISPLAY_LONG, fallback, locale);
 }
 
 /**
@@ -90,11 +148,11 @@ export function getTimeSince(timestamp: number): string {
   return `${hours}h ${minutes % 60}m ago`;
 }
 
-/** Format time as HH:mm (24h) for display. */
+/** Format time using the user's preferred clock format (24h or 12h). */
 export function formatClockTime(ts: number | null | undefined, fallback = '—'): string {
   if (ts == null || !Number.isFinite(ts)) return fallback;
   try {
-    return format(new Date(ts), 'HH:mm');
+    return format(new Date(ts), TIME_DISPLAY());
   } catch {
     return fallback;
   }

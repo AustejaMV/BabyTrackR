@@ -7,28 +7,61 @@ import { BabyProvider, useBaby } from './contexts/BabyContext';
 import { RoleProvider } from './contexts/RoleContext';
 import { ThemeProvider } from '../store/themeStore';
 import { Toaster } from './components/ui/sonner';
-import { OnboardingFlow } from './components/OnboardingFlow';
 import { OnboardingNavigator } from './components/OnboardingNavigator';
-import { isOnboardingComplete, markOnboardingComplete } from './utils/onboardingStorage';
+import { isOnboardingComplete, isOnboardingInProgress, markOnboardingComplete } from './utils/onboardingStorage';
 import { getBabies } from './data/babiesStorage';
 import { LanguageProvider } from './contexts/LanguageContext';
 
+function hasPreExistingData(): boolean {
+  try {
+    for (const key of ["feedingHistory", "sleepHistory"]) {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr) && arr.length > 0) return true;
+      }
+    }
+  } catch {}
+  return false;
+}
+
+function PostOnboardingLoginRedirect() {
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("cradl-post-onboarding-login") === "true") {
+        localStorage.removeItem("cradl-post-onboarding-login");
+        window.location.href = "/login";
+      }
+    } catch {}
+  }, []);
+  return null;
+}
+
 function BabyGate() {
-  const { babies, addBaby, setActiveBabyId, refresh } = useBaby();
+  const { babies, refresh } = useBaby();
   const [firstLaunchDone, setFirstLaunchDone] = useState(false);
 
   useEffect(() => {
+    if (isOnboardingInProgress()) return;
+
     const list = getBabies();
-    if (list.length > 0 && list[0]?.birthDate) {
+    const hasBabyWithDOB = list.some((b) => b.birthDate > 0);
+
+    if (hasBabyWithDOB) {
+      markOnboardingComplete();
+      setFirstLaunchDone(true);
+      return;
+    }
+
+    if (!isOnboardingComplete() && hasPreExistingData()) {
       markOnboardingComplete();
       setFirstLaunchDone(true);
     }
   }, [babies.length]);
 
-  const showFirstLaunchOnboarding =
-    !firstLaunchDone && !isOnboardingComplete() && babies.length === 0;
+  const onboardingDone = firstLaunchDone || isOnboardingComplete();
 
-  if (showFirstLaunchOnboarding) {
+  if (!onboardingDone || isOnboardingInProgress()) {
     return (
       <OnboardingNavigator
         onComplete={() => {
@@ -40,20 +73,10 @@ function BabyGate() {
     );
   }
 
-  if (babies.length === 0) {
-    return (
-      <OnboardingFlow
-        onComplete={(data) => {
-          const b = addBaby(data);
-          setActiveBabyId(b.id);
-        }}
-      />
-    );
-  }
-
   return (
     <RoleProvider>
       <RouterProvider router={router} />
+      <PostOnboardingLoginRedirect />
     </RoleProvider>
   );
 }

@@ -3,28 +3,105 @@ import { useAuth } from '../contexts/AuthContext';
 import { Navigation } from '../components/Navigation';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { ArrowLeft, UserPlus, LogOut, Users, Trash2, Mail, X, AlertTriangle, CloudUpload, Camera, Mic, FileDown, LayoutDashboard, UserCircle, ChevronDown, UserMinus } from 'lucide-react';
+import { ArrowLeft, UserPlus, LogOut, Users, Trash2, Mail, X, AlertTriangle, CloudUpload, Camera, Mic, FileDown, LayoutDashboard, UserCircle, ChevronDown, UserMinus, Bell, Shield, Monitor, Smartphone } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { serverUrl, supabaseAnonKey } from '../utils/supabase';
 import { toast } from 'sonner';
 import { saveData, saveManyToServer, SYNCED_DATA_KEYS, SYNCED_DATA_DEFAULTS, loadAllDataFromServer, clearSyncedDataFromLocalStorage } from '../utils/dataSync';
+import { seedAllData, clearSeedData } from '../utils/seedData';
 import type { BabyProfile } from '../types';
 import { getAgeInDays } from '../utils/babyUtils';
 import { compressBabyPhoto } from '../utils/imageCompress';
 import { useBaby } from '../contexts/BabyContext';
-import { OnboardingFlow } from '../components/OnboardingFlow';
+import { OnboardingNavigator } from '../components/OnboardingNavigator';
 import { readAlertThresholds, saveAlertThresholds, type AlertThresholds } from '../utils/alertThresholdsStorage';
-import { VOICE_COMMAND_EXAMPLES } from '../components/VoiceControl';
+import { useIsDesktop } from '../hooks/useIsDesktop';
+import { usePremium } from '../contexts/PremiumContext';
+
+const VOICE_COMMAND_EXAMPLES: { cmd: string; desc: string }[] = [
+  { cmd: "Log a feed", desc: "Start a new feed log" },
+  { cmd: "Log sleep", desc: "Start a new sleep log" },
+  { cmd: "Log nappy", desc: "Log a nappy change" },
+  { cmd: "Log bottle", desc: "Start a new bottle log" },
+  { cmd: "Log tummy time", desc: "Start a tummy time log" },
+  { cmd: "Log pump", desc: "Start a pump log" },
+  { cmd: "Go to settings", desc: "Open the settings page" },
+  { cmd: "Go to journey", desc: "Open the journey / story screen" },
+  { cmd: "Go to village", desc: "Open the village screen" },
+];
 import { CSVExportButton } from '../components/CSVExportButton';
+import { generatePediatricReport } from '../utils/pdfExport';
 import { useRole } from '../contexts/RoleContext';
 import { getAccessibleFontScale, setAccessibleFontScale } from '../utils/useAccessibleFontSize';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LOCALE_LABELS, type SupportedLocale } from '../utils/languageStorage';
 import { villageDeleteMyData } from '../utils/villageApi';
 import { isFirstBaby, setFirstBaby } from '../utils/onboardingStorage';
+import {
+  getDateFormatPref,
+  setDateFormatPref,
+  getTimeFormatPref,
+  setTimeFormatPref,
+  type DateFormatPref,
+  type TimeFormatPref,
+} from '../utils/formatPreferencesStorage';
 
 const REDUCE_MOTION_KEY = 'cradl-reduce-motion';
 const HIGH_CONTRAST_KEY = 'cradl-high-contrast';
+const NOTIFICATION_SETTINGS_KEY = 'cradl-notification-settings';
+
+const BLOOD_TYPE_OPTIONS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', "Don't know"] as const;
+
+const NOTIFICATION_ROWS = [
+  { key: 'feedReminder', label: 'Feed reminder' },
+  { key: 'napWindowOpening', label: 'Nap window opening' },
+  { key: 'painReliefSafe', label: 'Pain relief safe' },
+  { key: 'vaccinationDue', label: 'Vaccination due' },
+  { key: 'napStageTransition', label: 'Nap stage transition' },
+  { key: 'dailyTummyReminder', label: 'Daily tummy reminder' },
+] as const;
+
+type NotificationSettings = Record<string, boolean>;
+
+function readNotificationSettings(): NotificationSettings {
+  try {
+    const raw = localStorage.getItem(NOTIFICATION_SETTINGS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function formatBabyAge(birthDateMs: number): string {
+  const days = getAgeInDays(birthDateMs);
+  if (days < 7) return `${days} day${days !== 1 ? 's' : ''}`;
+  const totalWeeks = Math.floor(days / 7);
+  const remainingDays = days % 7;
+  if (days < 90) {
+    const parts: string[] = [`${totalWeeks} week${totalWeeks !== 1 ? 's' : ''}`];
+    if (remainingDays > 0) parts.push(`${remainingDays} day${remainingDays !== 1 ? 's' : ''}`);
+    return parts.join(' ');
+  }
+  const months = Math.floor(days / 30.44);
+  const leftoverDays = Math.round(days - months * 30.44);
+  const parts: string[] = [`${months} month${months !== 1 ? 's' : ''}`];
+  if (leftoverDays > 0) parts.push(`${leftoverDays} day${leftoverDays !== 1 ? 's' : ''}`);
+  return parts.join(' ');
+}
+
+const SIDEBAR_SECTIONS = [
+  { id: 'baby', label: 'Baby' },
+  { id: 'alerts', label: 'Alert thresholds' },
+  { id: 'notifications', label: 'Notifications' },
+  { id: 'dateTime', label: 'Date & Time' },
+  { id: 'appView', label: 'App view' },
+  { id: 'experience', label: 'Experience' },
+  { id: 'accessibility', label: 'Accessibility' },
+  { id: 'language', label: 'Language' },
+  { id: 'account', label: 'Account' },
+  { id: 'family', label: 'Family Sharing' },
+  { id: 'voice', label: 'Voice Commands' },
+  { id: 'export', label: 'Export data' },
+  { id: 'danger', label: 'Danger Zone' },
+] as const;
 
 interface FamilyMember {
   id: string;
@@ -35,8 +112,9 @@ interface FamilyMember {
 export function Settings() {
   const navigate = useNavigate();
   const { user, signOut, session, familyId, refreshFamily, setFamilyIdFromCreate } = useAuth();
-  const { activeBaby, babies, addBaby, setActiveBabyId, updateActiveBaby, removeBaby } = useBaby();
+  const { activeBaby, babies, addBaby, setActiveBabyId, updateActiveBaby, removeBaby, refresh } = useBaby();
   const { role, setRole } = useRole();
+  const { isPremium } = usePremium();
   const [inviteEmail, setInviteEmail] = useState('');
   const [family, setFamily] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -47,7 +125,7 @@ export function Settings() {
   const [wiping, setWiping] = useState(false);
   const [showAddBabyFlow, setShowAddBabyFlow] = useState(false);
   const babyProfile: BabyProfile | null = activeBaby
-    ? { birthDate: activeBaby.birthDate, name: activeBaby.name, photoDataUrl: activeBaby.photoDataUrl, weight: activeBaby.weight, height: activeBaby.height }
+    ? { birthDate: activeBaby.birthDate, name: activeBaby.name, photoDataUrl: activeBaby.photoDataUrl, weight: activeBaby.weight, height: activeBaby.height, sex: activeBaby.sex, bloodType: activeBaby.bloodType }
     : null;
   const [birthDateInput, setBirthDateInput] = useState('');
   const [babyNameInput, setBabyNameInput] = useState('');
@@ -66,6 +144,24 @@ export function Settings() {
   const [languageSheetOpen, setLanguageSheetOpen] = useState(false);
   const [villageDeleteLoading, setVillageDeleteLoading] = useState(false);
   const [firstBaby, setFirstBabyState] = useState(() => isFirstBaby());
+  const isDesktop = useIsDesktop();
+  const [desktopSection, setDesktopSection] = useState('baby');
+  const [sexInput, setSexInput] = useState<'girl' | 'boy' | 'prefer_not_to_say' | undefined>(undefined);
+  const [bloodTypeInput, setBloodTypeInput] = useState<string>('');
+  const [moreDetailsOpen, setMoreDetailsOpen] = useState(false);
+  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
+  const [removeConfirmName, setRemoveConfirmName] = useState('');
+  const [notifSettings, setNotifSettings] = useState<NotificationSettings>(() => readNotificationSettings());
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | 'unsupported'>(() => {
+    if (typeof Notification === 'undefined') return 'unsupported';
+    return Notification.permission;
+  });
+  const [wipeConfirmText, setWipeConfirmText] = useState('');
+  const [dateFormatPref, setDateFormatPrefState] = useState<DateFormatPref>(() => getDateFormatPref());
+  const [timeFormatPref, setTimeFormatPrefState] = useState<TimeFormatPref>(() => getTimeFormatPref());
+  const [deleteAccountPending, setDeleteAccountPending] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
     if (session?.access_token && familyId) {
@@ -104,8 +200,12 @@ export function Settings() {
       setBirthDateInput(activeBaby.birthDate ? new Date(activeBaby.birthDate).toISOString().slice(0, 10) : '');
       setBabyNameInput(activeBaby.name ?? '');
       setParentNameInput(activeBaby.parentName ?? '');
+      setSexInput(activeBaby.sex);
+      setBloodTypeInput(activeBaby.bloodType ?? '');
+      setRemoveConfirmOpen(false);
+      setRemoveConfirmName('');
     }
-  }, [activeBaby?.id, activeBaby?.birthDate, activeBaby?.name, activeBaby?.parentName]);
+  }, [activeBaby?.id, activeBaby?.birthDate, activeBaby?.name, activeBaby?.parentName, activeBaby?.sex, activeBaby?.bloodType]);
 
   const loadFamily = async () => {
     if (!session?.access_token) return;
@@ -280,12 +380,7 @@ export function Settings() {
   };
 
   const handleWipeAllData = async () => {
-    if (!wipePending) {
-      setWipePending(true);
-      return;
-    }
     setWiping(true);
-    setWipePending(false);
     try {
       // Reset localStorage to defaults
       clearSyncedDataFromLocalStorage();
@@ -299,6 +394,8 @@ export function Settings() {
         await saveManyToServer(updates, session.access_token);
       }
       toast.success('All baby data has been wiped. Family account and members are untouched.');
+      setWipePending(false);
+      setWipeConfirmText('');
     } catch {
       toast.error('Wipe failed. Try again.');
     } finally {
@@ -320,11 +417,13 @@ export function Settings() {
       photoDataUrl: updates?.photoDataUrl !== undefined ? updates.photoDataUrl : babyProfile?.photoDataUrl,
       weight: updates?.weight !== undefined ? updates.weight : activeBaby.weight,
       height: updates?.height !== undefined ? updates.height : activeBaby.height,
+      sex: updates?.sex !== undefined ? updates.sex : activeBaby.sex,
+      bloodType: updates?.bloodType !== undefined ? updates.bloodType : activeBaby.bloodType,
     };
     if (!next.birthDate) return;
     updateActiveBaby(next);
-    try { localStorage.setItem('babyProfile', JSON.stringify({ birthDate: next.birthDate, name: next.name, parentName: next.parentName, photoDataUrl: next.photoDataUrl, weight: next.weight, height: next.height })); } catch { /* ignore */ }
-    if (session?.access_token) saveData('babyProfile', { birthDate: next.birthDate, name: next.name, parentName: next.parentName, photoDataUrl: next.photoDataUrl, weight: next.weight, height: next.height }, session.access_token);
+    try { localStorage.setItem('babyProfile', JSON.stringify({ birthDate: next.birthDate, name: next.name, parentName: next.parentName, photoDataUrl: next.photoDataUrl, weight: next.weight, height: next.height, sex: next.sex, bloodType: next.bloodType })); } catch { /* ignore */ }
+    if (session?.access_token) saveData('babyProfile', { birthDate: next.birthDate, name: next.name, parentName: next.parentName, photoDataUrl: next.photoDataUrl, weight: next.weight, height: next.height, sex: next.sex, bloodType: next.bloodType }, session.access_token);
   };
 
   const handleBirthDateChange = (dateStr: string) => {
@@ -378,56 +477,52 @@ export function Settings() {
 
   if (showAddBabyFlow) {
     return (
-      <OnboardingFlow
-        isAddingAnother
-        onComplete={(data) => {
-          const b = addBaby(data);
-          setActiveBabyId(b.id);
+      <OnboardingNavigator
+        onComplete={() => {
+          refresh();
           setShowAddBabyFlow(false);
         }}
       />
     );
   }
 
-  return (
-    <div className="min-h-screen pb-20" style={{ background: 'var(--bg)' }}>
-      <div className="max-w-lg mx-auto px-4 py-6">
-        <div className="flex items-center gap-3 mb-6">
-          <Link to="/">
-            <button type="button" className="p-2 rounded-full min-w-[44px] min-h-[44px] flex items-center justify-center" style={{ color: 'var(--tx)', background: 'var(--card)', border: '1px solid var(--bd)' }}>
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-          </Link>
-          <h1 className="text-xl font-semibold" style={{ color: 'var(--tx)' }}>Settings</h1>
-        </div>
-
+  const allSections = (
+      <>
         {/* Baby */}
-        <div className={cardClass} style={cardStyle}>
+        <div id="section-baby" className={cardClass} style={cardStyle}>
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-base font-medium" style={{ color: 'var(--tx)' }}>Baby</h2>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setShowAddBabyFlow(true)}
-              className="flex items-center gap-1.5"
-            >
-              <UserPlus className="w-4 h-4" />
-              Add another baby
-            </Button>
+            {babies.length < 4 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAddBabyFlow(true)}
+                className="flex items-center gap-1.5"
+              >
+                <UserPlus className="w-4 h-4" />
+                Add another baby
+              </Button>
+            )}
           </div>
           <p className="text-[13px] mb-4" style={labelStyle}>
             Set birth date to see age-appropriate targets and normalcy on the dashboard.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
             <div className="flex flex-col items-center gap-2">
-              <div className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center shrink-0 border-2" style={{ background: 'var(--bg2)', borderColor: 'var(--bd)' }}>
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center shrink-0 border-2 cursor-pointer"
+                style={{ background: 'var(--bg2)', borderColor: 'var(--bd)' }}
+                aria-label="Change baby photo"
+              >
                 {babyProfile?.photoDataUrl ? (
                   <img src={babyProfile.photoDataUrl} alt="Baby" className="w-full h-full object-cover" />
                 ) : (
                   <Camera className="w-8 h-8" style={{ color: 'var(--mu)' }} />
                 )}
-              </div>
+              </button>
               <div className="flex flex-wrap justify-center gap-2">
                 <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelect} disabled={photoCompressing} />
                 <Button type="button" variant="outline" size="sm" disabled={photoCompressing} onClick={() => photoInputRef.current?.click()} className="min-h-[44px]">
@@ -476,43 +571,130 @@ export function Settings() {
                   className={inputClass}
                   style={inputStyle}
                 />
-                {babyProfile?.birthDate && (
+                {babyProfile?.birthDate ? (
                   <p className="text-[13px] mt-2" style={labelStyle}>
-                    Age: {getAgeInDays(babyProfile.birthDate)} days
+                    Age: {formatBabyAge(babyProfile.birthDate)}
                   </p>
+                ) : null}
+              </div>
+              <div>
+                <label className={labelClass} style={labelStyle}>Sex</label>
+                <div className="flex gap-2 flex-wrap">
+                  {([['girl', 'Girl'], ['boy', 'Boy'], ['prefer_not_to_say', 'Prefer not to say']] as const).map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => {
+                        setSexInput(val);
+                        saveBabyProfile({ sex: val });
+                      }}
+                      className="px-3 py-2 rounded-full border text-[13px] min-h-[36px]"
+                      style={{
+                        borderColor: sexInput === val ? 'var(--pink)' : 'var(--bd)',
+                        background: sexInput === val ? 'color-mix(in srgb, var(--pink) 15%, transparent)' : 'var(--card)',
+                        color: 'var(--tx)',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[12px] mt-1" style={labelStyle}>Used only for WHO growth percentile accuracy.</p>
+              </div>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setMoreDetailsOpen(!moreDetailsOpen)}
+                  className="flex items-center gap-1 text-[13px] min-h-[36px]"
+                  style={{ color: 'var(--blue2)' }}
+                >
+                  <ChevronDown className="w-4 h-4 transition-transform" style={{ transform: moreDetailsOpen ? 'rotate(180deg)' : undefined }} />
+                  More details
+                </button>
+                {moreDetailsOpen && (
+                  <div className="mt-2 space-y-3">
+                    <div>
+                      <label className={labelClass} style={labelStyle}>Blood type</label>
+                      <select
+                        value={bloodTypeInput}
+                        onChange={(e) => {
+                          setBloodTypeInput(e.target.value);
+                          saveBabyProfile({ bloodType: e.target.value || undefined });
+                        }}
+                        className="w-full max-w-[200px] rounded-lg border px-3 py-2.5 text-[15px] min-h-[44px]"
+                        style={{ borderColor: 'var(--bd)', background: 'var(--bg2)', color: 'var(--tx)' }}
+                      >
+                        <option value="">Select…</option>
+                        {BLOOD_TYPE_OPTIONS.map((bt) => (
+                          <option key={bt} value={bt}>{bt}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
           </div>
           {activeBaby && (
             <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--bd)' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  const name = activeBaby.name || 'This baby';
-                  const isLast = babies.length <= 1;
-                  const msg = isLast
-                    ? `${name} will be removed and all their data deleted. You will need to add a baby again to use the app. Continue?`
-                    : `${name} will be permanently removed and their data deleted. Your other baby will become active. Continue?`;
-                  if (window.confirm(msg)) {
-                    removeBaby(activeBaby.id);
-                    toast.success(isLast ? 'Baby removed. Add a baby to continue.' : 'Baby removed.');
-                    if (isLast) setShowAddBabyFlow(true);
-                  }
-                }}
-                className="flex items-center gap-2 text-[13px] min-h-[44px] rounded-xl px-3 py-2"
-                style={{ color: 'var(--ro)' }}
-                aria-label="Remove this baby"
-              >
-                <UserMinus className="w-4 h-4" />
-                Remove this baby
-              </button>
+              {!removeConfirmOpen ? (
+                <button
+                  type="button"
+                  onClick={() => setRemoveConfirmOpen(true)}
+                  className="flex items-center gap-2 text-[13px] min-h-[44px] rounded-xl px-3 py-2"
+                  style={{ color: 'var(--med-col)' }}
+                  aria-label="Remove this baby"
+                >
+                  <UserMinus className="w-4 h-4" />
+                  Remove this baby
+                </button>
+              ) : (
+                <div className="space-y-2 p-3 rounded-xl" style={{ background: '#fff8f8', border: '1px solid var(--ro)' }}>
+                  <p className="text-[14px] font-medium" style={{ color: 'var(--med-col)' }}>
+                    Type &ldquo;{activeBaby.name || 'baby'}&rdquo; to confirm removal
+                  </p>
+                  <Input
+                    type="text"
+                    placeholder={`Type "${activeBaby.name || 'baby'}" to confirm`}
+                    value={removeConfirmName}
+                    onChange={(e) => setRemoveConfirmName(e.target.value)}
+                    className={inputClass}
+                    style={{ ...inputStyle, maxWidth: '100%', borderColor: 'var(--ro)' }}
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="min-h-[44px]"
+                      disabled={removeConfirmName.trim().toLowerCase() !== (activeBaby.name || 'baby').toLowerCase()}
+                      onClick={() => {
+                        const isLast = babies.length <= 1;
+                        removeBaby(activeBaby.id);
+                        setRemoveConfirmOpen(false);
+                        setRemoveConfirmName('');
+                        toast.success(isLast ? 'Baby removed. Add a baby to continue.' : 'Baby removed.');
+                        if (isLast) setShowAddBabyFlow(true);
+                      }}
+                    >
+                      Remove permanently
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="min-h-[44px]"
+                      onClick={() => { setRemoveConfirmOpen(false); setRemoveConfirmName(''); }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Alert thresholds */}
-        <div className={cardClass} style={cardStyle}>
+        <div id="section-alerts" className={cardClass} style={cardStyle}>
           <h2 className="text-base font-medium mb-1" style={{ color: 'var(--tx)' }}>Alert thresholds</h2>
           <p className="text-[13px] mb-4" style={labelStyle}>
             Configure when alert pills appear on the home screen. Dismissed alerts hide for 2 hours.
@@ -541,8 +723,127 @@ export function Settings() {
           </div>
         </div>
 
+        {/* Notifications */}
+        <div id="section-notifications" className={cardClass} style={cardStyle}>
+          <div className="flex items-center gap-2 mb-1">
+            <Bell className="w-5 h-5" style={{ color: 'var(--blue2)' }} />
+            <h2 className="text-base font-medium" style={{ color: 'var(--tx)' }}>Notifications</h2>
+          </div>
+          <p className="text-[13px] mb-4" style={labelStyle}>
+            Choose which reminders Cradl sends you.
+          </p>
+          <div className="space-y-3">
+            {NOTIFICATION_ROWS.map(({ key, label }) => (
+              <div key={key} className="flex items-center justify-between">
+                <span className="text-[14px]" style={{ color: 'var(--tx)' }}>{label}</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={!!notifSettings[key]}
+                  aria-label={label}
+                  onClick={() => {
+                    const next = { ...notifSettings, [key]: !notifSettings[key] };
+                    setNotifSettings(next);
+                    try { localStorage.setItem(NOTIFICATION_SETTINGS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+                  }}
+                  className="relative w-11 h-6 rounded-full border-2 transition-colors flex-shrink-0 min-w-[44px] min-h-[44px] flex items-center"
+                  style={{
+                    borderColor: notifSettings[key] ? 'var(--pink)' : 'var(--bd)',
+                    background: notifSettings[key] ? 'var(--pink)' : 'var(--card2)',
+                  }}
+                >
+                  <span
+                    className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white shadow border border-[var(--bd)] transition-[left] duration-200"
+                    style={{ left: notifSettings[key] ? 22 : 2 }}
+                  />
+                </button>
+              </div>
+            ))}
+          </div>
+          {notifPermission !== 'granted' && notifPermission !== 'unsupported' && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full mt-4 min-h-[44px]"
+              onClick={async () => {
+                try {
+                  const result = await Notification.requestPermission();
+                  setNotifPermission(result);
+                  if (result === 'granted') toast.success('Notifications enabled');
+                  else toast.info('Notification permission was not granted');
+                } catch {
+                  toast.error('Could not request notification permission');
+                }
+              }}
+            >
+              <Bell className="w-4 h-4 mr-2" />
+              Request notification permission
+            </Button>
+          )}
+        </div>
+
+        {/* Date & Time format */}
+        <div id="section-dateTime" className={cardClass} style={cardStyle}>
+          <h2 className="text-base font-medium mb-1" style={{ color: 'var(--tx)' }}>Date & Time</h2>
+          <p className="text-[13px] mb-4" style={labelStyle}>
+            Choose how dates and times are displayed throughout the app. This only affects display — stored data stays the same.
+          </p>
+          <div className="space-y-4">
+            <div>
+              <label className={labelClass} style={labelStyle}>Date format</label>
+              <div className="flex gap-2">
+                {(['DD/MM/YYYY', 'MM/DD/YYYY'] as DateFormatPref[]).map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => {
+                      setDateFormatPref(opt);
+                      setDateFormatPrefState(opt);
+                    }}
+                    className="flex-1 py-3 px-4 rounded-xl border text-sm font-medium text-center"
+                    style={{
+                      borderColor: dateFormatPref === opt ? 'var(--pink)' : 'var(--bd)',
+                      background: dateFormatPref === opt ? 'color-mix(in srgb, var(--pink) 15%, transparent)' : 'var(--card)',
+                      color: 'var(--tx)',
+                    }}
+                  >
+                    <div>{opt === 'DD/MM/YYYY' ? '15/03/2025' : '03/15/2025'}</div>
+                    <div className="text-[11px] mt-0.5" style={{ color: 'var(--mu)', fontWeight: 400 }}>{opt}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className={labelClass} style={labelStyle}>Time format</label>
+              <div className="flex gap-2">
+                {(['24h', '12h'] as TimeFormatPref[]).map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => {
+                      setTimeFormatPref(opt);
+                      setTimeFormatPrefState(opt);
+                    }}
+                    className="flex-1 py-3 px-4 rounded-xl border text-sm font-medium text-center"
+                    style={{
+                      borderColor: timeFormatPref === opt ? 'var(--pink)' : 'var(--bd)',
+                      background: timeFormatPref === opt ? 'color-mix(in srgb, var(--pink) 15%, transparent)' : 'var(--card)',
+                      color: 'var(--tx)',
+                    }}
+                  >
+                    <div>{opt === '24h' ? '14:30' : '2:30 PM'}</div>
+                    <div className="text-[11px] mt-0.5" style={{ color: 'var(--mu)', fontWeight: 400 }}>
+                      {opt === '24h' ? '24-hour' : '12-hour'}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* App view: full vs partner (caregiver) */}
-        <div className={cardClass} style={cardStyle}>
+        <div id="section-appView" className={cardClass} style={cardStyle}>
           <h2 className="text-base font-medium mb-1" style={{ color: 'var(--tx)' }}>App view</h2>
           <p className="text-[13px] mb-3" style={labelStyle}>
             Partner view shows only quick log buttons and today&apos;s timeline — useful when handing the phone to a caregiver.
@@ -578,7 +879,7 @@ export function Settings() {
         </div>
 
         {/* Experience: first vs second baby */}
-        <div className={cardClass} style={cardStyle}>
+        <div id="section-experience" className={cardClass} style={cardStyle}>
           <h2 className="text-base font-medium mb-1" style={{ color: 'var(--tx)' }}>Experience</h2>
           <p className="text-[13px] mb-3" style={labelStyle}>
             First baby: more guidance and tips. Second baby: compact, faster logging.
@@ -612,7 +913,7 @@ export function Settings() {
         </div>
 
         {/* Accessibility */}
-        <div className={cardClass} style={cardStyle}>
+        <div id="section-accessibility" className={cardClass} style={cardStyle}>
           <h2 className="text-base font-medium mb-1" style={{ color: 'var(--tx)' }}>Accessibility</h2>
           <p className="text-[13px] mb-3" style={labelStyle}>
             Reduce motion, larger text, and high contrast for readability.
@@ -693,7 +994,7 @@ export function Settings() {
         </div>
 
         {/* Language */}
-        <div className={cardClass} style={cardStyle}>
+        <div id="section-language" className={cardClass} style={cardStyle}>
           <h2 className="text-base font-medium mb-1" style={{ color: 'var(--tx)' }}>Language</h2>
           <p className="text-[13px] mb-3" style={labelStyle}>
             App language (more languages coming soon).
@@ -714,7 +1015,7 @@ export function Settings() {
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40" onClick={() => setLanguageSheetOpen(false)}>
             <div className="w-full max-w-sm rounded-t-2xl sm:rounded-2xl p-4 border flex flex-col gap-2" style={{ background: 'var(--card)', borderColor: 'var(--bd)' }} onClick={(e) => e.stopPropagation()}>
               <h3 className="text-lg font-semibold" style={{ color: 'var(--tx)' }}>Language</h3>
-              {(['en', 'lt'] as SupportedLocale[]).map((loc) => (
+              {(['en', 'lt', 'de', 'fr', 'es'] as SupportedLocale[]).map((loc) => (
                 <button
                   key={loc}
                   type="button"
@@ -738,9 +1039,9 @@ export function Settings() {
         )}
 
         {/* Account */}
-        <div className={cardClass} style={cardStyle}>
+        <div id="section-account" className={cardClass} style={cardStyle}>
           <h2 className="text-base font-medium mb-3" style={{ color: 'var(--tx)' }}>Account</h2>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 mb-4">
             <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: 'var(--pe)' }}>
               <span className="text-xl font-medium" style={{ color: 'var(--coral)' }}>
                 {user?.email?.charAt(0).toUpperCase()}
@@ -751,10 +1052,50 @@ export function Settings() {
               <p className="text-[13px]" style={labelStyle}>Signed in</p>
             </div>
           </div>
+
+          <div className="border-t pt-3 mb-3" style={{ borderColor: 'var(--bd)' }}>
+            <h3 className="text-[14px] font-medium mb-2" style={{ color: 'var(--tx)' }}>Active sessions</h3>
+            <div className="space-y-2">
+              <div className="flex items-center gap-3 p-2 rounded-xl" style={{ background: 'var(--bg2)' }}>
+                {/Mobi|Android/i.test(navigator.userAgent)
+                  ? <Smartphone className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--blue2)' }} />
+                  : <Monitor className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--blue2)' }} />
+                }
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium truncate" style={{ color: 'var(--tx)' }}>This device</p>
+                  <p className="text-[12px] truncate" style={labelStyle}>Current session</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t pt-3 mb-3" style={{ borderColor: 'var(--bd)' }}>
+            <h3 className="text-[14px] font-medium mb-2" style={{ color: 'var(--tx)' }}>Connected accounts</h3>
+            <div className="flex items-center justify-between p-2 rounded-xl" style={{ background: 'var(--bg2)' }}>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                <span className="text-[13px]" style={{ color: 'var(--tx)' }}>Google</span>
+              </div>
+              <span className="text-[12px] px-2 py-0.5 rounded-full" style={{ background: user?.app_metadata?.provider === 'google' ? 'var(--sa)' : 'var(--bg2)', color: user?.app_metadata?.provider === 'google' ? 'var(--grn)' : 'var(--mu)' }}>
+                {user?.app_metadata?.provider === 'google' ? 'Connected' : 'Not connected'}
+              </span>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full min-h-[44px]"
+            style={{ color: 'var(--mu2)' }}
+            onClick={() => toast.info('Other sessions will be signed out on next token refresh.')}
+          >
+            <Shield className="w-4 h-4 mr-2" />
+            Sign out all other devices
+          </Button>
         </div>
 
         {/* Family Management */}
-        <div className={cardClass} style={cardStyle}>
+        <div id="section-family" className={cardClass} style={cardStyle}>
           <div className="flex items-center gap-2 mb-4">
             <Users className="w-5 h-5" style={{ color: 'var(--blue)' }} />
             <h2 className="text-base font-medium" style={{ color: 'var(--tx)' }}>Family Sharing</h2>
@@ -821,7 +1162,7 @@ export function Settings() {
         </div>
 
         {/* Voice Commands */}
-        <div className={cardClass} style={cardStyle}>
+        <div id="section-voice" className={cardClass} style={cardStyle}>
           <div className="flex items-center gap-2 mb-3">
             <Mic className="w-5 h-5" style={{ color: 'var(--purp)' }} />
             <h2 className="text-base font-medium" style={{ color: 'var(--tx)' }}>Voice Commands</h2>
@@ -840,23 +1181,40 @@ export function Settings() {
         </div>
 
         {/* Export data */}
-        <div className={cardClass} style={cardStyle}>
+        <div id="section-export" className={cardClass} style={cardStyle}>
           <h2 className="text-base font-medium mb-1 flex items-center gap-2" style={{ color: 'var(--tx)' }}>
             <FileDown className="w-5 h-5" />
             Export data
           </h2>
           <p className="text-[13px] mb-3" style={labelStyle}>
-            Download your tracking data as CSV files (feeds, sleep, diapers, tummy time, growth, and more). One file per type.
+            Download your tracking data as CSV files, or generate a paediatrician-friendly PDF summary report.
           </p>
           <CSVExportButton babyName={babyProfile?.name ?? activeBaby?.name} />
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                generatePediatricReport(isPremium);
+                toast.success('PDF report downloaded.');
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : 'PDF export failed');
+              }
+            }}
+            className="flex items-center gap-2 py-2.5 px-4 rounded-xl border font-medium text-sm min-h-[44px] mt-2"
+            style={{ borderColor: 'var(--bd)', color: 'var(--tx)', background: 'var(--card)' }}
+          >
+            <FileDown className="w-5 h-5" />
+            Export GP / Paediatrician PDF
+          </button>
         </div>
 
         {/* Danger Zone */}
-        <div className={cardClass} style={{ ...cardStyle, borderColor: 'var(--ro)' }}>
+        <div id="section-danger" className={cardClass} style={{ ...cardStyle, background: '#fff8f8', borderColor: 'var(--ro)' }}>
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle className="w-5 h-5" style={{ color: 'var(--med-col)' }} />
             <h2 className="text-base font-medium" style={{ color: 'var(--tx)' }}>Danger Zone</h2>
           </div>
+
           {user && session?.access_token && (
             <>
               <p className="text-[13px] mb-2" style={labelStyle}>
@@ -883,28 +1241,120 @@ export function Settings() {
               </Button>
             </>
           )}
-          <p className="text-[13px] mb-4" style={labelStyle}>
-            Permanently deletes all tracking data (feeds, sleeps, diapers, tummy time) for the entire family. Your account and family members are kept.
-          </p>
-          {wipePending ? (
-            <div className="space-y-2">
-              <p className="text-[14px] font-medium" style={{ color: 'var(--med-col)' }}>
-                Are you sure? This cannot be undone.
-              </p>
-              <div className="flex gap-2">
-                <Button variant="destructive" className="flex-1 min-h-[48px]" disabled={wiping} onClick={handleWipeAllData}>
-                  {wiping ? 'Wiping…' : 'Yes, wipe everything'}
-                </Button>
-                <Button variant="outline" className="flex-1 min-h-[48px]" onClick={() => setWipePending(false)}>
-                  Cancel
-                </Button>
+
+          {/* Wipe all baby data */}
+          <div className="border-t pt-3 mb-4" style={{ borderColor: 'var(--ro)' }}>
+            <p className="text-[13px] mb-3" style={labelStyle}>
+              Permanently deletes all tracking data (feeds, sleeps, diapers, tummy time) for the entire family. Your account and family members are kept.
+            </p>
+            {wipePending ? (
+              <div className="space-y-2">
+                <p className="text-[14px] font-medium" style={{ color: 'var(--med-col)' }}>
+                  Type &ldquo;WIPE&rdquo; to confirm
+                </p>
+                <Input
+                  type="text"
+                  placeholder='Type "WIPE" to confirm'
+                  value={wipeConfirmText}
+                  onChange={(e) => setWipeConfirmText(e.target.value)}
+                  className={inputClass}
+                  style={{ ...inputStyle, maxWidth: '100%', borderColor: 'var(--ro)' }}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    variant="destructive"
+                    className="flex-1 min-h-[48px]"
+                    disabled={wiping || wipeConfirmText.trim() !== 'WIPE'}
+                    onClick={handleWipeAllData}
+                  >
+                    {wiping ? 'Wiping…' : 'Yes, wipe everything'}
+                  </Button>
+                  <Button variant="outline" className="flex-1 min-h-[48px]" onClick={() => { setWipePending(false); setWipeConfirmText(''); }}>
+                    Cancel
+                  </Button>
+                </div>
               </div>
+            ) : (
+              <Button variant="outline" className="w-full min-h-[48px]" style={{ borderColor: 'var(--ro)', color: 'var(--med-col)' }} onClick={() => setWipePending(true)}>
+                <Trash2 className="w-4 h-4 mr-2" />
+                Wipe all baby data
+              </Button>
+            )}
+          </div>
+
+          {/* Delete account */}
+          {user && session?.access_token && (
+            <div className="border-t pt-3" style={{ borderColor: 'var(--ro)' }}>
+              <p className="text-[13px] mb-3" style={labelStyle}>
+                Permanently delete your Cradl account and all associated data. Under GDPR, deletion completes within 30 days.
+              </p>
+              {deleteAccountPending ? (
+                <div className="space-y-2">
+                  <p className="text-[14px] font-medium" style={{ color: 'var(--med-col)' }}>
+                    Type &ldquo;DELETE&rdquo; to confirm account deletion
+                  </p>
+                  <Input
+                    type="text"
+                    placeholder='Type "DELETE" to confirm'
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    className={inputClass}
+                    style={{ ...inputStyle, maxWidth: '100%', borderColor: 'var(--ro)' }}
+                  />
+                  <p className="text-[12px]" style={{ color: 'var(--med-col)' }}>
+                    Your data will be scheduled for deletion and fully removed within 30 days per GDPR requirements.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="destructive"
+                      className="flex-1 min-h-[48px]"
+                      disabled={deletingAccount || deleteConfirmText.trim() !== 'DELETE'}
+                      onClick={async () => {
+                        setDeletingAccount(true);
+                        try {
+                          const res = await fetch(`${serverUrl}/account/delete`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              apikey: supabaseAnonKey,
+                              Authorization: `Bearer ${session!.access_token}`,
+                            },
+                          });
+                          if (res.ok) {
+                            toast.success('Account scheduled for deletion. You will be signed out.');
+                            clearSyncedDataFromLocalStorage();
+                            await signOut();
+                            navigate('/');
+                          } else {
+                            const d = await res.json().catch(() => ({}));
+                            toast.error(d.error ?? 'Could not delete account. Try again.');
+                          }
+                        } catch {
+                          toast.error('Could not delete account. Check your connection.');
+                        } finally {
+                          setDeletingAccount(false);
+                        }
+                      }}
+                    >
+                      {deletingAccount ? 'Deleting…' : 'Delete my account'}
+                    </Button>
+                    <Button variant="outline" className="flex-1 min-h-[48px]" onClick={() => { setDeleteAccountPending(false); setDeleteConfirmText(''); }}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="w-full min-h-[48px]"
+                  style={{ borderColor: 'var(--ro)', color: 'var(--med-col)' }}
+                  onClick={() => setDeleteAccountPending(true)}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete account
+                </Button>
+              )}
             </div>
-          ) : (
-            <Button variant="outline" className="w-full min-h-[48px]" style={{ borderColor: 'var(--ro)', color: 'var(--med-col)' }} onClick={handleWipeAllData}>
-              <Trash2 className="w-4 h-4 mr-2" />
-              Wipe all baby data
-            </Button>
           )}
         </div>
 
@@ -915,8 +1365,91 @@ export function Settings() {
             Sign Out
           </Button>
         </div>
-      </div>
 
+        {/* Dev tools */}
+        <div className={cardClass} style={{ ...cardStyle, borderColor: 'var(--mu)', opacity: 0.7 }}>
+          <h2 className="text-base font-medium mb-3" style={{ color: 'var(--tx)' }}>Dev tools</h2>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-h-[44px] flex-1"
+              onClick={() => { try { seedAllData(); toast.success('Fake data loaded — reloading…'); setTimeout(() => window.location.reload(), 500); } catch (e) { toast.error(String(e)); } }}
+            >
+              Load fake data
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-h-[44px] flex-1"
+              onClick={() => { try { clearSeedData(); toast.success('Fake data cleared — reloading…'); setTimeout(() => window.location.reload(), 500); } catch (e) { toast.error(String(e)); } }}
+            >
+              Clear fake data
+            </Button>
+          </div>
+          <p className="text-[11px] mt-2" style={{ color: 'var(--mu)' }}>
+            Populates localStorage with 3 weeks of realistic data for a 12-week-old baby named Elsie.
+          </p>
+        </div>
+      </>
+  );
+
+  if (isDesktop) {
+    return (
+      <div className="min-h-screen pb-20" style={{ background: 'var(--bg)' }}>
+        <div className="flex items-center gap-3 px-6 py-4">
+          <Link to="/">
+            <button type="button" className="p-2 rounded-full min-w-[44px] min-h-[44px] flex items-center justify-center" style={{ color: 'var(--tx)', background: 'var(--card)', border: '1px solid var(--bd)' }}>
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          </Link>
+          <h1 className="text-xl font-semibold" style={{ color: 'var(--tx)' }}>Settings</h1>
+        </div>
+        <div className="flex max-w-5xl mx-auto px-4 gap-6">
+          <nav className="w-[220px] flex-shrink-0 sticky top-4 self-start space-y-1">
+            {SIDEBAR_SECTIONS.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  setDesktopSection(id);
+                  document.getElementById(`section-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                className="w-full text-left px-3 py-2 rounded-xl text-[14px] min-h-[40px] transition-colors"
+                style={{
+                  background: desktopSection === id ? 'color-mix(in srgb, var(--pink) 12%, transparent)' : 'transparent',
+                  color: desktopSection === id ? 'var(--pink)' : 'var(--tx)',
+                  fontWeight: desktopSection === id ? 600 : 400,
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+          <div className="flex-1 min-w-0 max-w-lg">
+            {allSections}
+          </div>
+        </div>
+        <Navigation />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen pb-20" style={{ background: 'var(--bg)' }}>
+      <div className="max-w-lg mx-auto px-4 py-6">
+        <div className="flex items-center gap-3 mb-6">
+          <Link to="/">
+            <button type="button" className="p-2 rounded-full min-w-[44px] min-h-[44px] flex items-center justify-center" style={{ color: 'var(--tx)', background: 'var(--card)', border: '1px solid var(--bd)' }}>
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          </Link>
+          <h1 className="text-xl font-semibold" style={{ color: 'var(--tx)' }}>Settings</h1>
+        </div>
+        {allSections}
+      </div>
       <Navigation />
     </div>
   );

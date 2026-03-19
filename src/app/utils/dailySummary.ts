@@ -17,7 +17,7 @@ export interface DailySummaryResult {
   lines: DailySummaryLine[];
   acknowledgement: string;
   date: string;
-  /** "Good enough" one-liner with targets when age available, e.g. "She had a good day. 6 feeds (target 5–8 ✓), 11h sleep ✓..." */
+  /** "Good enough" one-liner with targets when age available */
   summarySentence: string | null;
 }
 
@@ -80,10 +80,10 @@ export function generateDailySummary(
     const diaperOk = diaperRange && dayDiapers.length >= diaperRange.min && dayDiapers.length <= diaperRange.max;
     const tummyOk = tummyRange && tummyMin >= tummyRange.min && tummyMin <= tummyRange.max;
     const parts: string[] = [];
-    if (feedRange) parts.push(`${dayFeeds.length} feed${dayFeeds.length === 1 ? "" : "s"} (target ${feedRange.min}–${feedRange.max}${feedOk ? " ✓" : ""})`);
-    if (sleepRange) parts.push(`${sleepHours.toFixed(1)}h sleep (target ${sleepRange.min}–${sleepRange.max}h${sleepOk ? " ✓" : ""})`);
-    if (diaperRange) parts.push(`${dayDiapers.length} nappy change${dayDiapers.length === 1 ? "" : "s"}${diaperOk ? " ✓" : ""}`);
-    if (tummyRange && tummyMin > 0) parts.push(`${tummyMin}m tummy time${tummyOk ? " ✓" : ""}`);
+    if (feedRange) parts.push(`${dayFeeds.length} feed${dayFeeds.length === 1 ? "" : "s"} (target ${feedRange.min}–${feedRange.max}${feedOk ? " met" : ""})`);
+    if (sleepRange) parts.push(`${sleepHours.toFixed(1)}h sleep (target ${sleepRange.min}–${sleepRange.max}h${sleepOk ? " met" : ""})`);
+    if (diaperRange) parts.push(`${dayDiapers.length} nappy change${dayDiapers.length === 1 ? "" : "s"}${diaperOk ? " met" : ""}`);
+    if (tummyRange && tummyMin > 0) parts.push(`${tummyMin}m tummy time${tummyOk ? " met" : ""}`);
     if (parts.length > 0) {
       if (sleepLow && totalSleepMin > 0)
         summarySentence = `Today was a little short on sleep — ${(totalSleepMin / 60).toFixed(1)}h total. That's okay for one day. Watch for extra tiredness tomorrow and offer an earlier bedtime if she shows tired signs.`;

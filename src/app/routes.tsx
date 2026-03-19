@@ -1,24 +1,16 @@
 import { createBrowserRouter } from "react-router";
 import { ErrorBoundaryFallback } from "./components/ErrorBoundary";
 import { AppLayout } from "./components/AppLayout";
-import { Dashboard } from "./pages/Dashboard";
 import { JourneyScreen } from "./pages/JourneyScreen";
-import { MoreScreen } from "./pages/MoreScreen";
-import { Tracking } from "./pages/Tracking";
-import { SleepTracking } from "./pages/SleepTracking";
-import { FeedingTracking } from "./pages/FeedingTracking";
-import { DiaperTracking } from "./pages/DiaperTracking";
-import { TummyTime } from "./pages/TummyTime";
+import { MeScreen } from "./pages/MeScreen";
 import { Login } from "./pages/Login";
 import { Settings } from "./pages/Settings";
 import { HandoffPage } from "./pages/HandoffPage";
-import { MumWellbeingScreen } from "./pages/MumWellbeingScreen";
 import { GPSummaryScreen } from "./pages/GPSummaryScreen";
 import { SkinTrackerScreen } from "./pages/SkinTrackerScreen";
+import { JaundiceMonitorScreen } from "./pages/JaundiceMonitorScreen";
 import { TimeCapsuleWriteScreen } from "./pages/TimeCapsuleWriteScreen";
 import { ReturnToWorkScreen } from "./pages/ReturnToWorkScreen";
-import { LibraryScreen } from "./pages/LibraryScreen";
-import { JaundiceMonitorScreen } from "./pages/JaundiceMonitorScreen";
 import { MemoryBookScreen } from "./pages/MemoryBookScreen";
 import { VillageScreen } from "./pages/VillageScreen";
 import { VillagePlacesScreen } from "./pages/VillagePlacesScreen";
@@ -27,7 +19,15 @@ import { VillageQAScreen } from "./pages/VillageQAScreen";
 import { VillageGroupDetailScreen } from "./pages/VillageGroupDetailScreen";
 import { VillageQuestionDetailScreen } from "./pages/VillageQuestionDetailScreen";
 import { JoinRedirect } from "./pages/JoinRedirect";
+import { SafetyScreen } from "./pages/SafetyScreen";
 import { HomeSwitch } from "./components/HomeSwitch";
+import { LibraryScreen } from "./pages/LibraryScreen";
+import { MumHealthScreen } from "./pages/MumHealthScreen";
+import { AuthCallbackPage } from "./pages/AuthCallbackPage";
+import { ShoppingListScreen } from "./pages/ShoppingListScreen";
+import { NotesScreen } from "./pages/NotesScreen";
+import { JoinFamilyPage } from "./pages/JoinFamilyPage";
+import { PremiumScreen } from "./pages/PremiumScreen";
 
 export const router = createBrowserRouter([
   {
@@ -36,23 +36,18 @@ export const router = createBrowserRouter([
     errorElement: <ErrorBoundaryFallback />,
     children: [
       { path: "login", Component: Login },
+      { path: "auth/callback", Component: AuthCallbackPage },
       { path: "join/:shortcode", Component: JoinRedirect },
+      { path: "join-family/:token", Component: JoinFamilyPage },
       { path: "handoff/:sessionId", Component: HandoffPage },
       { path: "", Component: HomeSwitch },
       { path: "journey", Component: JourneyScreen },
-      { path: "more", Component: MoreScreen },
-      { path: "tracking", Component: Tracking },
-      { path: "sleep", Component: SleepTracking },
-      { path: "feeding", Component: FeedingTracking },
-      { path: "diapers", Component: DiaperTracking },
-      { path: "tummy-time", Component: TummyTime },
-      { path: "mum", Component: MumWellbeingScreen },
+      { path: "more", Component: MeScreen },
       { path: "gp-summary", Component: GPSummaryScreen },
       { path: "skin", Component: SkinTrackerScreen },
+      { path: "jaundice", Component: JaundiceMonitorScreen },
       { path: "time-capsule/write", Component: TimeCapsuleWriteScreen },
       { path: "return-to-work", Component: ReturnToWorkScreen },
-      { path: "library", Component: LibraryScreen },
-      { path: "jaundice", Component: JaundiceMonitorScreen },
       { path: "memories", Component: MemoryBookScreen },
       { path: "village", Component: VillageScreen },
       { path: "village/places", Component: VillagePlacesScreen },
@@ -60,7 +55,13 @@ export const router = createBrowserRouter([
       { path: "village/groups/:id", Component: VillageGroupDetailScreen },
       { path: "village/qa", Component: VillageQAScreen },
       { path: "village/qa/:id", Component: VillageQuestionDetailScreen },
+      { path: "library", Component: LibraryScreen },
+      { path: "mum-health", Component: MumHealthScreen },
+      { path: "safety", Component: SafetyScreen },
       { path: "settings", Component: Settings },
+      { path: "shopping-list", Component: ShoppingListScreen },
+      { path: "notes", Component: NotesScreen },
+      { path: "premium", Component: PremiumScreen },
     ],
   },
 ]);

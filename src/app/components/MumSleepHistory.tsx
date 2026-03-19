@@ -65,7 +65,7 @@ export function MumSleepHistory({ babyName }: { babyName?: string | null }) {
               setDismissed(true);
               if (typeof navigator !== "undefined" && navigator.share) {
                 navigator.share({
-                  text: `Hey, I'm really struggling with sleep today. Could you take ${name} for an hour or two so I can rest? 🙏`,
+                  text: `Hey, I'm really struggling with sleep today. Could you take ${name} for an hour or two so I can rest? (please)`,
                   title: "Need a break",
                 }).catch(() => {});
               }

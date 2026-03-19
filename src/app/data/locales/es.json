@@ -1,0 +1,50 @@
+{
+  "common": {
+    "close": "Cerrar",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "next": "Siguiente",
+    "back": "Atrás",
+    "skip": "Omitir",
+    "done": "Hecho",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "add": "Añadir",
+    "ok": "OK",
+    "yes": "Sí",
+    "no": "No",
+    "loading": "Cargando…",
+    "error": "Algo salió mal",
+    "retry": "Reintentar",
+    "search": "Buscar",
+    "noData": "Sin datos aún",
+    "premium": "Premium",
+    "upgradeToPremium": "Mejorar a Premium",
+    "free": "Gratis",
+    "today": "Hoy",
+    "yesterday": "Ayer",
+    "thisWeek": "Esta semana",
+    "nav": {
+      "today": "Hoy",
+      "journey": "Viaje",
+      "village": "Aldea",
+      "me": "Yo"
+    },
+    "baby": "Bebé",
+    "age": {
+      "days_one": "{{count}} día",
+      "days_other": "{{count}} días",
+      "weeks_one": "{{count}} semana",
+      "weeks_other": "{{count}} semanas",
+      "months_one": "{{count}} mes",
+      "months_other": "{{count}} meses"
+    },
+    "time": {
+      "hoursAgo_one": "hace {{count}} hora",
+      "hoursAgo_other": "hace {{count}} horas",
+      "minutesAgo_one": "hace {{count}} minuto",
+      "minutesAgo_other": "hace {{count}} minutos",
+      "justNow": "Justo ahora"
+    }
+  }
+}

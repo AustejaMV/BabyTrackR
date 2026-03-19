@@ -1,0 +1,346 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400;1,600&family=DM+Sans:wght@300;400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:#F5F1EA;color:#1C1915;font-size:13px;}
+.row{display:flex;gap:16px;flex-wrap:wrap;padding:0.5rem 0;justify-content:center;align-items:flex-start;}
+.phone{width:300px;background:#FAF7F2;border-radius:32px;overflow:hidden;border:1px solid rgba(28,25,21,0.1);flex-shrink:0;}
+.screen{padding:18px 16px 72px;min-height:600px;}
+.nav-bar{display:flex;justify-content:space-around;padding:9px 0 5px;border-top:0.5px solid rgba(28,25,21,0.1);background:#FAF7F2;}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9px;color:#B8AFA8;}
+.nav-item.active{color:#C17D5E;}
+.screen-label{font-size:9px;color:#B8AFA8;letter-spacing:0.1em;text-transform:uppercase;text-align:center;padding:6px 0 2px;}
+.title{font-family:'Lora',serif;font-size:19px;font-weight:600;line-height:1.2;margin-bottom:2px;}
+.sub{font-size:11px;color:#9A9590;margin-bottom:14px;}
+.section-lbl{font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:#B8AFA8;margin:14px 0 7px;}
+.card{background:#FFFDF9;border:0.5px solid rgba(28,25,21,0.1);border-radius:14px;padding:12px;margin-bottom:8px;}
+
+/* WEEK TIMELINE */
+.week-track{overflow-x:auto;padding-bottom:8px;margin-bottom:12px;}
+.week-track::-webkit-scrollbar{height:3px;}
+.week-track::-webkit-scrollbar-thumb{background:#E8E3DC;border-radius:2px;}
+.weeks-row{display:flex;gap:4px;width:max-content;}
+.week-pip{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;transition:opacity 0.15s;}
+.week-pip .w-dot{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:500;transition:all 0.15s;}
+.week-pip .w-num{font-size:8px;color:#B8AFA8;}
+.week-pip.done .w-dot{background:#E4EDEA;color:#7A9080;}
+.week-pip.current .w-dot{background:#C17D5E;color:white;width:26px;height:26px;font-size:9px;}
+.week-pip.current .w-num{color:#C17D5E;font-weight:500;}
+.week-pip.future .w-dot{background:#F0EBE3;color:#D4C5BB;}
+.week-pip.future .w-num{color:#D4C5BB;}
+.trimester-labels{display:flex;gap:4px;margin-bottom:4px;}
+.tri-lbl{font-size:8px;color:#B8AFA8;letter-spacing:0.06em;text-transform:uppercase;}
+
+/* DEVELOPMENT CARD */
+.dev-card{background:#1C1915;border-radius:16px;padding:14px;margin-bottom:10px;color:#FAF7F2;}
+.dev-week-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(193,125,94,0.2);border-radius:100px;padding:3px 10px;margin-bottom:10px;}
+.dev-week-badge span{font-size:10px;color:#C17D5E;font-weight:500;}
+.dev-size-row{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
+.fetus-visual{width:52px;height:52px;border-radius:12px;background:rgba(193,125,94,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.size-text{font-family:'Lora',serif;font-size:17px;font-weight:600;color:#FAF7F2;line-height:1.1;}
+.size-sub{font-size:10px;color:rgba(250,247,242,0.5);margin-top:2px;}
+.dev-title{font-family:'Lora',serif;font-size:14px;font-weight:600;color:#FAF7F2;margin-bottom:6px;line-height:1.3;}
+.dev-body{font-size:11px;color:rgba(250,247,242,0.65);line-height:1.6;}
+.dev-body em{color:#C17D5E;font-style:italic;}
+.dev-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:10px;}
+.dev-tag{font-size:9px;padding:3px 8px;border-radius:100px;background:rgba(255,255,255,0.07);color:rgba(250,247,242,0.5);}
+
+/* WHAT YOU MIGHT FEEL */
+.feel-card{background:#F0EEF8;border-radius:14px;padding:12px;margin-bottom:10px;}
+.feel-title{font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:#7A64A0;margin-bottom:8px;}
+.feel-items{display:flex;flex-direction:column;gap:5px;}
+.feel-item{display:flex;align-items:flex-start;gap:6px;font-size:11px;color:#6B6560;line-height:1.4;}
+.feel-dot{width:5px;height:5px;border-radius:50%;background:#7A64A0;flex-shrink:0;margin-top:4px;}
+
+/* CHECKLIST ITEMS */
+.check-item{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid rgba(28,25,21,0.07);}
+.check-item:last-child{border-bottom:none;}
+.check-left{display:flex;align-items:center;gap:8px;}
+.check-box{width:16px;height:16px;border-radius:4px;border:1.5px solid rgba(28,25,21,0.2);flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.check-box.done{background:#C17D5E;border-color:#C17D5E;}
+.check-name{font-size:12px;color:#1C1915;}
+.check-date{font-size:10px;color:#B8AFA8;}
+
+/* FUTURE WEEK PREVIEW */
+.future-preview{background:#FFFDF9;border:0.5px solid rgba(28,25,21,0.08);border-radius:14px;padding:12px;margin-bottom:8px;opacity:0.6;}
+.future-preview .dev-week-badge{background:rgba(28,25,21,0.06);}
+.future-preview .dev-week-badge span{color:#9A9590;}
+.future-preview .dev-title{color:#9A9590;}
+.future-preview .dev-body{color:#B8AFA8;}
+
+/* HANDOFF STRIP */
+.handoff-strip{background:#E4EDEA;border-radius:12px;padding:10px 12px;margin-top:10px;display:flex;align-items:center;justify-content:space-between;}
+.handoff-text{font-size:11px;color:#0F6E56;line-height:1.4;max-width:180px;}
+.handoff-btn{font-size:10px;color:#0F6E56;font-weight:500;white-space:nowrap;background:white;padding:5px 10px;border-radius:100px;border:none;cursor:pointer;}
+
+/* NAV SVGs */
+.nav-icon-svg{width:16px;height:16px;}
+</style>
+
+<div class="row">
+
+<!-- SCREEN 1: PREGNANCY OVERVIEW + WEEK TIMELINE -->
+<div class="phone">
+<div class="screen">
+  <div class="title">Week 14</div>
+  <div class="sub">Sarah · Due 2 September 2026</div>
+
+  <div class="section-lbl">Your pregnancy</div>
+
+  <div class="trimester-labels">
+    <span class="tri-lbl" style="flex:3;">First trimester</span>
+    <span class="tri-lbl" style="flex:3;color:#C17D5E;">Second trimester</span>
+    <span class="tri-lbl" style="flex:3;">Third trimester</span>
+  </div>
+
+  <div class="week-track">
+    <div class="weeks-row" id="weeks-row"></div>
+  </div>
+
+  <!-- Current week dev card -->
+  <div class="dev-card">
+    <div class="dev-week-badge"><span>Week 14</span></div>
+    <div class="dev-size-row">
+      <div class="fetus-visual">
+        <svg width="32" height="36" viewBox="0 0 32 36" fill="none">
+          <ellipse cx="16" cy="10" rx="7" ry="8" fill="rgba(193,125,94,0.4)"/>
+          <path d="M10 16 Q8 24 9 30" stroke="rgba(193,125,94,0.5)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+          <path d="M22 16 Q24 24 23 30" stroke="rgba(193,125,94,0.5)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+          <path d="M13 24 Q16 28 19 24" stroke="rgba(193,125,94,0.5)" stroke-width="2" stroke-linecap="round" fill="none"/>
+        </svg>
+      </div>
+      <div>
+        <div class="size-text">8.7 cm · 43 g</div>
+        <div class="size-sub">About the size of a lemon</div>
+      </div>
+    </div>
+    <div class="dev-title">She's learning to make faces.</div>
+    <div class="dev-body">Her facial muscles are forming this week. She can squint, frown, grimace — practising the expressions she'll use on you in six months. <em>Everything is happening exactly as it should.</em> Her kidneys are producing urine, her liver is making bile. She's doing the work.</div>
+    <div class="dev-tags">
+      <span class="dev-tag">Facial muscles</span>
+      <span class="dev-tag">Kidneys active</span>
+      <span class="dev-tag">Thumb-sucking</span>
+      <span class="dev-tag">Lanugo forming</span>
+    </div>
+  </div>
+
+  <!-- What you might feel -->
+  <div class="feel-card">
+    <div class="feel-title">What you might be feeling</div>
+    <div class="feel-items">
+      <div class="feel-item"><div class="feel-dot"></div>Energy returning — the first trimester fatigue often lifts around now</div>
+      <div class="feel-item"><div class="feel-dot"></div>Appetite increasing — your body is working hard</div>
+      <div class="feel-item"><div class="feel-dot"></div>Round ligament pain — sharp twinges on the sides of your bump. Normal and harmless.</div>
+      <div class="feel-item"><div class="feel-dot"></div>A small visible bump beginning — or not yet. Both are completely fine.</div>
+    </div>
+  </div>
+
+</div>
+<div class="nav-bar">
+  <div class="nav-item active"><svg class="nav-icon-svg" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="6" stroke="#C17D5E" stroke-width="1.2"/><path d="M9 6v3l1.5 1.5" stroke="#C17D5E" stroke-width="1.2" stroke-linecap="round"/></svg>Today</div>
+  <div class="nav-item"><svg class="nav-icon-svg" viewBox="0 0 18 18" fill="none"><rect x="3" y="4" width="12" height="11" rx="2" stroke="#B8AFA8" stroke-width="1.2"/><path d="M6 2v3M12 2v3M3 8h12" stroke="#B8AFA8" stroke-width="1.2" stroke-linecap="round"/></svg>Journey</div>
+  <div class="nav-item"><svg class="nav-icon-svg" viewBox="0 0 18 18" fill="none"><circle cx="6" cy="8" r="3" stroke="#B8AFA8" stroke-width="1.2"/><circle cx="12" cy="8" r="3" stroke="#B8AFA8" stroke-width="1.2"/></svg>Village</div>
+  <div class="nav-item"><svg class="nav-icon-svg" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="7" r="3" stroke="#B8AFA8" stroke-width="1.2"/><path d="M3 16c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="#B8AFA8" stroke-width="1.2" stroke-linecap="round"/></svg>Me</div>
+</div>
+<div class="screen-label">Week overview</div>
+</div>
+
+<!-- SCREEN 2: FULL JOURNEY TIMELINE VIEW -->
+<div class="phone">
+<div class="screen">
+  <div class="title">Your journey</div>
+  <div class="sub">Weeks 1–40 · tap any week</div>
+
+  <!-- Weeks grid — all 40 weeks shown -->
+  <div id="journey-grid" style="display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:14px;"></div>
+
+  <!-- Current week highlighted -->
+  <div class="dev-card" style="margin-bottom:10px;">
+    <div class="dev-week-badge"><span>Week 14 · Now</span></div>
+    <div class="dev-title" style="font-size:12px;">She can make faces. You're in the second trimester.</div>
+    <div class="dev-body" style="font-size:10px;">The hardest part of pregnancy for most people is behind you. Your risk of miscarriage has dropped significantly. <em>You made it here.</em></div>
+  </div>
+
+  <!-- A future week, greyed out -->
+  <div class="future-preview">
+    <div class="dev-week-badge"><span style="color:#9A9590;">Week 20 · Anatomy scan</span></div>
+    <div class="dev-title" style="font-size:12px;">The halfway point. You might find out her sex.</div>
+    <div class="dev-body" style="font-size:10px;">The detailed anatomy scan checks all major organs. She can hear muffled sounds from outside the womb. You might feel the first flutters of movement.</div>
+  </div>
+
+  <!-- Further future, more greyed -->
+  <div class="future-preview" style="opacity:0.35;">
+    <div class="dev-week-badge"><span style="color:#B8AFA8;">Week 28 · Third trimester</span></div>
+    <div class="dev-title" style="font-size:12px;">Her eyes open for the first time.</div>
+    <div class="dev-body" style="font-size:10px;">She can blink, and her irises respond to light filtered through the womb. She's building the fat layers that will keep her warm after birth.</div>
+  </div>
+
+  <div class="handoff-strip">
+    <div class="handoff-text">When she arrives, one tap converts this to the newborn tracker.</div>
+    <button class="handoff-btn">Baby arrived →</button>
+  </div>
+
+</div>
+<div class="nav-bar">
+  <div class="nav-item"><svg class="nav-icon-svg" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="6" stroke="#B8AFA8" stroke-width="1.2"/><path d="M9 6v3l1.5 1.5" stroke="#B8AFA8" stroke-width="1.2" stroke-linecap="round"/></svg>Today</div>
+  <div class="nav-item active"><svg class="nav-icon-svg" viewBox="0 0 18 18" fill="none"><rect x="3" y="4" width="12" height="11" rx="2" stroke="#C17D5E" stroke-width="1.2"/><path d="M6 2v3M12 2v3M3 8h12" stroke="#C17D5E" stroke-width="1.2" stroke-linecap="round"/></svg>Journey</div>
+  <div class="nav-item"><svg class="nav-icon-svg" viewBox="0 0 18 18" fill="none"><circle cx="6" cy="8" r="3" stroke="#B8AFA8" stroke-width="1.2"/><circle cx="12" cy="8" r="3" stroke="#B8AFA8" stroke-width="1.2"/></svg>Village</div>
+  <div class="nav-item"><svg class="nav-icon-svg" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="7" r="3" stroke="#B8AFA8" stroke-width="1.2"/><path d="M3 16c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="#B8AFA8" stroke-width="1.2" stroke-linecap="round"/></svg>Me</div>
+</div>
+<div class="screen-label">Journey timeline</div>
+</div>
+
+<!-- SCREEN 3: APPOINTMENTS + TOOLS -->
+<div class="phone">
+<div class="screen">
+  <div class="title">Appointments</div>
+  <div class="sub">Week 14 · 26 weeks to go</div>
+
+  <div class="section-lbl">Coming up</div>
+  <div class="card">
+    <div class="check-item">
+      <div class="check-left">
+        <div class="check-box done">
+          <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div><div class="check-name">12-week scan</div><div class="check-date">Completed · 4 Feb</div></div>
+      </div>
+    </div>
+    <div class="check-item">
+      <div class="check-left">
+        <div class="check-box done">
+          <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div><div class="check-name">Blood tests (first trimester)</div><div class="check-date">Completed · 6 Feb</div></div>
+      </div>
+    </div>
+    <div class="check-item" style="background:#FDF4EF;border-radius:8px;padding:8px;margin:-2px 0;">
+      <div class="check-left">
+        <div class="check-box" style="border-color:#C17D5E;"></div>
+        <div><div class="check-name" style="color:#C17D5E;font-weight:500;">Midwife — 16-week check</div><div class="check-date">Book before week 16 · In 2 weeks</div></div>
+      </div>
+      <span style="font-size:10px;color:#C17D5E;font-weight:500;">Book →</span>
+    </div>
+    <div class="check-item">
+      <div class="check-left">
+        <div class="check-box"></div>
+        <div><div class="check-name">20-week anatomy scan</div><div class="check-date">Around 18 Apr</div></div>
+      </div>
+    </div>
+    <div class="check-item">
+      <div class="check-left">
+        <div class="check-box"></div>
+        <div><div class="check-name">Glucose tolerance test</div><div class="check-date">Weeks 24–28</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-lbl">Tools</div>
+  <div class="card">
+    <div class="check-item">
+      <div class="check-left" style="gap:10px;">
+        <div style="width:28px;height:28px;border-radius:8px;background:#FDF4EF;display:flex;align-items:center;justify-content:center;">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke="#C17D5E" stroke-width="1.2" stroke-linecap="round"/></svg>
+        </div>
+        <div><div class="check-name">Kick counter</div><div class="check-date">Unlocks at week 24</div></div>
+      </div>
+      <span style="font-size:10px;color:#B8AFA8;">Week 24</span>
+    </div>
+    <div class="check-item">
+      <div class="check-left" style="gap:10px;">
+        <div style="width:28px;height:28px;border-radius:8px;background:#E4EDEA;display:flex;align-items:center;justify-content:center;">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="3" width="10" height="8" rx="2" stroke="#7A9080" stroke-width="1.1"/><path d="M5 3V2M9 3V2" stroke="#7A9080" stroke-width="1.1" stroke-linecap="round"/></svg>
+        </div>
+        <div><div class="check-name">Birth plan builder</div><div class="check-date">Start any time — recommended by week 32</div></div>
+      </div>
+      <span style="font-size:10px;color:#C17D5E;">Open →</span>
+    </div>
+    <div class="check-item">
+      <div class="check-left" style="gap:10px;">
+        <div style="width:28px;height:28px;border-radius:8px;background:#F0EEF8;display:flex;align-items:center;justify-content:center;">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3v8" stroke="#7A64A0" stroke-width="1.2" stroke-linecap="round"/></svg>
+        </div>
+        <div><div class="check-name">Hospital bag checklist</div><div class="check-date">Surfaces automatically at week 35</div></div>
+      </div>
+      <span style="font-size:10px;color:#B8AFA8;">Week 35</span>
+    </div>
+    <div class="check-item">
+      <div class="check-left" style="gap:10px;">
+        <div style="width:28px;height:28px;border-radius:8px;background:#FAEEDA;display:flex;align-items:center;justify-content:center;">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="4" stroke="#BA7517" stroke-width="1.1"/><path d="M7 5v2.5L9 9" stroke="#BA7517" stroke-width="1.1" stroke-linecap="round"/></svg>
+        </div>
+        <div><div class="check-name">Partner view</div><div class="check-date">Share a lighter version with your partner</div></div>
+      </div>
+      <span style="font-size:10px;color:#C17D5E;">Share →</span>
+    </div>
+  </div>
+
+  <div class="handoff-strip">
+    <div class="handoff-text">Baby arrived? One tap to start tracking.</div>
+    <button class="handoff-btn">She's here →</button>
+  </div>
+</div>
+<div class="nav-bar">
+  <div class="nav-item"><svg class="nav-icon-svg" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="6" stroke="#B8AFA8" stroke-width="1.2"/></svg>Today</div>
+  <div class="nav-item"><svg class="nav-icon-svg" viewBox="0 0 18 18" fill="none"><rect x="3" y="4" width="12" height="11" rx="2" stroke="#B8AFA8" stroke-width="1.2"/></svg>Journey</div>
+  <div class="nav-item"><svg class="nav-icon-svg" viewBox="0 0 18 18" fill="none"><circle cx="6" cy="8" r="3" stroke="#B8AFA8" stroke-width="1.2"/><circle cx="12" cy="8" r="3" stroke="#B8AFA8" stroke-width="1.2"/></svg>Village</div>
+  <div class="nav-item active"><svg class="nav-icon-svg" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="7" r="3" stroke="#C17D5E" stroke-width="1.2"/><path d="M3 16c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="#C17D5E" stroke-width="1.2" stroke-linecap="round"/></svg>Me</div>
+</div>
+<div class="screen-label">Appointments & tools</div>
+</div>
+
+</div>
+
+<script>
+const CURRENT_WEEK = 14;
+
+// Build horizontal pip track (screen 1)
+const weeksRow = document.getElementById('weeks-row');
+for (let w = 1; w <= 40; w++) {
+  const pip = document.createElement('div');
+  pip.className = 'week-pip ' + (w < CURRENT_WEEK ? 'done' : w === CURRENT_WEEK ? 'current' : 'future');
+  pip.innerHTML = `<div class="w-dot">${w}</div><div class="w-num">w${w}</div>`;
+  weeksRow.appendChild(pip);
+}
+// Scroll to current week
+setTimeout(() => {
+  const pips = weeksRow.querySelectorAll('.week-pip');
+  const cur = pips[CURRENT_WEEK - 1];
+  if (cur) cur.scrollIntoView({ inline: 'center', block: 'nearest' });
+}, 100);
+
+// Build journey grid (screen 2)
+const grid = document.getElementById('journey-grid');
+const milestones = {
+  12: '12w scan', 20: 'Anatomy', 28: 'Trimester 3', 36: 'Term soon', 40: 'Due date'
+};
+for (let w = 1; w <= 40; w++) {
+  const cell = document.createElement('div');
+  const isDone = w < CURRENT_WEEK;
+  const isCurrent = w === CURRENT_WEEK;
+  const isFuture = w > CURRENT_WEEK;
+  const hasLabel = milestones[w];
+  cell.style.cssText = `
+    display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;
+    opacity:${isFuture ? (w > 28 ? 0.4 : 0.65) : 1};
+  `;
+  const dot = document.createElement('div');
+  dot.style.cssText = `
+    width:${isCurrent?'28px':'22px'};height:${isCurrent?'28px':'22px'};
+    border-radius:50%;
+    background:${isDone?'#E4EDEA':isCurrent?'#C17D5E':'#F0EBE3'};
+    display:flex;align-items:center;justify-content:center;
+    font-size:${isCurrent?'9px':'8px'};font-weight:${isCurrent?'500':'400'};
+    color:${isDone?'#7A9080':isCurrent?'white':'#D4C5BB'};
+    border:${hasLabel?'1.5px solid '+(isDone?'#7A9080':isCurrent?'#C17D5E':'#D4C5BB'):'none'};
+    transition:all 0.15s;
+  `;
+  dot.textContent = w;
+  const lbl = document.createElement('div');
+  lbl.style.cssText = `font-size:7px;color:${isDone?'#7A9080':isCurrent?'#C17D5E':'#D4C5BB'};text-align:center;line-height:1.1;`;
+  lbl.textContent = hasLabel ? milestones[w] : '';
+  cell.appendChild(dot);
+  cell.appendChild(lbl);
+  grid.appendChild(cell);
+}
+</script>

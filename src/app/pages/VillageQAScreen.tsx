@@ -1,10 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router";
-import { HelpCircle, Plus } from "lucide-react";
+import { HelpCircle, Plus, Heart } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
-import { fetchQuestions, postQuestion, type VillageQuestion } from "../utils/villageQaService";
+import {
+  fetchQuestions,
+  postQuestion,
+  heartItem,
+  canHeart,
+  recordHeart,
+  type VillageQuestion,
+} from "../utils/villageQaService";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { TIME_DISPLAY } from "../utils/dateUtils";
 
 export function VillageQAScreen() {
   const { session } = useAuth();
@@ -13,14 +21,15 @@ export function VillageQAScreen() {
   const [showAsk, setShowAsk] = useState(false);
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [heartingId, setHeartingId] = useState<string | null>(null);
 
-  const load = () => {
+  const load = useCallback(() => {
     if (!session?.access_token) return;
     fetchQuestions(session.access_token)
       .then(setQuestions)
       .catch(() => toast.error("Could not load questions"))
       .finally(() => setLoading(false));
-  };
+  }, [session?.access_token]);
 
   useEffect(() => {
     if (!session?.access_token) {
@@ -28,7 +37,7 @@ export function VillageQAScreen() {
       return;
     }
     load();
-  }, [session?.access_token]);
+  }, [session?.access_token, load]);
 
   const handlePost = async () => {
     const trimmed = content.trim();
@@ -51,6 +60,34 @@ export function VillageQAScreen() {
       toast.error(e instanceof Error ? e.message : "Failed to post");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleHeart = async (q: VillageQuestion) => {
+    if (!session?.access_token) return;
+    if (q.isMine) {
+      toast("You can't heart your own question");
+      return;
+    }
+    if (!canHeart()) {
+      toast("Heart limit reached — try again in an hour");
+      return;
+    }
+    setHeartingId(q.id);
+    try {
+      const result = await heartItem(session.access_token, "question", q.id);
+      recordHeart();
+      setQuestions((prev) =>
+        prev.map((item) =>
+          item.id === q.id
+            ? { ...item, hearts: result.hearts, heartedByMe: true }
+            : item
+        )
+      );
+    } catch {
+      toast.error("Could not heart");
+    } finally {
+      setHeartingId(null);
     }
   };
 
@@ -115,17 +152,41 @@ export function VillageQAScreen() {
         ) : (
           <ul className="space-y-3">
             {questions.map((q) => (
-              <Link
+              <li
                 key={q.id}
-                to={`/village/qa/${q.id}`}
-                className="block rounded-2xl border p-4"
+                className="rounded-2xl border p-4"
                 style={{ borderColor: "var(--bd)", background: "var(--card)" }}
               >
-                <p className="text-[14px]" style={{ color: "var(--tx)" }}>{q.content}</p>
-                <div className="text-[12px] mt-1" style={{ color: "var(--mu)" }}>
-                  {format(q.createdAt, "d MMM · HH:mm")} · {q.ageBand}
+                <Link to={`/village/qa/${q.id}`} className="block">
+                  <p className="text-[14px]" style={{ color: "var(--tx)" }}>{q.content}</p>
+                  <div className="text-[12px] mt-1" style={{ color: "var(--mu)" }}>
+                    {format(q.createdAt, `d MMM · ${TIME_DISPLAY()}`)} · {q.ageBand}
+                  </div>
+                </Link>
+                <div className="flex items-center gap-3 mt-2 pt-2" style={{ borderTop: "1px solid var(--bd)" }}>
+                  <button
+                    type="button"
+                    onClick={() => handleHeart(q)}
+                    disabled={heartingId === q.id || q.isMine}
+                    className="flex items-center gap-1 text-[13px]"
+                    style={{
+                      color: q.heartedByMe ? "#d4604a" : "var(--mu)",
+                      cursor: q.isMine ? "default" : "pointer",
+                      opacity: q.isMine ? 0.4 : 1,
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                    }}
+                  >
+                    <Heart
+                      className="w-4 h-4"
+                      fill={q.heartedByMe ? "#d4604a" : "none"}
+                      stroke={q.heartedByMe ? "#d4604a" : "currentColor"}
+                    />
+                    {(q.hearts ?? 0) > 0 && <span>{q.hearts}</span>}
+                  </button>
                 </div>
-              </Link>
+              </li>
             ))}
           </ul>
         )}

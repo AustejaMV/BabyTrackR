@@ -7,7 +7,9 @@ import { readAlertThresholds, isAlertDismissed, dismissAlert } from "../utils/al
 import type { AlertThresholds } from "../utils/alertThresholdsStorage";
 import type { WarningKey } from "../utils/warningUtils";
 import type { FeedingRecord, SleepRecord, DiaperRecord, TummyTimeRecord } from "../types";
-import { ReassuranceBanner } from "./ReassuranceBanner";
+function ReassuranceBanner(_props: { warningKeys: string[] }) {
+  return null;
+}
 
 function getTooltip(key: WarningKey, thresholds: { noPoopHours: number; noSleepHours: number; feedOverdueMinutes: number; tummyLowMinutes: number; tummyLowByHour: number }): string {
   switch (key) {

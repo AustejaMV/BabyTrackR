@@ -1,22 +1,19 @@
 /**
- * Write a time-capsule note. Route: /time-capsule/write?weeks=26|52|104.
+ * Write a time-capsule note. Route: /time-capsule/write?weeks=N.
  */
 
 import { useState } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router";
 import { saveTimeCapsule } from "../utils/timeCapsuleStorage";
 import { getDefaultShowBackWeeks } from "../utils/timeCapsuleTrigger";
-import type { TimeCapsuleMilestone } from "../types/timeCapsule";
 import { toast } from "sonner";
-
-const VALID_WEEKS: TimeCapsuleMilestone[] = [26, 52, 104];
 
 export function TimeCapsuleWriteScreen() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const weeksParam = searchParams.get("weeks");
-  const milestoneWeeks = weeksParam ? parseInt(weeksParam, 10) : 26;
-  const valid = VALID_WEEKS.includes(milestoneWeeks as TimeCapsuleMilestone) ? (milestoneWeeks as TimeCapsuleMilestone) : 26;
+  const parsedWeeks = weeksParam ? parseInt(weeksParam, 10) : 0;
+  const valid = Number.isFinite(parsedWeeks) && parsedWeeks >= 0 ? parsedWeeks : 0;
 
   const [body, setBody] = useState("");
   const [saving, setSaving] = useState(false);
@@ -44,7 +41,8 @@ export function TimeCapsuleWriteScreen() {
     }
   };
 
-  const label = valid === 26 ? "6 months" : valid === 52 ? "12 months" : "24 months";
+  const months = Math.round(valid / 4.33);
+  const label = months < 1 ? `${valid} week${valid !== 1 ? "s" : ""}` : `${months} month${months !== 1 ? "s" : ""}`;
 
   return (
     <div className="min-h-screen pb-24" style={{ background: "var(--bg)" }}>

@@ -73,7 +73,7 @@ export function CreateCustomTrackerSheet({ onClose, onSaved }: CreateCustomTrack
               aria-label={opt.label}
               aria-pressed={icon === opt.id}
             >
-              {opt.emoji}
+              {opt.icon}
             </button>
           ))}
         </div>

@@ -10,10 +10,15 @@ const FIRST_BABY_KEY = "cradl-first-baby";
 
 export function isOnboardingComplete(): boolean {
   try {
-    if (localStorage.getItem(COMPLETE_KEY) === "true") return true;
-    const babies = getBabies();
-    if (babies.length > 0 && babies[0]?.birthDate) return true;
+    return localStorage.getItem(COMPLETE_KEY) === "true";
+  } catch {
     return false;
+  }
+}
+
+export function isOnboardingInProgress(): boolean {
+  try {
+    return localStorage.getItem(STEP_KEY) != null && !isOnboardingComplete();
   } catch {
     return false;
   }

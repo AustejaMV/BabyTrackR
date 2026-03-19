@@ -2,7 +2,7 @@
  * Postnatal rage / overwhelmed pattern detection. Never use 'depression' or clinical assessment.
  */
 
-export type MoodKey = "great" | "good" | "okay" | "tired" | "struggling" | "overwhelmed";
+export type MoodKey = "great" | "good" | "okay" | "tired" | "struggling" | "overwhelmed" | "rage";
 
 export interface MoodEntry {
   date: string;
@@ -21,7 +21,7 @@ const SUPPORT_MESSAGE =
 
 export function detectOverwhelmedPattern(moodHistory: MoodEntry[]): OverwhelmedPattern | null {
   if (!Array.isArray(moodHistory) || moodHistory.length < 3) return null;
-  const overwhelmed = moodHistory.filter((e) => e.mood === "overwhelmed");
+  const overwhelmed = moodHistory.filter((e) => e.mood === "overwhelmed" || e.mood === "rage");
   if (overwhelmed.length === 0) return null;
 
   const now = Date.now();

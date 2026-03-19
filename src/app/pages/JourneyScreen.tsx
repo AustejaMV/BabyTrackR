@@ -1,543 +1,863 @@
-import { useState, useEffect } from "react";
-import { format } from "date-fns";
-import { Link, useNavigate } from "react-router";
-import { Navigation } from "../components/Navigation";
-import { ThemeToggle } from "../components/ThemeToggle";
-import { RangeBar } from "../components/RangeBar";
-import { GrowthChartSection } from "../components/GrowthChartSection";
-import { ScheduleCreator } from "../components/ScheduleCreator";
-import { TeethTracker } from "../components/TeethTracker";
-import { JOURNEY_MILESTONES, CUSTOM_MILESTONE_ID } from "../data/journeyMilestones";
-import { DEFAULT_MILESTONES } from "../utils/babyUtils";
-import { useAuth } from "../contexts/AuthContext";
-import { saveData } from "../utils/dataSync";
-import type { BabyProfile, Milestone, SleepRecord, FeedingRecord, DiaperRecord, TummyTimeRecord, BottleRecord } from "../types";
-import { readStoredArray } from "../utils/warningUtils";
-import { InsightsSection } from "../components/InsightsSection";
-import { ComparativeInsights } from "../components/ComparativeInsights";
-import { SleepPatternCard } from "../components/SleepPatternCard";
-import { FoodsIntroducedList } from "../components/FoodsIntroducedList";
-import { SupplyMonitorCard } from "../components/SupplyMonitorCard";
-import { PlaybookCard } from "../components/PlaybookCard";
+import { useMemo, useState, useCallback } from "react";
+import { useNavigate } from "react-router";
+import { WeeklyNarrativeCard } from "../components/WeeklyNarrativeCard";
+import { CradlNoticedSection, type NoticeCard } from "../components/CradlNoticedSection";
+import { GrowthSection } from "../components/GrowthSection";
+import { IsThisNormalCard, type NormalMetric } from "../components/IsThisNormalCard";
+import { PremiumGate } from "../components/PremiumGate";
 import { useBaby } from "../contexts/BabyContext";
-import { usePremium } from "../contexts/PremiumContext";
-import { BabySwitcher } from "../components/BabySwitcher";
-import { EmptyState } from "../components/EmptyState";
+import { getAgeMonthsWeeks, getAgeInDays } from "../utils/babyUtils";
+import { getLeapAtWeek, getNextLeap } from "../data/leaps";
+import { getNormalRange } from "../data/normalRanges";
+import { JOURNEY_MILESTONES } from "../data/journeyMilestones";
+import { readStoredArray } from "../utils/warningUtils";
+import type { SleepRecord, FeedingRecord, DiaperRecord, TummyTimeRecord } from "../types";
+import { PersonalPlaybook } from "../components/PersonalPlaybook";
+import { LocalErrorBoundary } from "../components/LocalErrorBoundary";
+import { useDesktop } from "../components/AppLayout";
+import { DesktopLayout } from "../components/DesktopLayout";
+import { getGrowthHistory, saveGrowthEntry } from "../utils/growthStorage";
+import { toast } from "sonner";
+import { PregnancyJourneyView } from "../components/PregnancyJourneyView";
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const F = "system-ui, sans-serif";
+const SECTION: React.CSSProperties = {
+  fontSize: 10, fontWeight: 600, color: "var(--mu)", textTransform: "uppercase",
+  letterSpacing: 0.8, padding: "10px 16px 4px", fontFamily: F,
+};
+const CARD: React.CSSProperties = {
+  background: "#fff", border: "1px solid #ede0d4", borderRadius: 14,
+  margin: "0 12px 8px", padding: 14, fontFamily: F,
+};
 
-function formatAchieved(ms: number): string {
-  const d = new Date(ms);
-  const dd = d.getDate().toString().padStart(2, "0");
-  const mm = (d.getMonth() + 1).toString().padStart(2, "0");
-  const yyyy = d.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
+function readHistory<T>(key: string): T[] {
+  try { return readStoredArray<T>(key); } catch { return []; }
+}
+
+const CUSTOM_MILESTONES_KEY = "cradl-custom-milestones";
+interface CustomMilestone {
+  id: string;
+  label: string;
+  date: number;
+}
+
+function loadCustomMilestones(): CustomMilestone[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_MILESTONES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveCustomMilestones(milestones: CustomMilestone[]) {
+  try { localStorage.setItem(CUSTOM_MILESTONES_KEY, JSON.stringify(milestones)); } catch {}
 }
 
 export function JourneyScreen() {
-  const { activeBaby, babies, setActiveBabyId } = useBaby();
-  const { isPremium } = usePremium();
+  const { activeBaby, updateActiveBaby } = useBaby();
   const navigate = useNavigate();
-  const babyProfile: BabyProfile | null = activeBaby
-    ? { birthDate: activeBaby.birthDate, name: activeBaby.name, photoDataUrl: activeBaby.photoDataUrl, weight: activeBaby.weight, height: activeBaby.height }
-    : null;
-  const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editDate, setEditDate] = useState("");
-  const [editTime, setEditTime] = useState("");
-  const [editName, setEditName] = useState("");
-  const [feedingCount, setFeedingCount] = useState(0);
-  const [sleepCount, setSleepCount] = useState(0);
-  const [diaperCount, setDiaperCount] = useState(0);
-  const [tummyMinutes, setTummyMinutes] = useState(0);
-  const [sleepHistory, setSleepHistory] = useState<SleepRecord[]>([]);
-  const [feedingHistory, setFeedingHistory] = useState<FeedingRecord[]>([]);
-  const [diaperHistory, setDiaperHistory] = useState<DiaperRecord[]>([]);
-  const [tummyHistory, setTummyHistory] = useState<TummyTimeRecord[]>([]);
-  const [bottleHistory, setBottleHistory] = useState<BottleRecord[]>([]);
-  const { session } = useAuth();
 
-  useEffect(() => {
+  if (activeBaby && activeBaby.birthDate > Date.now()) {
+    return (
+      <PregnancyJourneyView
+        onBabyArrived={() => {
+          updateActiveBaby({ birthDate: Date.now() });
+          navigate("/");
+        }}
+      />
+    );
+  }
+
+  const babyName = activeBaby?.name ?? "Baby";
+  const birthDate = activeBaby?.birthDate ?? null;
+
+  const birthMs = birthDate ? (typeof birthDate === "number" ? birthDate : new Date(birthDate).getTime()) : null;
+  const ageInWeeks = birthMs ? (Date.now() - birthMs) / (7 * 86400000) : 0;
+  const ageLabel = birthMs ? getAgeMonthsWeeks(birthMs) : "";
+  const weekNumber = Math.floor(ageInWeeks);
+
+  const sleepHistory = useMemo(() => readHistory<SleepRecord>("sleepHistory"), []);
+  const feedingHistory = useMemo(() => readHistory<FeedingRecord>("feedingHistory"), []);
+  const diaperHistory = useMemo(() => readHistory<DiaperRecord>("diaperHistory"), []);
+  const tummyTimeHistory = useMemo(() => readHistory<TummyTimeRecord>("tummyTimeHistory"), []);
+
+  // Measurement drawer
+  const [measureOpen, setMeasureOpen] = useState(false);
+  const [mWeight, setMWeight] = useState("");
+  const [mHeight, setMHeight] = useState("");
+  const [mHead, setMHead] = useState("");
+  const [mDate, setMDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [growthRefreshKey, setGrowthRefreshKey] = useState(0);
+
+  // Custom milestone form
+  const [addMilestoneOpen, setAddMilestoneOpen] = useState(false);
+  const [newMilestoneLabel, setNewMilestoneLabel] = useState("");
+  const [newMilestoneDate, setNewMilestoneDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [customMilestones, setCustomMilestones] = useState<CustomMilestone[]>(() => loadCustomMilestones());
+
+  const growthData = useMemo(() => {
+    const history = getGrowthHistory();
+    if (history.length === 0) return { weight: null, length: null, headCirc: null, weightGainGrams: null, weeksSinceLastMeasure: null, weightHistory: [] };
+    const latest = history[history.length - 1];
+    const weight = latest.weightKg ? { value: latest.weightKg, percentile: 50 } : null;
+    const length = latest.heightCm ? { value: latest.heightCm, percentile: 50 } : null;
+    const headCirc = latest.headCircumferenceCm ? { value: latest.headCircumferenceCm, percentile: 50 } : null;
+    let weightGainGrams: number | null = null;
+    let weeksSinceLastMeasure: number | null = null;
+    const withWeight = history.filter((h) => h.weightKg);
+    if (withWeight.length >= 2) {
+      const prev = withWeight[withWeight.length - 2];
+      const curr = withWeight[withWeight.length - 1];
+      weightGainGrams = Math.round(((curr.weightKg! - prev.weightKg!) * 1000));
+      weeksSinceLastMeasure = Math.max(1, Math.round((curr.date - prev.date) / (7 * 86400000)));
+    }
+    const weightHistory = withWeight.map((h) => ({ date: h.date, weightKg: h.weightKg! }));
+    return { weight, length, headCirc, weightGainGrams, weeksSinceLastMeasure, weightHistory };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [growthRefreshKey]);
+
+  const handleSaveMeasurement = useCallback(() => {
     try {
-      const raw = localStorage.getItem("milestones");
-      const saved: Milestone[] = raw ? JSON.parse(raw) : [];
-      const merged = DEFAULT_MILESTONES.map((d) => {
-        const s = saved.find((x) => x.id === d.id);
-        return { ...d, achievedAt: s?.achievedAt };
+      saveGrowthEntry({
+        date: mDate,
+        weightKg: mWeight ? parseFloat(mWeight) : undefined,
+        heightCm: mHeight ? parseFloat(mHeight) : undefined,
+        headCircumferenceCm: mHead ? parseFloat(mHead) : undefined,
       });
-      const custom = saved.filter((s) => s.id.startsWith("custom-"));
-      setMilestones([...merged, ...custom]);
-    } catch {
-      setMilestones(DEFAULT_MILESTONES.map((m) => ({ ...m, achievedAt: undefined })));
+      toast.success("Measurement saved");
+      setMeasureOpen(false);
+      setMWeight("");
+      setMHeight("");
+      setMHead("");
+      setMDate(new Date().toISOString().slice(0, 10));
+      setGrowthRefreshKey((k) => k + 1);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save measurement");
     }
+  }, [mWeight, mHeight, mHead, mDate]);
+
+  const handleAddCustomMilestone = useCallback(() => {
+    const label = newMilestoneLabel.trim();
+    if (!label) { toast.error("Please enter a milestone name"); return; }
+    const ms: CustomMilestone = { id: `custom-${Date.now()}`, label, date: new Date(newMilestoneDate).getTime() };
+    const updated = [...customMilestones, ms];
+    setCustomMilestones(updated);
+    saveCustomMilestones(updated);
+    setNewMilestoneLabel("");
+    setNewMilestoneDate(new Date().toISOString().slice(0, 10));
+    setAddMilestoneOpen(false);
+    toast.success("Milestone added");
+  }, [newMilestoneLabel, newMilestoneDate, customMilestones]);
+
+  const handleDeleteCustomMilestone = useCallback((id: string) => {
+    const updated = customMilestones.filter((m) => m.id !== id);
+    setCustomMilestones(updated);
+    saveCustomMilestones(updated);
+    toast.success("Milestone removed");
+  }, [customMilestones]);
+
+  const weekAgo = Date.now() - 7 * 86400000;
+
+  const weeklyStats = useMemo(() => {
+    const wFeeds = feedingHistory.filter((f) => (f.endTime ?? f.timestamp ?? 0) >= weekAgo);
+    const wSleeps = sleepHistory.filter((s) => s.endTime && s.endTime >= weekAgo);
+    const wDiapers = diaperHistory.filter((d) => (d.timestamp ?? 0) >= weekAgo);
+    const sleepMs = wSleeps.reduce((s, r) => s + ((r.endTime ?? 0) - (r.startTime ?? 0)), 0);
+    return {
+      feedsPerDay: Math.round((wFeeds.length / 7) * 10) / 10,
+      sleepPerDay: `${Math.round(sleepMs / 7 / 3600000)}h`,
+      nappiesPerDay: Math.round((wDiapers.length / 7) * 10) / 10,
+    };
+  }, [feedingHistory, sleepHistory, diaperHistory]);
+
+  const dailyBars = useMemo(() => {
+    const bars: number[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const dayStart = new Date().setHours(0, 0, 0, 0) - i * 86400000;
+      const dayEnd = dayStart + 86400000;
+      const feeds = feedingHistory.filter((f) => { const t = f.endTime ?? f.timestamp ?? 0; return t >= dayStart && t < dayEnd; }).length;
+      bars.push(Math.min(1, feeds / 10));
+    }
+    return bars;
+  }, [feedingHistory]);
+
+  const summaryText = useMemo(() => {
+    if (weeklyStats.feedsPerDay === 0 && weeklyStats.nappiesPerDay === 0) return `Log feeds and sleeps this week to see ${babyName}'s weekly summary.`;
+    return `${babyName} had ${weeklyStats.feedsPerDay} feeds a day and slept about ${weeklyStats.sleepPerDay} per day this week.`;
+  }, [weeklyStats, babyName]);
+
+  const storyNotices = useMemo<NoticeCard[]>(() => {
+    const cards: NoticeCard[] = [];
+    const prevWeekStart = weekAgo - 7 * 86400000;
+    const thisWeekSleeps = sleepHistory.filter((s) => s.endTime && s.endTime >= weekAgo);
+    const prevWeekSleeps = sleepHistory.filter((s) => s.endTime && s.endTime >= prevWeekStart && s.endTime! < weekAgo);
+
+    if (thisWeekSleeps.length >= 3 && prevWeekSleeps.length >= 3) {
+      const thisAvg = thisWeekSleeps.reduce((s, r) => s + ((r.endTime ?? 0) - (r.startTime ?? 0)), 0) / thisWeekSleeps.length;
+      const prevAvg = prevWeekSleeps.reduce((s, r) => s + ((r.endTime ?? 0) - (r.startTime ?? 0)), 0) / prevWeekSleeps.length;
+      if (thisAvg > prevAvg * 1.15) {
+        cards.push({ id: "sleep-improving", color: "blue", title: "Sleep is getting better this week",
+          body: `Average nap up to ${Math.round(thisAvg / 60000)}min from ${Math.round(prevAvg / 60000)}min last week.` });
+      }
+    }
+
+    const thisWeekFeeds = feedingHistory.filter((f) => (f.endTime ?? f.timestamp ?? 0) >= weekAgo);
+    if (thisWeekFeeds.length >= 6) {
+      const sorted = [...thisWeekFeeds].sort((a, b) => (a.endTime ?? a.timestamp ?? 0) - (b.endTime ?? b.timestamp ?? 0));
+      const gaps: number[] = [];
+      for (let i = 1; i < sorted.length; i++) {
+        gaps.push(((sorted[i].endTime ?? sorted[i].timestamp ?? 0) - (sorted[i - 1].endTime ?? sorted[i - 1].timestamp ?? 0)) / 60000);
+      }
+      const avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length;
+      if (avgGap > 120) {
+        cards.push({ id: "feed-rhythm", color: "green", title: "Feeds spacing out — a good sign",
+          body: `${Math.round(avgGap)} minutes between feeds on average. She's settling into a rhythm.` });
+      }
+    }
+
+    return cards;
+  }, [sleepHistory, feedingHistory]);
+
+  const normalMetrics = useMemo<NormalMetric[]>(() => {
+    if (!ageInWeeks) return [];
     const todayStart = new Date().setHours(0, 0, 0, 0);
+    const todayFeeds = feedingHistory.filter((f) => (f.endTime ?? f.timestamp ?? 0) >= todayStart).length;
+    const todayDiapers = diaperHistory.filter((d) => (d.timestamp ?? 0) >= todayStart).length;
+    let todaySleepH = 0;
     try {
-      const logs = JSON.parse(localStorage.getItem("feedingHistory") || "[]");
-      const bottle = JSON.parse(localStorage.getItem("bottleHistory") || "[]");
-      const feedCount = logs.filter((l: { endTime?: number; timestamp?: number }) => (l.endTime ?? l.timestamp) >= todayStart).length;
-      const bottleCount = bottle.filter((b: { timestamp: number }) => b.timestamp >= todayStart).length;
-      setFeedingCount(feedCount + bottleCount);
-    } catch {
-      setFeedingCount(0);
-    }
-    try {
-      const sleeps = JSON.parse(localStorage.getItem("sleepHistory") || "[]");
-      const count = sleeps.filter((s: { startTime: number }) => s.startTime >= todayStart).length;
-      setSleepCount(count);
-    } catch {
-      setSleepCount(0);
-    }
-    try {
-      const diapers = JSON.parse(localStorage.getItem("diaperHistory") || "[]");
-      const count = diapers.filter((d: { timestamp: number }) => d.timestamp >= todayStart).length;
-      setDiaperCount(count);
-    } catch {
-      setDiaperCount(0);
-    }
-    try {
-      const tummy = JSON.parse(localStorage.getItem("tummyTimeHistory") || "[]");
-      const totalMs = tummy
-        .filter((t: { startTime: number }) => t.startTime >= todayStart)
-        .reduce((sum: number, t: { startTime: number; endTime?: number; excludedMs?: number }) => {
-          if (t.endTime == null) return sum;
-          const dur = t.endTime - t.startTime - (t.excludedMs ?? 0);
-          return sum + Math.max(0, dur);
-        }, 0);
-      setTummyMinutes(Math.round(totalMs / 60000));
-    } catch {
-      setTummyMinutes(0);
-    }
-    try {
-      setSleepHistory(readStoredArray<SleepRecord>("sleepHistory"));
-      setFeedingHistory(readStoredArray<FeedingRecord>("feedingHistory"));
-      setDiaperHistory(readStoredArray<DiaperRecord>("diaperHistory"));
-      setTummyHistory(readStoredArray<TummyTimeRecord>("tummyTimeHistory"));
-      setBottleHistory(readStoredArray<BottleRecord>("bottleHistory"));
-    } catch {
-      setSleepHistory([]);
-      setFeedingHistory([]);
-      setDiaperHistory([]);
-      setTummyHistory([]);
-      setBottleHistory([]);
-    }
-  }, [activeBaby?.id]);
-
-  const getAchieved = (id: string) => milestones.find((m) => m.id === id)?.achievedAt;
-  const birthMs = babyProfile?.birthDate ? new Date(babyProfile.birthDate).setHours(0, 0, 0, 0) : null;
-
-  const nodes = [...JOURNEY_MILESTONES.map((j) => ({ ...j, achievedAt: getAchieved(j.id) })), { id: CUSTOM_MILESTONE_ID, label: "Add your own", typicalLabel: "", typicalWeeksMin: 0, typicalWeeksMax: 0, achievedAt: undefined as number | undefined }];
-
-  const firstUnachievedIndex = nodes.findIndex((n) => n.id !== CUSTOM_MILESTONE_ID && !n.achievedAt);
-  const activeIndex = firstUnachievedIndex >= 0 ? firstUnachievedIndex : nodes.length - 1;
-
-  const saveMilestone = (id: string, dateStr: string, timeStr: string, name?: string) => {
-    if (!dateStr.trim()) return;
-    const ymd = dateStr.trim().split("-").map(Number);
-    const isPicker = ymd.length === 3 && ymd.every((n) => !isNaN(n));
-    let ms = isPicker
-      ? new Date(ymd[0], ymd[1] - 1, ymd[2]).getTime()
-      : new Date(dateStr).getTime();
-    if (timeStr.trim()) {
-      const [h, m] = timeStr.split(":").map(Number);
-      if (!isNaN(h) && !isNaN(m)) {
-        const d = new Date(ms);
-        d.setHours(h, m, 0, 0);
-        ms = d.getTime();
-      }
-    }
-    const storageId = id === CUSTOM_MILESTONE_ID ? `custom-${Date.now()}` : id;
-    const existing = milestones.find((m) => m.id === storageId);
-    const def = DEFAULT_MILESTONES.find((d) => d.id === id);
-    const next =
-      id === CUSTOM_MILESTONE_ID
-        ? [...milestones, { id: storageId, label: name || "Custom", typicalDaysMin: 0, typicalDaysMax: 365, achievedAt: ms }]
-        : existing
-          ? milestones.map((m) => (m.id === id ? { ...m, achievedAt: ms, label: name || m.label } : m))
-          : [...milestones, { ...(def ?? { id: storageId, label: name || "Custom", typicalDaysMin: 0, typicalDaysMax: 365 }), achievedAt: ms }];
-    setMilestones(next);
-    try {
-      localStorage.setItem("milestones", JSON.stringify(next));
+      sleepHistory.forEach((s) => {
+        const start = s.startTime ?? 0; const end = s.endTime ?? 0;
+        if (end >= todayStart && start < todayStart + 86400000) todaySleepH += Math.max(0, end - Math.max(start, todayStart)) / 3600000;
+        else if (start >= todayStart && end) todaySleepH += (end - start) / 3600000;
+      });
     } catch {}
-    if (session?.access_token) saveData("milestones", next, session.access_token);
-    setEditId(null);
-    setEditDate("");
-    setEditTime("");
-    setEditName("");
-  };
+    let todayTummy = 0;
+    try {
+      tummyTimeHistory.forEach((t) => {
+        if ((t.startTime ?? 0) >= todayStart && t.endTime) todayTummy += Math.round((t.endTime - (t.startTime ?? 0)) / 60000);
+      });
+    } catch {}
 
-  const openEdit = (id: string) => {
-    setEditId(id);
-    if (id === CUSTOM_MILESTONE_ID) {
-      const now = new Date();
-      setEditDate(format(now, "yyyy-MM-dd"));
-      setEditTime(format(now, "HH:mm"));
-      setEditName("");
-    } else {
-      const achieved = getAchieved(id);
-      if (achieved) {
-        const d = new Date(achieved);
-        setEditDate(`${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()}`);
-        setEditTime(`${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`);
-      } else {
-        setEditDate("");
-        setEditTime("");
-      }
-      setEditName("");
+    const wks = Math.floor(ageInWeeks);
+    const metrics: NormalMetric[] = [];
+    const feedRange = getNormalRange("feedsPerDay", wks);
+    if (feedRange && todayFeeds > 0) {
+      const tag = todayFeeds >= feedRange.min && todayFeeds <= feedRange.max ? "Normal" as const : todayFeeds < feedRange.min ? "A little low" as const : "A little high" as const;
+      metrics.push({
+        name: "Feeds", value: todayFeeds, min: 0, max: feedRange.max + 4,
+        typicalMin: feedRange.min, typicalMax: feedRange.max,
+        description: `${todayFeeds} feeds — ${tag === "Normal" ? "right in the middle of the typical range" : tag === "A little low" ? "fewer than most babies this age" : "more than most babies this age"}`,
+        tag, suggestion: tag !== "Normal" ? "Some babies just need more or fewer. Check with your health visitor if you're worried." : undefined,
+      });
     }
+    const sleepRange = getNormalRange("sleepHoursPerDay", wks);
+    if (sleepRange && todaySleepH > 0) {
+      const tag = todaySleepH >= sleepRange.min && todaySleepH <= sleepRange.max ? "Normal" as const : todaySleepH < sleepRange.min ? "A little low" as const : "A little high" as const;
+      metrics.push({
+        name: "Sleep", value: Math.round(todaySleepH * 10) / 10, min: 0, max: sleepRange.max + 4,
+        typicalMin: sleepRange.min, typicalMax: sleepRange.max,
+        description: `${Math.round(todaySleepH * 10) / 10}h — ${tag === "Normal" ? "healthy amount for this age" : "a bit " + (tag === "A little low" ? "less" : "more") + " than typical"}`,
+        tag, suggestion: tag !== "Normal" ? "Every baby's sleep needs vary. Talk to your GP if sleep feels persistently off." : undefined,
+      });
+    }
+    const diapRange = getNormalRange("diaperChangesPerDay", wks);
+    if (diapRange && todayDiapers > 0) {
+      const tag = todayDiapers >= diapRange.min && todayDiapers <= diapRange.max ? "Normal" as const : todayDiapers < diapRange.min ? "A little low" as const : "A little high" as const;
+      metrics.push({
+        name: "Nappies", value: todayDiapers, min: 0, max: diapRange.max + 4,
+        typicalMin: diapRange.min, typicalMax: diapRange.max,
+        description: `${todayDiapers} changes — ${tag === "Normal" ? "normal for this age" : tag === "A little low" ? "on the low side" : "quite a few changes"}`,
+        tag,
+      });
+    }
+    const tumRange = getNormalRange("tummyTimeMinPerDay", wks);
+    if (tumRange && todayTummy > 0) {
+      const tag = todayTummy >= tumRange.min && todayTummy <= tumRange.max ? "Normal" as const : todayTummy < tumRange.min ? "A little low" as const : "A little high" as const;
+      metrics.push({
+        name: "Tummy time", value: todayTummy, min: 0, max: tumRange.max + 20,
+        typicalMin: tumRange.min, typicalMax: tumRange.max,
+        description: `${todayTummy}min — ${tag === "Normal" ? "good amount" : tag === "A little low" ? "try adding a few more minutes" : "great job!"}`,
+        tag, suggestion: tag === "A little low" ? "Even 2–3 extra minutes across the day helps build strength." : undefined,
+      });
+    }
+    return metrics;
+  }, [ageInWeeks, feedingHistory, sleepHistory, diaperHistory, tummyTimeHistory]);
+
+  const { isDesktop } = useDesktop();
+
+  const leap = ageInWeeks ? getLeapAtWeek(Math.floor(ageInWeeks)) : null;
+  const nextLeap = ageInWeeks && !leap ? getNextLeap(Math.floor(ageInWeeks)) : null;
+
+  const toggleMilestone = useCallback((milestoneId: string) => {
+    try {
+      let completed: Record<string, number> = {};
+      try { completed = JSON.parse(localStorage.getItem("cradl-milestones") || "{}"); } catch {}
+      if (completed[milestoneId]) {
+        delete completed[milestoneId];
+        toast.success("Milestone unmarked");
+      } else {
+        completed[milestoneId] = Date.now();
+        toast.success("Milestone completed!");
+      }
+      localStorage.setItem("cradl-milestones", JSON.stringify(completed));
+      setGrowthRefreshKey((k) => k + 1);
+    } catch {}
+  }, []);
+
+  const milestoneData = useMemo(() => {
+    let completed: Record<string, number> = {};
+    try { completed = JSON.parse(localStorage.getItem("cradl-milestones") || "{}"); } catch {}
+    const builtIn = JOURNEY_MILESTONES.map((m) => ({
+      ...m, doneDate: completed[m.id] ? new Date(completed[m.id]).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null,
+      isCurrent: !completed[m.id] && ageInWeeks >= m.typicalWeeksMin && ageInWeeks <= m.typicalWeeksMax,
+      isUpcoming: !completed[m.id] && ageInWeeks < m.typicalWeeksMin,
+      isCustom: false,
+    }));
+    const custom = customMilestones.map((m) => ({
+      id: m.id,
+      label: m.label,
+      typicalLabel: new Date(m.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+      typicalWeeksMin: 0,
+      typicalWeeksMax: 999,
+      doneDate: new Date(m.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+      isCurrent: false,
+      isUpcoming: false,
+      isCustom: true,
+    }));
+    return [...builtIn, ...custom];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ageInWeeks, customMilestones, growthRefreshKey]);
+
+  const DK_SECTION: React.CSSProperties = {
+    fontSize: 10, color: "#b09080", textTransform: "uppercase",
+    letterSpacing: 0.7, fontWeight: 600, margin: "10px 0 6px",
+  };
+  const DK_SECTION_FIRST: React.CSSProperties = { ...DK_SECTION, marginTop: 0 };
+  const DK_CARD: React.CSSProperties = {
+    background: "#fff", border: "1px solid #ede0d4", borderRadius: 12,
+    padding: "12px 14px", marginBottom: 8,
+  };
+  const DK_SMALL: React.CSSProperties = {
+    background: "#fff", border: "1px solid #ede0d4", borderRadius: 10,
+    padding: "10px 12px", marginBottom: 7,
   };
 
-  const weeksFromBirth = (ms: number) => (birthMs ? Math.round((ms - birthMs) / (7 * MS_PER_DAY)) : 0);
-  const firstSmileAchieved = getAchieved("first-smile");
-  const crawlingAchieved = getAchieved("crawls");
-  const babyWeeksFirstSmile = firstSmileAchieved && birthMs ? weeksFromBirth(firstSmileAchieved) : 0;
-  const babyMonthsCrawling = crawlingAchieved && birthMs ? Math.round((crawlingAchieved - birthMs) / (30 * MS_PER_DAY)) : 0;
+  if (isDesktop) {
+    const leftCol = (
+      <>
+        <div style={DK_SECTION_FIRST}>Growth</div>
+        <LocalErrorBoundary>
+          <GrowthSection
+            babyName={babyName}
+            weight={growthData.weight}
+            length={growthData.length}
+            headCirc={growthData.headCirc}
+            weightGainGrams={growthData.weightGainGrams}
+            weeksSinceLastMeasure={growthData.weeksSinceLastMeasure}
+            ageWeeks={Math.floor(ageInWeeks)}
+            weightHistory={growthData.weightHistory}
+            onLogMeasurement={() => setMeasureOpen(true)}
+            compact
+          />
+        </LocalErrorBoundary>
 
-  const firstSmileMinW = 4,
-    firstSmileMaxW = 13;
-  const firstSmilePct =
-    babyWeeksFirstSmile > 0
-      ? Math.max(0, Math.min(100, ((babyWeeksFirstSmile - firstSmileMinW) / (firstSmileMaxW - firstSmileMinW)) * 100))
-      : 11;
-  const crawlMinW = 24,
-    crawlMaxW = 52;
-  const crawlPct =
-    crawlingAchieved && birthMs
-      ? Math.max(0, Math.min(100, ((weeksFromBirth(crawlingAchieved) - crawlMinW) / (crawlMaxW - crawlMinW)) * 100))
-      : 60;
+        <div style={{ ...DK_SECTION, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>Milestones</span>
+          <span
+            onClick={() => setAddMilestoneOpen(true)}
+            style={{ fontSize: 9, color: "#d4604a", fontWeight: 600, cursor: "pointer", textTransform: "none" as const, letterSpacing: 0 }}
+          >+ Add custom</span>
+        </div>
+        <LocalErrorBoundary>
+          <div style={{ display: "flex", gap: 0, overflowX: "auto", scrollbarWidth: "none" as any, position: "relative" }}>
+            <style>{`.ms-scroll::-webkit-scrollbar{display:none}`}</style>
+            {milestoneData.map((m, i) => (
+              <div
+                key={m.id}
+                onClick={() => m.isCustom ? handleDeleteCustomMilestone(m.id) : toggleMilestone(m.id)}
+                style={{ width: 64, flexShrink: 0, textAlign: "center" as const, position: "relative", cursor: "pointer" }}
+                title={m.isCustom ? "Click to remove" : m.doneDate ? "Click to unmark" : "Click to mark done"}
+              >
+                {i > 0 && <div style={{ position: "absolute", top: 10, left: -32, width: 64, height: 2, background: "#ede0d4" }} />}
+                <div style={{
+                  width: 20, height: 20, borderRadius: "50%", margin: "0 auto 3px",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 9, fontWeight: 600,
+                  ...(m.doneDate ? { background: m.isCustom ? "#6a6ab4" : "#4a8a4a", color: "#fff" } : m.isCurrent ? { background: "#d4604a", color: "#fff" } : { background: "#f0ece8", color: "#b09080" }),
+                }}>
+                  {m.doneDate ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg> : m.isCurrent ? <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> : <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/></svg>}
+                </div>
+                <div style={{ fontSize: 8, fontWeight: 600, color: m.isCustom ? "#6a6ab4" : "#2c1f1f", fontFamily: F, overflowWrap: "break-word" as const }}>{m.label}</div>
+                <div style={{ fontSize: 7, color: "#b09080", fontFamily: F }}>
+                  {m.doneDate ? m.doneDate : m.isCurrent ? "Now" : `~${m.typicalLabel}`}
+                </div>
+              </div>
+            ))}
+          </div>
+        </LocalErrorBoundary>
 
-  const feedsMin = 5,
-    feedsMax = 9;
-  const feedsPct = Math.max(0, Math.min(100, (feedingCount / 12) * 100));
-  const feedsInRange = feedingCount >= feedsMin && feedingCount <= feedsMax;
+        <div style={DK_SECTION}>Schedule</div>
+        <LocalErrorBoundary>
+          <div style={DK_SMALL}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#2c1f1f", marginBottom: 4 }}>
+              {Math.floor(ageInWeeks)} weeks · {ageInWeeks < 12 ? "4–5 naps" : ageInWeeks < 26 ? "3–4 naps" : ageInWeeks < 39 ? "2–3 naps" : "1–2 naps"}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              {(ageInWeeks < 12
+                ? [{ t: "7:00", l: "Wake", c: "#4a8a4a" }, { t: "8:30", l: "Nap 1", c: "#4080a0" }, { t: "10:30", l: "Nap 2", c: "#4080a0" }, { t: "1:00", l: "Nap 3", c: "#4080a0" }, { t: "3:30", l: "Nap 4", c: "#4080a0" }, { t: "7:30", l: "Bedtime", c: "#7a4ab4" }]
+                : ageInWeeks < 26
+                  ? [{ t: "7:00", l: "Wake", c: "#4a8a4a" }, { t: "9:00", l: "Nap 1", c: "#4080a0" }, { t: "12:00", l: "Nap 2", c: "#4080a0" }, { t: "3:00", l: "Nap 3", c: "#4080a0" }, { t: "7:00", l: "Bedtime", c: "#7a4ab4" }]
+                  : [{ t: "7:00", l: "Wake", c: "#4a8a4a" }, { t: "9:30", l: "Nap 1", c: "#4080a0" }, { t: "1:00", l: "Nap 2", c: "#4080a0" }, { t: "7:00", l: "Bedtime", c: "#7a4ab4" }]
+              ).map((item) => (
+                <div key={item.t + item.l} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: item.c, flexShrink: 0 }} />
+                  <span style={{ fontSize: 9, fontWeight: 600, color: "#2c1f1f", width: 36, fontFamily: F }}>{item.t}</span>
+                  <span style={{ fontSize: 9, color: "#9a8080", fontFamily: F }}>{item.l}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 8, color: "#b09080", marginTop: 6, fontStyle: "italic", fontFamily: F }}>
+              Follow {babyName}'s cues — this is a guide, not a rule.
+            </div>
+          </div>
+        </LocalErrorBoundary>
+      </>
+    );
 
-  const sleepMin = 3,
-    sleepMax = 6;
-  const sleepPct = Math.max(0, Math.min(100, (sleepCount / 8) * 100));
-  const sleepInRange = sleepCount >= sleepMin && sleepCount <= sleepMax;
+    const centerCol = (
+      <>
+        <LocalErrorBoundary>
+          <WeeklyNarrativeCard
+            babyName={babyName}
+            weekNumber={weekNumber}
+            summaryText={summaryText}
+            stats={weeklyStats}
+            dailyBars={dailyBars}
+            compact
+          />
+        </LocalErrorBoundary>
 
-  const diaperMin = 4,
-    diaperMax = 10;
-  const diaperPct = Math.max(0, Math.min(100, (diaperCount / 14) * 100));
-  const diaperInRange = diaperCount >= diaperMin && diaperCount <= diaperMax;
+        <div style={DK_SECTION}>Cradl noticed</div>
+        <LocalErrorBoundary>
+          <CradlNoticedSection notices={storyNotices} compact />
+        </LocalErrorBoundary>
 
-  const tummyMin = 10,
-    tummyMax = 30;
-  const tummyPct = Math.max(0, Math.min(100, (tummyMinutes / 45) * 100));
-  const tummyInRange = tummyMinutes >= tummyMin && tummyMinutes <= tummyMax;
+        <div style={DK_SECTION}>Is this normal?</div>
+        <LocalErrorBoundary>
+          {normalMetrics.length > 0 ? (
+            <IsThisNormalCard ageLabel={`${Math.floor(ageInWeeks)}-week-olds`} metrics={normalMetrics} compact />
+          ) : (
+            <div style={{ ...DK_CARD, textAlign: "center" as const }}>
+              <div style={{ fontSize: 11, color: "#b09080" }}>Log a few feeds and sleeps today to see how {babyName} compares.</div>
+            </div>
+          )}
+        </LocalErrorBoundary>
+      </>
+    );
+
+    const rightCol = (
+      <>
+        <div style={DK_SECTION_FIRST}>Development</div>
+        {(leap || nextLeap) && (
+          <LocalErrorBoundary>
+            <div style={{ background: "#f8f4fc", border: "1px solid #e4d4f4", borderRadius: 11, padding: 11, marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="#7a4ab4" strokeWidth="1.5" /><path d="M8 5v3l2 1" stroke="#7a4ab4" strokeWidth="1.3" strokeLinecap="round" /></svg>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#2c1f1f", fontFamily: F }}>
+                  {leap ? `Leap ${leap.leapNumber}: ${leap.name}` : nextLeap ? `Next: Leap ${nextLeap.leap.leapNumber}` : ""}
+                </span>
+              </div>
+              <div style={{ fontSize: 9, color: "#9a8080", lineHeight: 1.4, fontFamily: F, overflowWrap: "break-word" }}>
+                {leap ? `Weeks ${leap.startWeek}–${leap.endWeek} · ${leap.description}` : nextLeap ? `In about ${Math.round(nextLeap.inDays)} days · ${nextLeap.leap.description}` : ""}
+              </div>
+              <PremiumGate feature="See detailed leap signs and tips">
+                <div style={{ marginTop: 6, fontSize: 9, color: "#5a4a40", lineHeight: 1.5, fontFamily: F }}>
+                  {(leap?.signs ?? nextLeap?.leap.signs ?? []).map((s, i) => <div key={i}>• {s}</div>)}
+                </div>
+              </PremiumGate>
+            </div>
+          </LocalErrorBoundary>
+        )}
+
+        <div style={DK_SECTION}>Memory book</div>
+        <div
+          onClick={() => navigate("/memories")}
+          style={{ background: "#fffdf5", border: "1px solid #ede0d4", borderRadius: 11, padding: 11, marginBottom: 8, cursor: "pointer" }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#2c1f1f", fontFamily: F, marginBottom: 3 }}>
+            Week {weekNumber} highlights
+          </div>
+          <div style={{ fontSize: 9, color: "#9a8080", fontFamily: F, lineHeight: 1.4, marginBottom: 8 }}>
+            Capture the moments worth remembering — first smiles, funny faces, tiny milestones.
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 8, background: "#f0ece8", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b09080" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); navigate("/memories"); }}
+              style={{
+                background: "none", border: "1px dashed #cbb89d", borderRadius: 8,
+                padding: "6px 10px", fontSize: 9, color: "#9a8080", fontFamily: F,
+                cursor: "pointer",
+              }}
+            >
+              + Add photo
+            </button>
+          </div>
+          <div style={{ display: "inline-block", background: "#f0ece8", borderRadius: 4, padding: "2px 6px", fontSize: 8, fontWeight: 600, color: "#b09080", fontFamily: F }}>PRO</div>
+        </div>
+
+        <div style={DK_SECTION}>History</div>
+        <div
+          onClick={() => navigate("/?action=timeline")}
+          style={{
+            ...DK_SMALL, display: "flex", alignItems: "center", justifyContent: "space-between",
+            cursor: "pointer",
+          }}
+        >
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#2c1f1f", fontFamily: F }}>Browse all logs</span>
+          <span style={{ fontSize: 14, color: "#b09080" }}>›</span>
+        </div>
+      </>
+    );
+
+    return (
+      <>
+        <DesktopLayout left={leftCol} center={centerCol} right={rightCol} />
+        {measureOpen && <MeasurementDrawer
+          mDate={mDate} setMDate={setMDate}
+          mWeight={mWeight} setMWeight={setMWeight}
+          mHeight={mHeight} setMHeight={setMHeight}
+          mHead={mHead} setMHead={setMHead}
+          onSave={handleSaveMeasurement}
+          onClose={() => setMeasureOpen(false)}
+        />}
+        {addMilestoneOpen && <AddMilestoneDialog
+          label={newMilestoneLabel} setLabel={setNewMilestoneLabel}
+          date={newMilestoneDate} setDate={setNewMilestoneDate}
+          onSave={handleAddCustomMilestone}
+          onClose={() => setAddMilestoneOpen(false)}
+        />}
+      </>
+    );
+  }
 
   return (
-    <div className="min-h-screen pb-20" style={{ background: "var(--bg)" }}>
-      <div className="max-w-lg mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-2">
-          <Link to="/" className="p-2 -ml-2 rounded-lg hover:opacity-80" style={{ color: "var(--mu)" }} aria-label="Back">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M15 10H5M5 10l5 5M5 10l5-5" />
-            </svg>
-          </Link>
-          <ThemeToggle />
+    <div style={{ minHeight: "100vh", paddingBottom: 80, background: "var(--bg)" }}>
+      {/* Header */}
+      <div style={{ padding: "16px 16px 4px" }}>
+        <div style={{ fontSize: 20, fontFamily: "Georgia, serif", fontWeight: 600, color: "#2c1f1f", overflowWrap: "break-word" }}>
+          {babyName}'s story
         </div>
-        <BabySwitcher babies={babies} activeBaby={activeBaby} onSwitch={setActiveBabyId} />
-        {!activeBaby && (
-          <div className="mb-4">
-            <EmptyState
-              illustration="journey"
-              title="Select a baby to see their journey"
-              body={babies.length === 0 ? "Add a baby in Settings to see milestones, growth, and insights here." : "Choose a baby above to view their journey timeline and milestones."}
-              primaryAction={babies.length === 0 ? { label: "Open Settings", onClick: () => navigate("/settings") } : undefined}
-            />
-          </div>
-        )}
-        <h1 className="text-[22px] mb-0.5 font-serif mt-2" style={{ color: "var(--tx)" }}>
-          {babyProfile?.name ? `${babyProfile.name}'s story` : "Journey"}
-        </h1>
-        <p className="text-[13px] mb-2.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
-          Tap any milestone to set when it happened
-        </p>
-
-        <div className="overflow-x-auto py-1.5 pb-4 scrollbar-none" style={{ scrollbarWidth: "none" }}>
-          <div className="flex items-start gap-0 min-w-[640px] px-1 py-1">
-            {nodes.map((node, i) => {
-              const isDone = node.achievedAt != null && node.id !== CUSTOM_MILESTONE_ID;
-              const isNow = i === activeIndex && node.id !== CUSTOM_MILESTONE_ID;
-              const isSoon = !isDone && !isNow && node.id !== CUSTOM_MILESTONE_ID;
-              const isCustom = node.id === CUSTOM_MILESTONE_ID;
-              const state = isDone ? "done" : isNow ? "now" : isSoon ? "soon" : "custom";
-
-              return (
-                <div key={node.id} className="flex items-start flex-shrink-0">
-                  {i > 0 && (
-                    <div
-                      className="flex-1 min-w-[20px] h-0.5 mt-6 flex-shrink-0"
-                      style={{
-                        background:
-                          i < activeIndex ? "var(--ro)" : i === activeIndex ? "linear-gradient(90deg, var(--ro), #d4a0d4)" : "var(--bd)",
-                      }}
-                    />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => openEdit(node.id)}
-                    className={`flex flex-col items-center gap-1.5 cursor-pointer transition-transform hover:scale-[1.07] ${isSoon ? "opacity-60" : isCustom ? "" : i === 4 ? "opacity-[0.45]" : i === 5 ? "opacity-40" : ""}`}
-                  >
-                    <div
-                      className="w-[50px] h-[50px] rounded-full flex items-center justify-center border-[2.5px]"
-                      style={
-                        state === "done"
-                          ? { borderColor: "var(--ro)", background: "var(--ro-bub)" }
-                          : state === "now"
-                            ? { borderColor: "#d4a0d4", boxShadow: "0 0 0 5px rgba(212,160,212,0.14)", background: "var(--la)" }
-                            : state === "soon"
-                              ? { borderColor: "var(--bd)", background: "var(--bg2)" }
-                              : { borderColor: "#a8d498", background: "var(--sa)", opacity: 0.3 }
-                      }
-                    >
-                      {state === "done" && (
-                        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-                          <path d="M7 11c1-2 8-2 8 0" stroke="var(--ro)" strokeWidth="1.8" strokeLinecap="round" />
-                          <circle cx="8.5" cy="9.2" r="1.2" fill="var(--ro)" />
-                          <circle cx="13.5" cy="9.2" r="1.2" fill="var(--ro)" />
-                          <circle cx="11" cy="11" r="8.5" stroke="var(--ro)" strokeWidth="1.5" />
-                        </svg>
-                      )}
-                      {state === "now" && (
-                        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-                          <circle cx="17" cy="5" r="2.5" stroke="#c080d4" strokeWidth="1.6" />
-                          <path d="M4 17c2-4 13-7 14-4" stroke="#c080d4" strokeWidth="1.6" strokeLinecap="round" />
-                          <circle cx="5" cy="18" r="2" stroke="#c080d4" strokeWidth="1.6" />
-                          <circle cx="11" cy="18" r="2" stroke="#c080d4" strokeWidth="1.6" />
-                        </svg>
-                      )}
-                      {(state === "soon" || state === "custom") && (
-                        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-                          <circle cx="11" cy="11" r="8.5" stroke="var(--mu)" strokeWidth="1.5" />
-                        </svg>
-                      )}
-                      {state === "custom" && (
-                        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-                          <circle cx="11" cy="11" r="8.5" stroke="#a8d498" strokeWidth="1.5" strokeDasharray="3 2" />
-                          <path d="M11 7v8M7 11h8" stroke="#a8d498" strokeWidth="1.6" strokeLinecap="round" />
-                        </svg>
-                      )}
-                    </div>
-                    <div
-                      className="text-[11px] text-center max-w-[56px] leading-tight"
-                      style={{
-                        color: state === "done" ? "var(--ro)" : state === "now" ? "#9060b0" : state === "custom" ? "var(--grn)" : "var(--mu)",
-                        fontFamily: "system-ui, sans-serif",
-                      }}
-                    >
-                      {node.label.replace(" ", "\n")}
-                      <br />
-                      <span style={{ fontSize: "10px" }}>
-                        {node.achievedAt ? formatAchieved(node.achievedAt) : node.typicalLabel || "Add"}
-                      </span>
-                    </div>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <p className="text-[12px] text-center mb-2.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
-          ← scroll the timeline →
-        </p>
-
-        <p className="text-[9px] uppercase tracking-widest mt-4 mb-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
-          Schedule
-        </p>
-        <ScheduleCreator birthDateMs={birthMs ?? null} babyName={babyProfile?.name} />
-
-        <TeethTracker
-          ageInWeeks={birthMs != null ? (Date.now() - birthMs) / (7 * MS_PER_DAY) : null}
-          babyName={babyProfile?.name}
-        />
-
-        <InsightsSection
-          sleepHistory={sleepHistory}
-          feedingHistory={feedingHistory}
-          diaperHistory={diaperHistory}
-          tummyHistory={tummyHistory}
-          bottleHistory={bottleHistory}
-          babyProfile={babyProfile}
-          isPremium={false}
-        />
-
-        <SupplyMonitorCard
-          feedingHistory={feedingHistory}
-          babyDobMs={birthMs}
-        />
-
-        {editId && (
-          <div
-            className="border rounded-2xl p-4 mb-2 animate-in fade-in slide-in-from-top-2 duration-200"
-            style={{ background: "var(--card)", borderColor: "var(--bd)" }}
-          >
-            <p className="text-[16px] font-medium mb-2" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
-              {editId === CUSTOM_MILESTONE_ID ? "Custom milestone" : nodes.find((n) => n.id === editId)?.label}
-            </p>
-            <p className="text-[13px] mb-1.5" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
-              When did this happen for {babyProfile?.name || "your baby"}?
-            </p>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="date"
-                value={editDate}
-                onChange={(e) => setEditDate(e.target.value)}
-                className="flex-1 rounded-lg border px-3 py-2.5 text-[14px] outline-none min-h-[44px]"
-                style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
-              />
-              <input
-                type="time"
-                value={editTime}
-                onChange={(e) => setEditTime(e.target.value)}
-                className="flex-1 rounded-lg border px-3 py-2.5 text-[14px] outline-none min-h-[44px]"
-                style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
-              />
-            </div>
-            {editId === CUSTOM_MILESTONE_ID && (
-              <input
-                type="text"
-                placeholder="Name this milestone..."
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className="w-full rounded-lg border px-3 py-2.5 text-[14px] outline-none mb-2 min-h-[44px]"
-                style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
-              />
-            )}
-            <div className="flex gap-2 mt-1">
-              <button
-                type="button"
-                onClick={() => { setEditId(null); setEditDate(""); setEditTime(""); setEditName(""); }}
-                className="flex-1 py-3 rounded-xl text-[14px] border min-h-[48px]"
-                style={{ background: "var(--btn-row)", color: "var(--mu)", borderColor: "var(--bd)", fontFamily: "system-ui, sans-serif" }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => saveMilestone(editId, editDate, editTime, editName || undefined)}
-                className="flex-[2] py-3 rounded-xl text-[14px] min-h-[48px] text-white"
-                style={{ background: "var(--pink)", fontFamily: "system-ui, sans-serif" }}
-              >
-                Save milestone
-              </button>
-            </div>
-          </div>
-        )}
-
-        <p className="text-[9px] uppercase tracking-widest mt-4 mb-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
-          How is she doing?
-        </p>
-        <ComparativeInsights
-          sleepHistory={sleepHistory}
-          feedingHistory={feedingHistory}
-          diaperHistory={diaperHistory}
-          tummyHistory={tummyHistory}
-          babyProfile={babyProfile}
-        />
-
-        <SleepPatternCard sleepHistory={sleepHistory} babyName={babyProfile?.name} />
-
-        <PlaybookCard
-          sleepHistory={sleepHistory}
-          feedingHistory={feedingHistory}
-          babyName={babyProfile?.name ?? null}
-          isPremium={isPremium}
-        />
-
-        <FoodsIntroducedList
-          ageInWeeks={birthMs != null ? (Date.now() - birthMs) / (7 * MS_PER_DAY) : null}
-          babyName={babyProfile?.name}
-        />
-
-        <div
-          className="border rounded-2xl p-3 mb-2"
-          style={{ background: "var(--card)", borderColor: "var(--bd)" }}
-        >
-          <RangeBar
-            label="Feeds today"
-            value={feedsInRange ? `${feedingCount} — in range` : `${feedingCount}`}
-            valueColour={feedsInRange ? "var(--grn)" : "var(--pink)"}
-            showValueInHeader={false}
-            rangeStart={((feedsMin - 0) / 12) * 100}
-            rangeWidth={((feedsMax - feedsMin) / 12) * 100}
-            babyValue={feedsPct}
-            barColour="#c8e0c4"
-            captionLeft={`${feedsMin}+`}
-            captionRight={`~${feedsMax}`}
-          />
-          <RangeBar
-            label="Sleeps today"
-            value={sleepInRange ? `${sleepCount} naps — in range` : `${sleepCount} naps`}
-            valueColour={sleepInRange ? "var(--grn)" : "var(--blue)"}
-            showValueInHeader={false}
-            rangeStart={((sleepMin - 0) / 8) * 100}
-            rangeWidth={((sleepMax - sleepMin) / 8) * 100}
-            babyValue={sleepPct}
-            barColour="#c8dce8"
-            captionLeft={`${sleepMin}+`}
-            captionRight={`~${sleepMax}`}
-          />
-          <RangeBar
-            label="Diapers today"
-            value={diaperInRange ? `${diaperCount} — in range` : `${diaperCount}`}
-            valueColour={diaperInRange ? "var(--grn)" : "var(--grn)"}
-            showValueInHeader={false}
-            rangeStart={((diaperMin - 0) / 14) * 100}
-            rangeWidth={((diaperMax - diaperMin) / 14) * 100}
-            babyValue={diaperPct}
-            barColour="#c8e0c4"
-            captionLeft={`${diaperMin}+`}
-            captionRight={`~${diaperMax}`}
-          />
-          <RangeBar
-            label="Tummy time today"
-            value={tummyInRange ? `${tummyMinutes}m — in range` : `${tummyMinutes}m`}
-            valueColour={tummyInRange ? "var(--grn)" : "var(--purp)"}
-            showValueInHeader={false}
-            rangeStart={((tummyMin - 0) / 45) * 100}
-            rangeWidth={((tummyMax - tummyMin) / 45) * 100}
-            babyValue={tummyPct}
-            barColour="#e0d8f0"
-            captionLeft={`${tummyMin}m+`}
-            captionRight={`~${tummyMax}m`}
-          />
-          {firstSmileAchieved != null && (
-            <RangeBar
-              label="First smile"
-              value={babyWeeksFirstSmile ? `Wk ${babyWeeksFirstSmile} — ${babyWeeksFirstSmile < 6 ? "early!" : "on track"}` : "—"}
-              rangeStart={((4 - firstSmileMinW) / (firstSmileMaxW - firstSmileMinW)) * 100}
-              rangeWidth={((13 - 4) / (firstSmileMaxW - firstSmileMinW)) * 100}
-              babyValue={firstSmilePct}
-              barColour="#fdd0c0"
-              captionLeft="Earliest 4 wks"
-              captionRight="Latest 3 mo"
-            />
-          )}
-          {crawlingAchieved != null && (
-            <RangeBar
-              label="Crawling"
-              value={babyMonthsCrawling ? `Month ${babyMonthsCrawling}` : "—"}
-              rangeStart={((24 - crawlMinW) / (crawlMaxW - crawlMinW)) * 100}
-              rangeWidth={((44 - 24) / (crawlMaxW - crawlMinW)) * 100}
-              babyValue={crawlPct}
-              barColour="#fdd0c0"
-              captionLeft="Earliest 6 mo"
-              captionRight="Latest 12 mo"
-            />
-          )}
-        </div>
-
-        {birthMs != null && (
-          <>
-            <p className="text-[9px] uppercase tracking-widest mt-4 mb-2" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
-              growth
-            </p>
-            <GrowthChartSection birthDateMs={birthMs} sex="girls" />
-          </>
-        )}
+        <div style={{ fontSize: 11, color: "var(--mu)", fontFamily: F }}>{ageLabel}</div>
       </div>
-      <Navigation />
+
+      {/* Weekly narrative */}
+      <LocalErrorBoundary>
+      <WeeklyNarrativeCard
+        babyName={babyName}
+        weekNumber={weekNumber}
+        summaryText={summaryText}
+        stats={weeklyStats}
+        dailyBars={dailyBars}
+      />
+      </LocalErrorBoundary>
+
+      {/* Cradl noticed */}
+      <LocalErrorBoundary>
+      <CradlNoticedSection notices={storyNotices} />
+      </LocalErrorBoundary>
+
+      {/* Growth */}
+      <LocalErrorBoundary>
+      <div style={SECTION}>Growth</div>
+      <GrowthSection
+        babyName={babyName}
+        weight={growthData.weight}
+        length={growthData.length}
+        headCirc={growthData.headCirc}
+        weightGainGrams={growthData.weightGainGrams}
+        weeksSinceLastMeasure={growthData.weeksSinceLastMeasure}
+        ageWeeks={Math.floor(ageInWeeks)}
+        weightHistory={growthData.weightHistory}
+        onLogMeasurement={() => setMeasureOpen(true)}
+      />
+      </LocalErrorBoundary>
+
+      {/* Is this normal? */}
+      <div style={SECTION}>Is this normal?</div>
+      <LocalErrorBoundary>
+      {normalMetrics.length > 0 ? (
+        <IsThisNormalCard ageLabel={`${Math.floor(ageInWeeks)}-week-olds`} metrics={normalMetrics} />
+      ) : (
+        <div style={{ ...CARD, textAlign: "center" as const }}>
+          <div style={{ fontSize: 11, color: "var(--mu)" }}>Log a few feeds and sleeps today to see how {babyName} compares.</div>
+        </div>
+      )}
+      </LocalErrorBoundary>
+
+      {/* Milestones */}
+      <div style={{ ...SECTION, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span>Milestones</span>
+        <span
+          onClick={() => setAddMilestoneOpen(true)}
+          style={{ fontSize: 10, color: "#d4604a", fontWeight: 600, cursor: "pointer", textTransform: "none" as const, letterSpacing: 0, paddingRight: 16 }}
+        >+ Add custom</span>
+      </div>
+      <LocalErrorBoundary>
+      <div style={{ display: "flex", gap: 0, padding: "0 12px 8px", overflowX: "auto", scrollbarWidth: "none" as any }}>
+        <style>{`.ms-scroll::-webkit-scrollbar{display:none}`}</style>
+        <div className="ms-scroll" style={{ display: "flex", gap: 0, overflowX: "auto", scrollbarWidth: "none" as any, position: "relative" }}>
+          {milestoneData.map((m, i) => (
+            <div
+              key={m.id}
+              onClick={() => m.isCustom ? handleDeleteCustomMilestone(m.id) : toggleMilestone(m.id)}
+              style={{ width: 72, flexShrink: 0, textAlign: "center" as const, position: "relative", cursor: "pointer" }}
+            >
+              {i > 0 && <div style={{ position: "absolute", top: 10, left: -36, width: 72, height: 2, background: "#ede0d4" }} />}
+              <div style={{
+                width: 22, height: 22, borderRadius: "50%", margin: "0 auto 4px",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 10, fontWeight: 600,
+                ...(m.doneDate ? { background: m.isCustom ? "#6a6ab4" : "#4a8a4a", color: "#fff" } : m.isCurrent ? { background: "#d4604a", color: "#fff" } : { background: "#f0ece8", color: "var(--mu)" }),
+              }}>
+                {m.doneDate ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg> : m.isCurrent ? <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> : <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/></svg>}
+              </div>
+              <div style={{ fontSize: 9, fontWeight: 600, color: m.isCustom ? "#6a6ab4" : "#2c1f1f", fontFamily: F, overflowWrap: "break-word" as const }}>{m.label}</div>
+              <div style={{ fontSize: 8, color: "var(--mu)", fontFamily: F }}>
+                {m.doneDate ? m.doneDate : m.isCurrent ? "Now" : `~${m.typicalLabel}`}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      </LocalErrorBoundary>
+
+      {/* Leap */}
+      {(leap || nextLeap) && (
+        <LocalErrorBoundary>
+          <div style={SECTION}>Developmental leap</div>
+          <div style={{ ...CARD, background: "#f8f4fc", borderColor: "#e4d4f4" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="#7a4ab4" strokeWidth="1.5" /><path d="M8 5v3l2 1" stroke="#7a4ab4" strokeWidth="1.3" strokeLinecap="round" /></svg>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#2c1f1f", fontFamily: F }}>
+                {leap ? `Leap ${leap.leapNumber}: ${leap.name}` : nextLeap ? `Next: Leap ${nextLeap.leap.leapNumber}` : ""}
+              </span>
+            </div>
+            <div style={{ fontSize: 10, color: "#9a8080", lineHeight: 1.4, fontFamily: F, overflowWrap: "break-word" }}>
+              {leap ? `Weeks ${leap.startWeek}–${leap.endWeek} · ${leap.description}` : nextLeap ? `In about ${Math.round(nextLeap.inDays)} days · ${nextLeap.leap.description}` : ""}
+            </div>
+            <PremiumGate feature="See detailed leap signs and tips">
+              <div style={{ marginTop: 8, fontSize: 10, color: "#5a4a40", lineHeight: 1.5, fontFamily: F }}>
+                {(leap?.signs ?? nextLeap?.leap.signs ?? []).map((s, i) => <div key={i}>• {s}</div>)}
+              </div>
+            </PremiumGate>
+          </div>
+        </LocalErrorBoundary>
+      )}
+
+      {/* Schedule suggestion */}
+      <div style={SECTION}>Suggested schedule</div>
+      <LocalErrorBoundary>
+      <div style={CARD}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#2c1f1f", marginBottom: 6 }}>
+          {Math.floor(ageInWeeks)} weeks · {ageInWeeks < 12 ? "4–5 naps" : ageInWeeks < 26 ? "3–4 naps" : ageInWeeks < 39 ? "2–3 naps" : "1–2 naps"}
+        </div>
+        <div style={{ fontSize: 10, color: "var(--mu)", fontFamily: F, marginBottom: 6 }}>
+          Wake: 7:00 AM · Bedtime: {ageInWeeks < 12 ? "7:30" : "7:00"} PM
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {(ageInWeeks < 12
+            ? [{ t: "7:00", l: "Wake", c: "#4a8a4a" }, { t: "8:30", l: "Nap 1", c: "#4080a0" }, { t: "10:30", l: "Nap 2", c: "#4080a0" }, { t: "1:00", l: "Nap 3", c: "#4080a0" }, { t: "3:30", l: "Nap 4", c: "#4080a0" }, { t: "7:30", l: "Bedtime", c: "#7a4ab4" }]
+            : ageInWeeks < 26
+              ? [{ t: "7:00", l: "Wake", c: "#4a8a4a" }, { t: "9:00", l: "Nap 1", c: "#4080a0" }, { t: "12:00", l: "Nap 2", c: "#4080a0" }, { t: "3:00", l: "Nap 3", c: "#4080a0" }, { t: "7:00", l: "Bedtime", c: "#7a4ab4" }]
+              : [{ t: "7:00", l: "Wake", c: "#4a8a4a" }, { t: "9:30", l: "Nap 1", c: "#4080a0" }, { t: "1:00", l: "Nap 2", c: "#4080a0" }, { t: "7:00", l: "Bedtime", c: "#7a4ab4" }]
+          ).map((item) => (
+            <div key={item.t + item.l} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: item.c, flexShrink: 0 }} />
+              <span style={{ fontSize: 10, fontWeight: 600, color: "#2c1f1f", width: 40, fontFamily: F }}>{item.t}</span>
+              <span style={{ fontSize: 10, color: "#9a8080", fontFamily: F }}>{item.l}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize: 9, color: "var(--mu)", marginTop: 8, fontStyle: "italic", fontFamily: F }}>
+          Follow {babyName}'s cues — this is a guide, not a rule.
+        </div>
+      </div>
+      </LocalErrorBoundary>
+
+      {/* Personal Playbook */}
+      <div style={SECTION}>Your playbook</div>
+      <LocalErrorBoundary>
+        <PersonalPlaybook />
+      </LocalErrorBoundary>
+
+      {measureOpen && <MeasurementDrawer
+        mDate={mDate} setMDate={setMDate}
+        mWeight={mWeight} setMWeight={setMWeight}
+        mHeight={mHeight} setMHeight={setMHeight}
+        mHead={mHead} setMHead={setMHead}
+        onSave={handleSaveMeasurement}
+        onClose={() => setMeasureOpen(false)}
+      />}
+      {addMilestoneOpen && <AddMilestoneDialog
+        label={newMilestoneLabel} setLabel={setNewMilestoneLabel}
+        date={newMilestoneDate} setDate={setNewMilestoneDate}
+        onSave={handleAddCustomMilestone}
+        onClose={() => setAddMilestoneOpen(false)}
+      />}
+    </div>
+  );
+}
+
+/* ─── Measurement drawer ─── */
+function MeasurementDrawer({
+  mDate, setMDate, mWeight, setMWeight, mHeight, setMHeight, mHead, setMHead, onSave, onClose,
+}: {
+  mDate: string; setMDate: (v: string) => void;
+  mWeight: string; setMWeight: (v: string) => void;
+  mHeight: string; setMHeight: (v: string) => void;
+  mHead: string; setMHead: (v: string) => void;
+  onSave: () => void;
+  onClose: () => void;
+}) {
+  const inputStyle: React.CSSProperties = {
+    width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #ede0d4",
+    background: "#faf7f2", fontSize: 14, fontFamily: "system-ui, sans-serif", outline: "none",
+    boxSizing: "border-box", color: "#2c1f1f",
+  };
+  const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: "#9a8080", marginBottom: 4, display: "block" };
+  const canSave = !!(mWeight || mHeight || mHead);
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+      onClick={onClose}
+    >
+      <div
+        style={{ maxWidth: 380, width: "100%", background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #ede0d4" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 style={{ fontSize: 18, fontWeight: 600, color: "#2c1f1f", marginBottom: 4, fontFamily: "system-ui, sans-serif" }}>Log measurement</h3>
+        <p style={{ fontSize: 12, color: "#9a8080", marginBottom: 16, fontFamily: "system-ui, sans-serif" }}>
+          Record weight, height, and/or head circumference. At least one is required.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Date</label>
+            <input type="date" value={mDate} onChange={(e) => setMDate(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Weight (kg)</label>
+            <input type="number" step="0.1" min="0.5" max="25" placeholder="e.g. 4.2" value={mWeight} onChange={(e) => setMWeight(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Height (cm)</label>
+            <input type="number" step="0.1" min="30" max="120" placeholder="e.g. 52.5" value={mHeight} onChange={(e) => setMHeight(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Head circumference (cm)</label>
+            <input type="number" step="0.1" min="25" max="60" placeholder="e.g. 35.0" value={mHead} onChange={(e) => setMHead(e.target.value)} style={inputStyle} />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={!canSave}
+          onClick={onSave}
+          style={{
+            width: "100%", marginTop: 16, padding: "14px 0", borderRadius: 12, border: "none",
+            background: canSave ? "#d4604a" : "#ede0d4", color: canSave ? "#fff" : "#9a8080",
+            fontSize: 15, fontWeight: 600, cursor: canSave ? "pointer" : "not-allowed",
+            fontFamily: "system-ui, sans-serif",
+          }}
+        >
+          Save measurement
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{ display: "block", margin: "10px auto 0", background: "none", border: "none", color: "#9a8080", fontSize: 13, cursor: "pointer", fontFamily: "system-ui, sans-serif" }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Add custom milestone dialog ─── */
+function AddMilestoneDialog({
+  label, setLabel, date, setDate, onSave, onClose,
+}: {
+  label: string; setLabel: (v: string) => void;
+  date: string; setDate: (v: string) => void;
+  onSave: () => void;
+  onClose: () => void;
+}) {
+  const inputStyle: React.CSSProperties = {
+    width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #ede0d4",
+    background: "#faf7f2", fontSize: 14, fontFamily: "system-ui, sans-serif", outline: "none",
+    boxSizing: "border-box", color: "#2c1f1f",
+  };
+  const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: "#9a8080", marginBottom: 4, display: "block" };
+  const canSave = !!label.trim();
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+      onClick={onClose}
+    >
+      <div
+        style={{ maxWidth: 380, width: "100%", background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #ede0d4" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 style={{ fontSize: 18, fontWeight: 600, color: "#2c1f1f", marginBottom: 4, fontFamily: "system-ui, sans-serif" }}>Add custom milestone</h3>
+        <p style={{ fontSize: 12, color: "#9a8080", marginBottom: 16, fontFamily: "system-ui, sans-serif" }}>
+          Record a special moment — first giggle, first bath, first word, anything you want to remember.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>What happened?</label>
+            <input
+              type="text"
+              placeholder="e.g. First giggle, Said 'mama'"
+              value={label}
+              onChange={(e) => setLabel(e.target.value.slice(0, 80))}
+              style={inputStyle}
+              maxLength={80}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>When?</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={!canSave}
+          onClick={onSave}
+          style={{
+            width: "100%", marginTop: 16, padding: "14px 0", borderRadius: 12, border: "none",
+            background: canSave ? "#6a6ab4" : "#ede0d4", color: canSave ? "#fff" : "#9a8080",
+            fontSize: 15, fontWeight: 600, cursor: canSave ? "pointer" : "not-allowed",
+            fontFamily: "system-ui, sans-serif",
+          }}
+        >
+          Add milestone
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{ display: "block", margin: "10px auto 0", background: "none", border: "none", color: "#9a8080", fontSize: 13, cursor: "pointer", fontFamily: "system-ui, sans-serif" }}
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { formatTimeAndAgo } from "../utils/dateUtils";
 import { useFeedTimer } from "../contexts/FeedTimerContext";
 import { toast } from "sonner";
+import { timerToA11yLabel } from "../utils/a11y";
 import type { FeedingRecord, SleepRecord, DiaperRecord, TummyTimeRecord, BottleRecord, PumpRecord } from "../types";
 import type { Session } from "@supabase/supabase-js";
 
@@ -28,10 +29,11 @@ interface LogDrawerProps {
   type: DrawerType | null;
   onClose: () => void;
   onSaved: () => void;
+  onSwitchType?: (newType: DrawerType) => void;
   session: Session | null;
 }
 
-const BOTTLE_VOLUMES = Array.from({ length: 30 }, (_, i) => 10 + i * 10); // 10 to 300 step 10
+const BOTTLE_PRESETS = [60, 90, 120, 150, 180];
 
 /** Shared drawer header: icon + title + optional subtitle */
 function DrawerHeader({ icon: Icon, title, subtitle, accentVar = "var(--coral)" }: { icon: React.ElementType; title: string; subtitle?: string | null; accentVar?: string }) {
@@ -74,8 +76,9 @@ const inputStyle = "flex-1 rounded-lg border px-3 py-2.5 text-[15px] outline-non
 const inputStyleObj: React.CSSProperties = { borderColor: "var(--bd)", background: "var(--card)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" };
 const saveBtnClass = "w-full py-3.5 rounded-[14px] text-[15px] font-medium text-white border-none cursor-pointer min-h-[52px]";
 const saveBtnStyle: React.CSSProperties = { fontFamily: "system-ui, sans-serif" };
+const stickyFooterStyle: React.CSSProperties = { position: "sticky", bottom: 0, paddingTop: 8, paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px))", background: "var(--card)", zIndex: 2 };
 
-export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
+export function LogDrawer({ type, onClose, onSaved, onSwitchType, session }: LogDrawerProps) {
   const feedTimer = useFeedTimer();
   const [sleepPosition, setSleepPosition] = useState("Left side");
   const [diaperType, setDiaperType] = useState<"pee" | "poop" | "both">("pee");
@@ -99,6 +102,9 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
   const [pumpTimerRunning, setPumpTimerRunning] = useState(false);
   const [pumpElapsedMs, setPumpElapsedMs] = useState(0);
   const [feedNotes, setFeedNotes] = useState("");
+  const [diaperNotes, setDiaperNotes] = useState("");
+  const [bottleNotes, setBottleNotes] = useState("");
+  const [bottleManualVolume, setBottleManualVolume] = useState("");
   /** Sleep mood / environment (optional) */
   const [fallAsleepMethod, setFallAsleepMethod] = useState<string>("");
   const [wakeUpMood, setWakeUpMood] = useState<string>("");
@@ -172,13 +178,17 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
   const handleSaveFeed = () => {
     if (!f) return;
     try {
+      if (pastChecked) {
+        if (!pastDate.trim()) { toast.error("Please fill in the date."); return; }
+        if (durationMs <= 0) { toast.error("Please set a duration."); return; }
+      }
       const endTime = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
       const duration = pastChecked ? durationMs : totalFeedDurationMs;
       const startTime = endTime - duration;
       const segmentsToSave = [...f.feedSegments];
-      if (f.timerRunning || f.timerPaused ? f.elapsedMs > 0 : !pastChecked && durationMs > 0) {
-        const currentDur = pastChecked ? durationMs : (f.timerRunning || f.timerPaused ? f.elapsedMs : durationMs);
-        segmentsToSave.push({ side: f.feedSide, durationMs: currentDur });
+      const currentSegDur = pastChecked ? durationMs : (f.timerRunning || f.timerPaused ? f.elapsedMs : durationMs);
+      if (currentSegDur > 0) {
+        segmentsToSave.push({ side: f.feedSide, durationMs: currentSegDur });
       }
       let runStart = startTime;
       let segmentRecords = segmentsToSave.map((seg) => {
@@ -197,6 +207,7 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
         startTime,
         endTime,
         segments: segmentRecords,
+        ...(feedNotes.trim() && { note: feedNotes.trim().slice(0, 300) }),
       };
       let history: FeedingRecord[] = [];
       try {
@@ -226,11 +237,32 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
     }
   };
 
+  const [sleepDurationWarning, setSleepDurationWarning] = useState("");
+  const [showSleepDetails, setShowSleepDetails] = useState(false);
+
   const handleSaveSleep = () => {
     try {
-      const endTime = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
-      const duration = pastChecked ? sleepDurationMs : (sleepTimerRunning ? sleepElapsedMs : sleepDurationMs);
-      const startTime = endTime - duration;
+      let endTime: number;
+      let startTime: number;
+      let duration: number;
+
+      if (pastChecked && pastDate.trim()) {
+        const parsedStart = parsePastDatetimeFromPickers(pastDate, pastTime);
+        if (!parsedStart) { toast.error("Please fill in the start time."); return; }
+        if (parsedStart > Date.now()) { toast.error("Start time cannot be in the future."); return; }
+        duration = sleepDurationMs;
+        if (duration <= 0) { toast.error("Please set a duration."); return; }
+        if (duration > 16 * 60 * 60 * 1000) {
+          if (!sleepDurationWarning) { setSleepDurationWarning("This seems like a long sleep — is the duration correct?"); return; }
+        }
+        startTime = parsedStart;
+        endTime = parsedStart + duration;
+        if (endTime > Date.now()) { toast.error("Sleep end time would be in the future. Adjust start or duration."); return; }
+      } else {
+        endTime = Date.now();
+        duration = sleepTimerRunning ? sleepElapsedMs : sleepDurationMs;
+        startTime = endTime - duration;
+      }
       setSleepTimerRunning(false);
       const record: SleepRecord = {
         id: Date.now().toString(),
@@ -283,7 +315,7 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
         }
       });
       const timestamp = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
-      const record: DiaperRecord = { id: Date.now().toString(), type: diaperType, timestamp };
+      const record: DiaperRecord = { id: Date.now().toString(), type: diaperType, timestamp, ...(diaperNotes.trim() && { notes: diaperNotes.trim() }) };
       let history: DiaperRecord[] = [];
       try {
         history = JSON.parse(localStorage.getItem("diaperHistory") || "[]");
@@ -308,6 +340,10 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
 
   const handleSaveTummy = () => {
     try {
+      if (pastChecked) {
+        if (!pastDate.trim()) { toast.error("Please fill in the date."); return; }
+        if (durationMs <= 0) { toast.error("Please set a duration."); return; }
+      }
       const endTime = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
       const duration = pastChecked ? durationMs : (timerRunning ? elapsedMs : durationMs);
       const startTime = endTime - duration;
@@ -343,8 +379,9 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
       const record: BottleRecord = {
         id: Date.now().toString(),
         timestamp,
-        volumeMl: bottleVolumeMl,
+        volumeMl: Math.max(1, Math.min(500, bottleVolumeMl)),
         feedType: bottleFeedType,
+        ...(bottleNotes.trim() && { note: bottleNotes.trim() }),
       };
       let history: BottleRecord[] = [];
       try {
@@ -370,6 +407,10 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
 
   const handleSavePump = () => {
     try {
+      if (pastChecked) {
+        if (!pastDate.trim()) { toast.error("Please fill in the date."); return; }
+        if (pumpDurationMs <= 0) { toast.error("Please set a duration."); return; }
+      }
       const timestamp = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
       const duration = pastChecked ? pumpDurationMs : (pumpTimerRunning ? pumpElapsedMs : pumpDurationMs);
       const record: PumpRecord = {
@@ -407,6 +448,9 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
     <button
       key={label}
       type="button"
+      role="radio"
+      aria-checked={current === value}
+      aria-label={label}
       onClick={() => set(value)}
       className="px-4 py-2.5 rounded-[20px] border text-[13px] min-h-[44px] transition-all"
       style={{
@@ -442,17 +486,20 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
 
   return (
     <div
-      className="border border-t-0 rounded-b-[20px] px-4 pt-3 pb-4 animate-in fade-in slide-in-from-top-2 duration-200"
-      style={{ background: "var(--card)", borderColor: "var(--bd)" }}
+      className="px-4 pt-3 animate-in fade-in slide-in-from-top-2 duration-200"
+      style={{ background: "var(--card)" }}
     >
       {type === "feed" && f && (
         <>
           <p className={sectionLabelClass} style={sectionLabelStyle}>Which breast?</p>
-          <div className="flex gap-2 mb-4">
+          <div className="flex gap-2 mb-4" role="radiogroup" aria-label="Breast side">
             {(["Left", "Right", "Both"] as const).map((s) => (
               <div key={s} className="flex-1 relative">
                 <button
                   type="button"
+                  role="radio"
+                  aria-checked={f.feedSide === s}
+                  aria-label={`Select ${s.toLowerCase()} breast`}
                   onClick={() => f.setFeedSide(s)}
                   className="w-full px-3 py-3.5 rounded-[14px] border text-[15px] font-medium min-h-[48px] transition-all"
                   style={{
@@ -472,56 +519,60 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
           </div>
 
           <p className={sectionLabelClass} style={sectionLabelStyle}>Duration</p>
-          <p className="text-[12px] mb-2" style={sectionLabelStyle}>Tap Start when you begin feeding</p>
-          <div className="mb-3 flex justify-center">
+          {!pastChecked && <p className="text-[12px] mb-2" style={sectionLabelStyle}>Tap Start when you begin feeding</p>}
+          {pastChecked && <p className="text-[12px] mb-2" style={sectionLabelStyle}>How long was the feed?</p>}
+          <div className="mb-3 flex justify-center" aria-live="polite" aria-label={`Feed timer: ${timerToA11yLabel(feedValueMs)}`}>
             <DurationPicker
-              valueMs={feedValueMs}
+              valueMs={pastChecked ? durationMs : feedValueMs}
               maxMs={59 * 60 * 1000 + 59 * 1000}
-              onChange={(ms) => { if (f.timerRunning || f.timerPaused) f.setElapsedMs(ms); else setDurationMs(ms); }}
+              onChange={(ms) => { if (!pastChecked && (f.timerRunning || f.timerPaused)) f.setElapsedMs(ms); else setDurationMs(ms); }}
               showSeconds
               showHours={false}
-              liveSync={f.timerRunning && !f.timerPaused}
+              liveSync={!pastChecked && f.timerRunning && !f.timerPaused}
               className="min-h-[120px] max-w-[220px]"
             />
           </div>
-          {/* Fixed-height row: all three buttons always rendered to prevent layout jump */}
-          <div className="flex gap-2 justify-center items-stretch mb-3 min-h-[48px]">
-            <button
-              type="button"
-              onClick={() => {
-                if (!f.timerRunning) { setSleepTimerRunning(false); setTimerRunning(false); f.setElapsedMs(feedValueMs); f.setTimerRunning(true); f.setTimerPaused(false); }
-                else if (f.timerPaused) f.setTimerPaused(false);
-                else f.setTimerPaused(true);
-              }}
-              className="py-3.5 px-6 rounded-[14px] text-[15px] font-medium text-white border-none cursor-pointer min-h-[48px] flex-shrink-0"
-              style={{ background: "var(--coral)", fontFamily: "system-ui, sans-serif" }}
-            >
-              {!f.timerRunning ? "Start" : f.timerPaused ? "Resume" : "Pause"}
-            </button>
-            <button
-              type="button"
-              onClick={handleSwitchBreast}
-              disabled={!(f.timerRunning || f.timerPaused) || f.elapsedMs <= 0}
-              className="py-3 px-4 rounded-[14px] text-[14px] font-medium border cursor-pointer min-h-[48px] flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
-              style={{ borderColor: "var(--pink)", color: "var(--pink)", fontFamily: "system-ui, sans-serif" }}
-            >
-              Switch breast
-            </button>
-            <button
-              type="button"
-              onClick={() => { f.resetFeedTimer(); setDurationMs(0); }}
-              disabled={!(f.timerRunning || f.timerPaused)}
-              className="py-3 px-4 rounded-[14px] text-[14px] font-medium border cursor-pointer min-h-[48px] flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
-              style={{ borderColor: "var(--bd)", color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}
-            >
-              Stop timer
-            </button>
-          </div>
+          {!pastChecked && (
+            <>
+              <div className="flex gap-2 justify-center items-stretch mb-3 min-h-[48px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!f.timerRunning) { setSleepTimerRunning(false); setTimerRunning(false); f.setElapsedMs(feedValueMs); f.setTimerRunning(true); f.setTimerPaused(false); }
+                    else if (f.timerPaused) f.setTimerPaused(false);
+                    else f.setTimerPaused(true);
+                  }}
+                  className="py-3.5 px-6 rounded-[14px] text-[15px] font-medium text-white border-none cursor-pointer min-h-[48px] flex-shrink-0"
+                  style={{ background: "var(--coral)", fontFamily: "system-ui, sans-serif" }}
+                >
+                  {!f.timerRunning ? "Start" : f.timerPaused ? "Resume" : "Pause"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSwitchBreast}
+                  disabled={!(f.timerRunning || f.timerPaused) || f.elapsedMs <= 0}
+                  className="py-3 px-4 rounded-[14px] text-[14px] font-medium border cursor-pointer min-h-[48px] flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
+                  style={{ borderColor: "var(--pink)", color: "var(--pink)", fontFamily: "system-ui, sans-serif" }}
+                >
+                  Switch breast
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { f.resetFeedTimer(); setDurationMs(0); }}
+                  disabled={!(f.timerRunning || f.timerPaused)}
+                  className="py-3 px-4 rounded-[14px] text-[14px] font-medium border cursor-pointer min-h-[48px] flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
+                  style={{ borderColor: "var(--bd)", color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}
+                >
+                  Stop timer
+                </button>
+              </div>
 
-          {f.feedSegments.length > 0 && (
-            <p className="text-[12px] mb-3" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
-              So far: {f.feedSegments.map((s) => `${s.side} ${Math.round(s.durationMs / 60000)}m`).join(" → ")}
-            </p>
+              {f.feedSegments.length > 0 && (
+                <p className="text-[12px] mb-3" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+                  So far: {f.feedSegments.map((s) => `${s.side} ${Math.round(s.durationMs / 60000)}m`).join(" → ")}
+                </p>
+              )}
+            </>
           )}
 
           <PastPanel label="Log a past feed instead" expanded={pastChecked} onToggle={() => setPastChecked((c) => !c)}>
@@ -531,104 +582,150 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
             </div>
           </PastPanel>
 
-          {/* Optional note */}
+          <button
+            type="button"
+            onClick={() => { if (onSwitchType) onSwitchType("bottle"); else onClose(); }}
+            className="text-[13px] mb-3 block w-full text-left"
+            style={{ color: "var(--coral)" }}
+          >
+            Log as bottle instead →
+          </button>
+
           <textarea
             value={feedNotes}
-            onChange={(e) => setFeedNotes(e.target.value)}
-            placeholder="Add a note (optional)..."
+            onChange={(e) => setFeedNotes(e.target.value.slice(0, 300))}
+            placeholder="Any notes (e.g. fussy, distracted)"
+            maxLength={300}
             rows={2}
-            className="w-full rounded-[14px] border px-4 py-3 text-[14px] outline-none resize-none mb-4"
+            className="w-full rounded-[14px] border px-4 py-3 text-[14px] outline-none resize-none mb-1"
             style={{ borderColor: "var(--bd)", background: "var(--card)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
           />
+          <p className="text-[11px] mb-4 text-right" style={{ color: "var(--mu)" }}>{feedNotes.length}/300</p>
 
-          <button type="button" onClick={handleSaveFeed} className={saveBtnClass} style={{ ...saveBtnStyle, background: "var(--coral)" }}>Save feed</button>
+          <div style={stickyFooterStyle}>
+            <button type="button" onClick={handleSaveFeed} className={saveBtnClass} style={{ ...saveBtnStyle, background: "var(--coral)" }}>Save feed</button>
+          </div>
         </>
       )}
 
       {type === "sleep" && (
         <>
         <p className={sectionLabelClass} style={sectionLabelStyle}>Sleep position</p>
-          <div className="flex gap-2 justify-center mb-4">
+          <div className="flex gap-2 justify-center mb-4" role="radiogroup" aria-label="Sleep position">
             {["Left side", "Right side", "On back"].map((p) => pill(p, p, sleepPosition, setSleepPosition))}
           </div>
           <p className={sectionLabelClass} style={sectionLabelStyle}>Duration</p>
-          <div className="mb-3 flex justify-center">
-            <DurationPicker valueMs={sleepTimerRunning ? sleepElapsedMs : sleepDurationMs} maxMs={MAX_DURATION_HISTORY_MS} showSeconds onChange={(ms) => { if (sleepTimerRunning) setSleepElapsedMs(ms); else setSleepDurationMs(ms); }} liveSync={sleepTimerRunning} className="min-h-[120px] max-w-[220px]" />
+          {pastChecked && <p className="text-[12px] mb-2" style={sectionLabelStyle}>How long did the sleep last?</p>}
+          <div className="mb-3 flex justify-center" aria-live="polite" aria-label={`Sleep timer: ${timerToA11yLabel(pastChecked ? sleepDurationMs : (sleepTimerRunning ? sleepElapsedMs : sleepDurationMs))}`}>
+            <DurationPicker valueMs={pastChecked ? sleepDurationMs : (sleepTimerRunning ? sleepElapsedMs : sleepDurationMs)} maxMs={MAX_DURATION_HISTORY_MS} showSeconds onChange={(ms) => { if (!pastChecked && sleepTimerRunning) setSleepElapsedMs(ms); else setSleepDurationMs(ms); }} liveSync={!pastChecked && sleepTimerRunning} className="min-h-[120px] max-w-[220px]" />
           </div>
-          <div className="flex justify-center mb-3">
-            <button
-              type="button"
-              onClick={() => {
-                if (!sleepTimerRunning) { if (f) f.resetFeedTimer(); setTimerRunning(false); setSleepElapsedMs(sleepDurationMs); setSleepTimerRunning(true); }
-                else setSleepTimerRunning(false);
-              }}
-              className="py-3.5 px-8 rounded-[14px] text-[15px] font-medium text-white border-none cursor-pointer min-h-[48px]"
-              style={{ background: "var(--blue)", ...saveBtnStyle }}
-            >
-              {sleepTimerRunning ? "Stop" : "Start"}
-          </button>
-          </div>
-          <p className={sectionLabelClass} style={sectionLabelStyle}>How did she fall asleep? (optional)</p>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {["—", "Independent", "Nursing", "Rocking", "Dummy", "Car", "Pram", "Being held", "Co-sleeping"].map((opt) => pill(opt === "—" ? "—" : opt, opt === "—" ? "" : opt, fallAsleepMethod, setFallAsleepMethod))}
-          </div>
-          <p className={sectionLabelClass} style={sectionLabelStyle}>Mood on waking (optional)</p>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {["—", "Happy", "Calm", "Grumpy", "Crying", "Still tired"].map((opt) => pill(opt === "—" ? "—" : opt, opt === "—" ? "" : opt, wakeUpMood, setWakeUpMood))}
-          </div>
-          <p className={sectionLabelClass} style={sectionLabelStyle}>Where did she sleep? (optional)</p>
-          <div className="flex flex-wrap gap-2 mb-4">
-            {["—", "Cot", "Pram", "Car seat", "Arms", "Co-sleeping", "Floor"].map((opt) => pill(opt === "—" ? "—" : opt, opt === "—" ? "" : opt, sleepLocation, setSleepLocation))}
-          </div>
-          <p className={sectionLabelClass} style={sectionLabelStyle}>Sleep environment (optional)</p>
-          <div className="flex flex-wrap gap-2 mb-2">
-            <span className="text-[12px] mr-2" style={{ color: "var(--mu)" }}>White noise?</span>
-            {(["Yes", "No", "—"] as const).map((opt) => (
-              <button key={opt} type="button" onClick={() => setWhiteNoise(opt === "Yes" ? true : opt === "No" ? false : null)} className="px-3 py-2 rounded-[20px] border text-[13px] min-h-[40px]" style={{ borderColor: (whiteNoise === true && opt === "Yes") || (whiteNoise === false && opt === "No") || (whiteNoise === null && opt === "—") ? "var(--ro)" : "var(--bd)", background: (whiteNoise === true && opt === "Yes") || (whiteNoise === false && opt === "No") || (whiteNoise === null && opt === "—") ? "var(--pe)" : "var(--card)", color: "var(--tx)" }}>{opt}</button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2 mb-2">
-            <label className="text-[12px]" style={{ color: "var(--mu)" }}>Room temp (°C)</label>
-            <input type="number" inputMode="decimal" min={10} max={35} step={0.5} value={roomTempC} onChange={(e) => setRoomTempC(e.target.value)} placeholder="—" className="w-16 rounded-lg border px-2 py-2 text-[14px] outline-none" style={{ borderColor: "var(--bd)", background: "var(--card)", color: "var(--tx)" }} />
-          </div>
-          <div className="flex flex-wrap gap-2 mb-2">
-            <span className="text-[12px] mr-2" style={{ color: "var(--mu)" }}>Light</span>
-            {["—", "dark", "dim", "light"].map((opt) => pill(opt === "—" ? "—" : opt, opt === "—" ? "" : opt, lightLevel, setLightLevel))}
-          </div>
-          <div className="flex flex-wrap gap-2 mb-4">
-            <span className="text-[12px] mr-2 w-full" style={{ color: "var(--mu)" }}>Sleep aid</span>
-            {["—", "Dummy", "Swaddle", "Sleeping bag", "Nothing"].map((opt) => pill(opt === "—" ? "—" : opt, opt === "—" ? "" : opt, sleepAid, setSleepAid))}
-          </div>
-          <PastPanel label="Log a past sleep instead" expanded={pastChecked} onToggle={() => setPastChecked((c) => !c)}>
-            <div className={inputBlockStyle} style={inputBlockStyleBg}>
-              <input type="date" value={pastDate} onChange={(e) => setPastDate(e.target.value)} className={inputStyle} style={inputStyleObj} />
-              <input type="time" value={pastTime} onChange={(e) => setPastTime(e.target.value)} className={inputStyle} style={inputStyleObj} />
+          {!pastChecked && (
+            <div className="flex justify-center mb-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!sleepTimerRunning) { if (f) f.resetFeedTimer(); setTimerRunning(false); setSleepElapsedMs(sleepDurationMs); setSleepTimerRunning(true); }
+                  else setSleepTimerRunning(false);
+                }}
+                className="py-3.5 px-8 rounded-[14px] text-[15px] font-medium text-white border-none cursor-pointer min-h-[48px]"
+                style={{ background: "var(--blue)", ...saveBtnStyle }}
+              >
+                {sleepTimerRunning ? "Stop" : "Start"}
+            </button>
             </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowSleepDetails((v) => !v)}
+            className="flex items-center gap-1 text-[13px] mb-3"
+            style={{ color: "var(--blue)" }}
+          >
+            <ChevronRight className={`w-4 h-4 transition-transform ${showSleepDetails ? "rotate-90" : ""}`} />
+            {showSleepDetails ? "Hide details" : "+ Add details"}
+          </button>
+          {showSleepDetails && (
+            <>
+              <p className={sectionLabelClass} style={sectionLabelStyle}>How did she fall asleep?</p>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {["—", "Independent", "Nursing", "Rocking", "Dummy", "Car", "Pram", "Being held", "Co-sleeping"].map((opt) => pill(opt === "—" ? "—" : opt, opt === "—" ? "" : opt, fallAsleepMethod, setFallAsleepMethod))}
+              </div>
+              <p className={sectionLabelClass} style={sectionLabelStyle}>Where did she sleep?</p>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {["—", "Cot", "Pram", "Car seat", "Arms", "Co-sleeping", "Floor"].map((opt) => pill(opt === "—" ? "—" : opt, opt === "—" ? "" : opt, sleepLocation, setSleepLocation))}
+              </div>
+              <p className={sectionLabelClass} style={sectionLabelStyle}>Sleep environment</p>
+              <div className="flex flex-wrap gap-2 mb-2">
+                <span className="text-[12px] mr-2" style={{ color: "var(--mu)" }}>White noise?</span>
+                {(["Yes", "No", "—"] as const).map((opt) => (
+                  <button key={opt} type="button" onClick={() => setWhiteNoise(opt === "Yes" ? true : opt === "No" ? false : null)} className="px-3 py-2 rounded-[20px] border text-[13px] min-h-[40px]" style={{ borderColor: (whiteNoise === true && opt === "Yes") || (whiteNoise === false && opt === "No") || (whiteNoise === null && opt === "—") ? "var(--ro)" : "var(--bd)", background: (whiteNoise === true && opt === "Yes") || (whiteNoise === false && opt === "No") || (whiteNoise === null && opt === "—") ? "var(--pe)" : "var(--card)", color: "var(--tx)" }}>{opt}</button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 mb-2">
+                <label className="text-[12px]" style={{ color: "var(--mu)" }}>Room temp (°C)</label>
+                <input type="number" inputMode="decimal" min={10} max={35} step={0.5} value={roomTempC} onChange={(e) => setRoomTempC(e.target.value)} placeholder="—" className="w-16 rounded-lg border px-2 py-2 text-[14px] outline-none" style={{ borderColor: "var(--bd)", background: "var(--card)", color: "var(--tx)" }} />
+              </div>
+              <div className="flex flex-wrap gap-2 mb-2">
+                <span className="text-[12px] mr-2" style={{ color: "var(--mu)" }}>Light</span>
+                {["—", "dark", "dim", "light"].map((opt) => pill(opt === "—" ? "—" : opt, opt === "—" ? "" : opt, lightLevel, setLightLevel))}
+              </div>
+              <div className="flex flex-wrap gap-2 mb-4">
+                <span className="text-[12px] mr-2 w-full" style={{ color: "var(--mu)" }}>Sleep aid</span>
+                {["—", "Dummy", "Swaddle", "Sleeping bag", "Nothing"].map((opt) => pill(opt === "—" ? "—" : opt, opt === "—" ? "" : opt, sleepAid, setSleepAid))}
+              </div>
+            </>
+          )}
+          {!sleepTimerRunning && sleepElapsedMs > 0 && (
+            <>
+              <p className={sectionLabelClass} style={sectionLabelStyle}>How did she wake up?</p>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {["Happy", "Calm", "Grumpy", "Crying", "Still tired"].map((opt) => (
+                  <button key={opt} type="button" onClick={() => setWakeUpMood(opt)} className="w-14 h-14 rounded-full border flex items-center justify-center text-[11px] text-center leading-tight" style={{ borderColor: wakeUpMood === opt ? "var(--ro)" : "var(--bd)", background: wakeUpMood === opt ? "var(--pe)" : "var(--card)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>{opt}</button>
+                ))}
+              </div>
+            </>
+          )}
+
+          <PastPanel label="Log a past sleep instead" expanded={pastChecked} onToggle={() => { setPastChecked((c) => !c); setSleepDurationWarning(""); }}>
+            <p className="text-[12px] mb-1" style={sectionLabelStyle}>Fell asleep at</p>
+            <div className={inputBlockStyle} style={inputBlockStyleBg}>
+              <input type="date" value={pastDate} onChange={(e) => { setPastDate(e.target.value); setSleepDurationWarning(""); }} className={inputStyle} style={inputStyleObj} />
+              <input type="time" value={pastTime} onChange={(e) => { setPastTime(e.target.value); setSleepDurationWarning(""); }} className={inputStyle} style={inputStyleObj} />
+            </div>
+            <p className="text-[12px] mb-1" style={sectionLabelStyle}>Use the duration picker above to set how long the sleep lasted</p>
+            {sleepDurationWarning && <p className="text-[12px] mb-2 px-1" style={{ color: "var(--coral)" }}>{sleepDurationWarning}</p>}
           </PastPanel>
-          <button type="button" onClick={handleSaveSleep} className={saveBtnClass} style={{ ...saveBtnStyle, background: "var(--blue)" }}>Save sleep</button>
+          <div style={stickyFooterStyle}>
+            <button type="button" onClick={handleSaveSleep} className={saveBtnClass} style={{ ...saveBtnStyle, background: "var(--blue)" }}>Save sleep</button>
+          </div>
         </>
       )}
 
       {type === "diaper" && (
         <>
           <p className={sectionLabelClass} style={sectionLabelStyle}>What kind?</p>
-          <div className="flex gap-2 justify-center mb-4">
-            {(["Wet", "Dirty", "Both"] as const).map((l) => (
+          <div className="flex gap-2 justify-center mb-4" role="radiogroup" aria-label="Diaper type">
+            {(["Wet", "Dirty", "Both"] as const).map((l) => {
+              const isSelected = diaperType === (l === "Both" ? "both" : l === "Wet" ? "pee" : "poop");
+              return (
               <button
                 key={l}
                 type="button"
+                role="radio"
+                aria-checked={isSelected}
+                aria-label={`Select ${l.toLowerCase()}`}
                 onClick={() => setDiaperType(l.toLowerCase() as "pee" | "poop" | "both")}
                 className="flex-1 px-3 py-3.5 rounded-[14px] border text-[15px] font-medium min-h-[48px] transition-all"
                 style={{
-                  borderColor: diaperType === (l === "Both" ? "both" : l === "Wet" ? "pee" : "poop") ? "var(--ro)" : "var(--bd)",
-                  background: diaperType === (l === "Both" ? "both" : l === "Wet" ? "pee" : "poop") ? "var(--pe)" : "var(--card)",
+                  borderColor: isSelected ? "var(--ro)" : "var(--bd)",
+                  background: isSelected ? "var(--pe)" : "var(--card)",
                   color: "var(--tx)",
                   fontFamily: "system-ui, sans-serif",
                 }}
               >
                 {l}
               </button>
-            ))}
+              );
+            })}
           </div>
           {(diaperType === "poop" || diaperType === "both") && (
             <button
@@ -640,13 +737,25 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
               Not sure what you&apos;re seeing? Check the nappy guide →
             </button>
           )}
+          <textarea
+            value={diaperNotes}
+            onChange={(e) => setDiaperNotes(e.target.value.slice(0, 300))}
+            placeholder="Any notes..."
+            maxLength={300}
+            rows={2}
+            className="w-full rounded-[14px] border px-4 py-3 text-[14px] outline-none resize-none mb-3"
+            style={{ borderColor: "var(--bd)", background: "var(--card)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
+          />
+
           <PastPanel label="Log a past change instead" expanded={pastChecked} onToggle={() => setPastChecked((c) => !c)}>
             <div className={inputBlockStyle} style={inputBlockStyleBg}>
               <input type="date" value={pastDate} onChange={(e) => setPastDate(e.target.value)} className={inputStyle} style={inputStyleObj} />
               <input type="time" value={pastTime} onChange={(e) => setPastTime(e.target.value)} className={inputStyle} style={inputStyleObj} />
             </div>
           </PastPanel>
-          <button type="button" onClick={handleSaveDiaper} className={saveBtnClass} style={{ ...saveBtnStyle, background: "var(--grn)" }}>Save change</button>
+          <div style={stickyFooterStyle}>
+            <button type="button" onClick={handleSaveDiaper} className={saveBtnClass} style={{ ...saveBtnStyle, background: "var(--grn)" }}>Save change</button>
+          </div>
         </>
       )}
 
@@ -654,62 +763,107 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
 
       {type === "tummy" && (
         <>
+          {(() => {
+            try {
+              const raw = localStorage.getItem("tummyTimeHistory");
+              if (!raw) return null;
+              const hist: TummyTimeRecord[] = JSON.parse(raw);
+              const today = new Date(); today.setHours(0,0,0,0);
+              const todayMs = today.getTime();
+              const totalMin = hist.filter(t => t.startTime >= todayMs).reduce((sum, t) => sum + ((t.endTime || Date.now()) - t.startTime) / 60000, 0);
+              return <p className="text-[13px] mb-3 font-medium" style={{ color: "var(--purp)" }}>{Math.round(totalMin)} min today</p>;
+            } catch { return null; }
+          })()}
           <p className={sectionLabelClass} style={sectionLabelStyle}>Duration</p>
-          <div className="mb-3 flex justify-center">
-            <DurationPicker valueMs={timerRunning ? elapsedMs : durationMs} maxMs={60 * 60 * 1000} showSeconds onChange={(ms) => { if (timerRunning) setElapsedMs(ms); else setDurationMs(ms); }} liveSync={timerRunning} className="min-h-[120px] max-w-[220px]" />
+          {pastChecked && <p className="text-[12px] mb-2" style={sectionLabelStyle}>How long was the session?</p>}
+          <div className="mb-3 flex justify-center" aria-live="polite" aria-label={`Tummy time timer: ${timerToA11yLabel(pastChecked ? durationMs : (timerRunning ? elapsedMs : durationMs))}`}>
+            <DurationPicker valueMs={pastChecked ? durationMs : (timerRunning ? elapsedMs : durationMs)} maxMs={60 * 60 * 1000} showSeconds onChange={(ms) => { if (!pastChecked && timerRunning) setElapsedMs(ms); else setDurationMs(ms); }} liveSync={!pastChecked && timerRunning} className="min-h-[120px] max-w-[220px]" />
           </div>
-          <div className="flex justify-center mb-3">
-            <button
-              type="button"
-              onClick={() => {
-                if (!timerRunning) { if (f) f.resetFeedTimer(); setSleepTimerRunning(false); setElapsedMs(durationMs); setTimerRunning(true); }
-                else setTimerRunning(false);
-              }}
-              className="py-3.5 px-8 rounded-[14px] text-[15px] font-medium text-white border-none cursor-pointer min-h-[48px]"
-              style={{ background: "var(--purp)", ...saveBtnStyle }}
-            >
-              {timerRunning ? "Stop" : "Start"}
-          </button>
-          </div>
+          {!pastChecked && (
+            <div className="flex justify-center mb-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!timerRunning) { if (f) f.resetFeedTimer(); setSleepTimerRunning(false); setElapsedMs(durationMs); setTimerRunning(true); }
+                  else setTimerRunning(false);
+                }}
+                className="py-3.5 px-8 rounded-[14px] text-[15px] font-medium text-white border-none cursor-pointer min-h-[48px]"
+                style={{ background: "var(--purp)", ...saveBtnStyle }}
+              >
+                {timerRunning ? "Stop" : "Start"}
+            </button>
+            </div>
+          )}
           <PastPanel label="Log a past session instead" expanded={pastChecked} onToggle={() => setPastChecked((c) => !c)}>
             <div className={inputBlockStyle} style={inputBlockStyleBg}>
               <input type="date" value={pastDate} onChange={(e) => setPastDate(e.target.value)} className={inputStyle} style={inputStyleObj} />
               <input type="time" value={pastTime} onChange={(e) => setPastTime(e.target.value)} className={inputStyle} style={inputStyleObj} />
             </div>
           </PastPanel>
-          <button type="button" onClick={handleSaveTummy} className={saveBtnClass} style={{ ...saveBtnStyle, background: "var(--purp)" }}>Save session</button>
+          <div style={stickyFooterStyle}>
+            <button type="button" onClick={handleSaveTummy} className={saveBtnClass} style={{ ...saveBtnStyle, background: "var(--purp)" }}>Save session</button>
+          </div>
         </>
       )}
 
       {type === "bottle" && (
         <>
           <p className={sectionLabelClass} style={sectionLabelStyle}>Volume (ml)</p>
-          <div className="flex flex-wrap gap-2 justify-center mb-4">
-            {BOTTLE_VOLUMES.map((v) => (
+          <div className="flex gap-2 justify-center mb-3" role="radiogroup" aria-label="Bottle volume">
+            {BOTTLE_PRESETS.map((v) => {
+              const isSelected = bottleVolumeMl === v && !bottleManualVolume;
+              return (
               <button
                 key={v}
                 type="button"
-                onClick={() => setBottleVolumeMl(v)}
+                role="radio"
+                aria-checked={isSelected}
+                aria-label={`${v} millilitres`}
+                onClick={() => { setBottleVolumeMl(v); setBottleManualVolume(""); }}
                 className="px-3 py-2.5 rounded-[14px] border text-[14px] min-h-[44px]"
                 style={{
-                  borderColor: bottleVolumeMl === v ? "var(--coral)" : "var(--bd)",
-                  background: bottleVolumeMl === v ? "var(--pe)" : "var(--card)",
+                  borderColor: isSelected ? "var(--coral)" : "var(--bd)",
+                  background: isSelected ? "var(--pe)" : "var(--card)",
                   color: "var(--tx)",
                   fontFamily: "system-ui, sans-serif",
                 }}
               >
-                {v}
+                {v}ml
               </button>
-            ))}
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-2 mb-4">
+            <label className="text-[12px] whitespace-nowrap" style={{ color: "var(--mu)" }}>Or enter:</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={500}
+              value={bottleManualVolume}
+              onChange={(e) => {
+                const v = e.target.value;
+                setBottleManualVolume(v);
+                const n = parseInt(v, 10);
+                if (n >= 1 && n <= 500) setBottleVolumeMl(n);
+              }}
+              placeholder="ml"
+              className="w-20 rounded-lg border px-3 py-2.5 text-[15px] min-h-[44px]"
+              style={{ borderColor: "var(--bd)", background: "var(--card)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
+            />
+            <span className="text-[13px]" style={{ color: "var(--mu)" }}>ml</span>
           </div>
           <p className={sectionLabelClass} style={sectionLabelStyle}>Type</p>
-          <div className="flex gap-2 justify-center mb-4">
+          <div className="flex gap-2 justify-center mb-4" role="radiogroup" aria-label="Bottle feed type">
             {(["Formula", "Expressed milk", "Mixed"] as const).map((l) => {
               const v = l === "Formula" ? "formula" : l === "Expressed milk" ? "expressed" : "mixed";
               return (
                 <button
                   key={v}
                   type="button"
+                  role="radio"
+                  aria-checked={bottleFeedType === v}
+                  aria-label={`Select ${l.toLowerCase()}`}
                   onClick={() => setBottleFeedType(v)}
                   className="flex-1 px-3 py-3.5 rounded-[14px] border text-[14px] font-medium min-h-[48px]"
                   style={{
@@ -724,24 +878,36 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
               );
             })}
           </div>
+          <textarea
+            value={bottleNotes}
+            onChange={(e) => setBottleNotes(e.target.value.slice(0, 300))}
+            placeholder="Any notes..."
+            maxLength={300}
+            rows={2}
+            className="w-full rounded-[14px] border px-4 py-3 text-[14px] outline-none resize-none mb-3"
+            style={{ borderColor: "var(--bd)", background: "var(--card)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
+          />
+
           <PastPanel label="Log a past bottle" expanded={pastChecked} onToggle={() => setPastChecked((c) => !c)}>
             <div className={inputBlockStyle} style={inputBlockStyleBg}>
               <input type="date" value={pastDate} onChange={(e) => setPastDate(e.target.value)} className={inputStyle} style={inputStyleObj} />
               <input type="time" value={pastTime} onChange={(e) => setPastTime(e.target.value)} className={inputStyle} style={inputStyleObj} />
             </div>
           </PastPanel>
-          <button type="button" onClick={handleSaveBottle} className={saveBtnClass} style={{ ...saveBtnStyle, background: "var(--coral)" }}>Save bottle</button>
+          <div style={stickyFooterStyle}>
+            <button type="button" onClick={handleSaveBottle} className={saveBtnClass} style={{ ...saveBtnStyle, background: "var(--coral)" }}>Save bottle</button>
+          </div>
         </>
       )}
 
       {type === "pump" && (
         <>
           <p className={sectionLabelClass} style={sectionLabelStyle}>Side</p>
-          <div className="flex gap-2 justify-center mb-4">
+          <div className="flex gap-2 justify-center mb-4" role="radiogroup" aria-label="Pump side">
             {(["Left", "Right", "Both"] as const).map((l) => {
               const v = l.toLowerCase() as "left" | "right" | "both";
               return (
-                <button key={v} type="button" onClick={() => setPumpSide(v)} className="flex-1 px-3 py-3.5 rounded-[14px] border text-[15px] font-medium min-h-[48px]" style={{ borderColor: pumpSide === v ? "var(--ro)" : "var(--bd)", background: pumpSide === v ? "var(--pe)" : "var(--card)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
+                <button key={v} type="button" role="radio" aria-checked={pumpSide === v} aria-label={`Select ${l.toLowerCase()} side`} onClick={() => setPumpSide(v)} className="flex-1 px-3 py-3.5 rounded-[14px] border text-[15px] font-medium min-h-[48px]" style={{ borderColor: pumpSide === v ? "var(--ro)" : "var(--bd)", background: pumpSide === v ? "var(--pe)" : "var(--card)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
                   {l}
                 </button>
               );
@@ -762,20 +928,28 @@ export function LogDrawer({ type, onClose, onSaved, session }: LogDrawerProps) {
               </div>
             )}
           </div>
+          {pumpSide === "both" && (pumpVolumeLeft > 0 || pumpVolumeRight > 0) && (
+            <p className="text-[14px] font-medium mb-3" style={{ color: "var(--pink)" }}>Total: {pumpVolumeLeft + pumpVolumeRight}ml</p>
+          )}
           <p className={sectionLabelClass} style={sectionLabelStyle}>Duration</p>
-          <div className="mb-3 flex justify-center">
-            <DurationPicker valueMs={pumpTimerRunning ? pumpElapsedMs : pumpDurationMs} maxMs={MAX_DURATION_HISTORY_MS} onChange={(ms) => { if (pumpTimerRunning) setPumpElapsedMs(ms); else setPumpDurationMs(ms); }} showSeconds showHours={false} liveSync={pumpTimerRunning} className="min-h-[120px] max-w-[220px]" />
+          {pastChecked && <p className="text-[12px] mb-2" style={sectionLabelStyle}>How long was the session?</p>}
+          <div className="mb-3 flex justify-center" aria-live="polite" aria-label={`Pump timer: ${timerToA11yLabel(pastChecked ? pumpDurationMs : (pumpTimerRunning ? pumpElapsedMs : pumpDurationMs))}`}>
+            <DurationPicker valueMs={pastChecked ? pumpDurationMs : (pumpTimerRunning ? pumpElapsedMs : pumpDurationMs)} maxMs={MAX_DURATION_HISTORY_MS} onChange={(ms) => { if (!pastChecked && pumpTimerRunning) setPumpElapsedMs(ms); else setPumpDurationMs(ms); }} showSeconds showHours={false} liveSync={!pastChecked && pumpTimerRunning} className="min-h-[120px] max-w-[220px]" />
           </div>
-          <div className="flex justify-center mb-3">
-            <button type="button" onClick={() => { if (!pumpTimerRunning) setPumpElapsedMs(pumpDurationMs); setPumpTimerRunning(!pumpTimerRunning); }} className="py-3.5 px-8 rounded-[14px] text-[15px] font-medium text-white border-none cursor-pointer min-h-[48px]" style={{ background: "var(--pink)", ...saveBtnStyle }}>{pumpTimerRunning ? "Stop" : "Start"} timer</button>
-          </div>
+          {!pastChecked && (
+            <div className="flex justify-center mb-3">
+              <button type="button" onClick={() => { if (!pumpTimerRunning) setPumpElapsedMs(pumpDurationMs); setPumpTimerRunning(!pumpTimerRunning); }} className="py-3.5 px-8 rounded-[14px] text-[15px] font-medium text-white border-none cursor-pointer min-h-[48px]" style={{ background: "var(--pink)", ...saveBtnStyle }}>{pumpTimerRunning ? "Stop" : "Start"} timer</button>
+            </div>
+          )}
           <PastPanel label="Log a past session" expanded={pastChecked} onToggle={() => setPastChecked((c) => !c)}>
             <div className={inputBlockStyle} style={inputBlockStyleBg}>
               <input type="date" value={pastDate} onChange={(e) => setPastDate(e.target.value)} className={inputStyle} style={inputStyleObj} />
               <input type="time" value={pastTime} onChange={(e) => setPastTime(e.target.value)} className={inputStyle} style={inputStyleObj} />
             </div>
           </PastPanel>
-          <button type="button" onClick={handleSavePump} className={saveBtnClass} style={{ ...saveBtnStyle, background: "var(--pink)" }}>Save pump</button>
+          <div style={stickyFooterStyle}>
+            <button type="button" onClick={handleSavePump} className={saveBtnClass} style={{ ...saveBtnStyle, background: "var(--pink)" }}>Save pump</button>
+          </div>
         </>
       )}
     </div>

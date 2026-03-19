@@ -355,6 +355,100 @@ export function insightFeedingInterval(
   };
 }
 
+export function insightShortNapPattern(
+  sleepHistory: SleepRecord[],
+  babyName?: string | null,
+): Insight | null {
+  if (!sleepHistory?.length) return null;
+  const naps = sleepHistory
+    .filter((s) => {
+      const dur = sleepDurationMs(s);
+      if (dur <= 0) return false;
+      const hour = new Date(s.startTime).getHours();
+      return hour >= 6 && hour < 20;
+    })
+    .sort((a, b) => b.startTime - a.startTime);
+  if (naps.length < 4) return null;
+  const last4 = naps.slice(0, 4);
+  const allShort = last4.every((s) => sleepDurationMs(s) < 35 * 60 * 1000);
+  if (!allShort) return null;
+  return {
+    id: 'short-nap-pattern',
+    type: 'sleep',
+    message:
+      'Last 4 naps all under 35 minutes. Short naps at this age often mean she\u2019s overtired going down. Try this tomorrow: start the nap routine 10\u201315 minutes earlier.',
+    detail: null,
+    confidence: 'high',
+    actionable: true,
+    icon: 'alert-triangle',
+  };
+}
+
+export function insightCorrelationTummyNap(
+  sleepHistory: SleepRecord[],
+  tummyHistory: TummyTimeRecord[],
+  babyName?: string | null,
+): Insight | null {
+  if (!sleepHistory?.length || !tummyHistory?.length) return null;
+
+  const tummyByDay = new Map<number, number>();
+  for (const t of tummyHistory) {
+    const day = getDayStart(t.startTime);
+    const dur = Math.max(0, (t.endTime ?? t.startTime) - t.startTime - (t.excludedMs ?? 0));
+    tummyByDay.set(day, (tummyByDay.get(day) ?? 0) + dur);
+  }
+
+  const napByDay = new Map<number, { total: number; count: number }>();
+  for (const s of sleepHistory) {
+    const dur = sleepDurationMs(s);
+    if (dur <= 0) continue;
+    const hour = new Date(s.startTime).getHours();
+    if (hour < 6 || hour >= 20) continue;
+    const day = getDayStart(s.startTime);
+    const entry = napByDay.get(day) ?? { total: 0, count: 0 };
+    entry.total += dur;
+    entry.count += 1;
+    napByDay.set(day, entry);
+  }
+
+  const daysWithBoth = Array.from(napByDay.keys()).filter(
+    (day) => tummyByDay.has(day) && (napByDay.get(day)?.count ?? 0) > 0,
+  );
+  if (daysWithBoth.length < 10) return null;
+
+  const threshold = 20 * 60 * 1000;
+  const withTummy: number[] = [];
+  const withoutTummy: number[] = [];
+
+  for (const day of daysWithBoth) {
+    const napMin = (napByDay.get(day)?.total ?? 0) / (60 * 1000);
+    if ((tummyByDay.get(day) ?? 0) >= threshold) {
+      withTummy.push(napMin);
+    } else {
+      withoutTummy.push(napMin);
+    }
+  }
+
+  if (withTummy.length === 0 || withoutTummy.length === 0) return null;
+
+  const avgWith = withTummy.reduce((a, b) => a + b, 0) / withTummy.length;
+  const avgWithout = withoutTummy.reduce((a, b) => a + b, 0) / withoutTummy.length;
+
+  if (Math.abs(avgWith - avgWithout) < 15) return null;
+
+  const x = Math.round(avgWith);
+  const y = Math.round(avgWithout);
+  return {
+    id: 'tummy-nap-correlation',
+    type: 'pattern',
+    message: `Naps average ${x}m on days with 20+ min tummy time vs ${y}m without.`,
+    detail: null,
+    confidence: 'medium',
+    actionable: true,
+    icon: 'bar-chart',
+  };
+}
+
 const CONF_ORDER = { high: 0, medium: 1, low: 2 };
 
 export interface GenerateInsightsParams {
@@ -392,6 +486,8 @@ export function generateInsights(params: GenerateInsightsParams): Insight[] {
     insightWakeTimeDrift(sleepHistory ?? [], last28Sleep, name),
     insightTummyTimeProgress(tummyHistory ?? [], last7Tummy, name),
     insightFeedingInterval(feedingHistory ?? [], last7Feeds, name),
+    insightShortNapPattern(sleepHistory ?? [], name),
+    insightCorrelationTummyNap(sleepHistory ?? [], tummyHistory ?? [], name),
   ];
 
   const insights = results.filter((r): r is Insight => r != null);

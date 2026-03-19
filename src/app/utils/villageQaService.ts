@@ -5,12 +5,18 @@ export interface VillageQuestion {
   content: string;
   ageBand: string;
   createdAt: number;
+  hearts?: number;
+  heartedByMe?: boolean;
+  isMine?: boolean;
 }
 
 export interface VillageAnswer {
   id: string;
   content: string;
   createdAt: number;
+  hearts?: number;
+  heartedByMe?: boolean;
+  isMine?: boolean;
 }
 
 export async function fetchQuestions(token: string): Promise<VillageQuestion[]> {
@@ -63,4 +69,48 @@ export async function postAnswer(token: string, questionId: string, content: str
   }
   const data = (await res.json()) as { id: string };
   return data;
+}
+
+export async function heartItem(
+  token: string,
+  itemType: "question" | "answer",
+  itemId: string
+): Promise<{ hearts: number }> {
+  const res = await fetch(`${serverUrl}/village/qa/${itemType}s/${itemId}/heart`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? "heart_failed");
+  }
+  return (await res.json()) as { hearts: number };
+}
+
+const QA_HEARTS_KEY = "cradl-qa-hearts-hour";
+const HEARTS_PER_HOUR = 50;
+
+export function canHeart(): boolean {
+  try {
+    const raw = localStorage.getItem(QA_HEARTS_KEY);
+    if (!raw) return true;
+    const data = JSON.parse(raw) as { ts: number; count: number };
+    if (Date.now() - data.ts > 3600000) return true;
+    return data.count < HEARTS_PER_HOUR;
+  } catch { return true; }
+}
+
+export function recordHeart(): void {
+  try {
+    const raw = localStorage.getItem(QA_HEARTS_KEY);
+    let data: { ts: number; count: number } = { ts: Date.now(), count: 0 };
+    if (raw) {
+      data = JSON.parse(raw) as { ts: number; count: number };
+      if (Date.now() - data.ts > 3600000) {
+        data = { ts: Date.now(), count: 0 };
+      }
+    }
+    data.count++;
+    localStorage.setItem(QA_HEARTS_KEY, JSON.stringify(data));
+  } catch {}
 }

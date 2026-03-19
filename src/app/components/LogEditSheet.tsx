@@ -13,7 +13,7 @@ const STORAGE_KEYS: Record<TimelineEventKind, string> = {
   pump: "pumpHistory",
 };
 
-/** Parse date (yyyy-MM-dd from date picker) and time (HH:mm) to epoch ms. */
+/** Parse date (yyyy-MM-dd from HTML date input) and time (HH:mm from HTML time input) to epoch ms. */
 function parseDateTimeFromPickers(dateStr: string, timeStr: string): number | null {
   if (!dateStr.trim()) return null;
   const [y, m, d] = dateStr.trim().split("-").map(Number);
@@ -40,7 +40,7 @@ export function LogEditSheet({ event, onClose, onSaved, session }: LogEditSheetP
     if (!event) return;
     const ts = event.forDatetime;
     const d = new Date(ts);
-    setDateStr(format(d, "dd/MM/yyyy"));
+    setDateStr(format(d, "yyyy-MM-dd"));
     setTimeStr(format(d, "HH:mm"));
     const r = event.record as Record<string, unknown>;
     if (event.kind === "feed") {

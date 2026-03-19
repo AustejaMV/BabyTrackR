@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
-import { MapPin, Plus } from "lucide-react";
+import { MapPin, Plus, ChevronDown, ChevronUp, Star } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
-import { fetchVenues, addVenue, type VillageVenue } from "../utils/villageVenueService";
+import { fetchVenues, addVenue, fetchVenueReviews, addVenueReview, type VillageVenue, type VillageVenueReview } from "../utils/villageVenueService";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { SHORT_DATETIME_DISPLAY } from "../utils/dateUtils";
 
 const VENUE_TYPES = ["cafe", "restaurant", "soft_play", "library", "other"] as const;
 
@@ -16,6 +18,50 @@ export function VillagePlacesScreen() {
   const [address, setAddress] = useState("");
   const [venueType, setVenueType] = useState<string>("cafe");
   const [submitting, setSubmitting] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<VillageVenueReview[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewContent, setReviewContent] = useState("");
+  const [reviewWouldReturn, setReviewWouldReturn] = useState("yes");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+
+  const toggleVenueDetail = async (venueId: string) => {
+    if (expandedId === venueId) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(venueId);
+    if (!session?.access_token) return;
+    setReviewsLoading(true);
+    setReviews([]);
+    try {
+      const data = await fetchVenueReviews(session.access_token, venueId);
+      setReviews(data);
+    } catch {
+      toast.error("Could not load reviews");
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  const handleAddReview = async () => {
+    if (!session?.access_token || !expandedId) return;
+    setReviewSubmitting(true);
+    try {
+      await addVenueReview(session.access_token, expandedId, {
+        would_return: reviewWouldReturn,
+        content: reviewContent.trim() || undefined,
+      });
+      toast.success("Review posted");
+      setReviewContent("");
+      const data = await fetchVenueReviews(session.access_token, expandedId);
+      setReviews(data);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     if (!session?.access_token) {
@@ -136,19 +182,96 @@ export function VillagePlacesScreen() {
           </p>
         ) : (
           <ul className="space-y-2">
-            {venues.map((v) => (
-              <li
-                key={v.id}
-                className="rounded-2xl border p-4"
-                style={{ borderColor: "var(--bd)", background: "var(--card)" }}
-              >
-                <div className="font-medium" style={{ color: "var(--tx)" }}>{v.name}</div>
-                <div className="text-[13px] mt-0.5" style={{ color: "var(--mu)" }}>{v.address}</div>
-                <span className="inline-block mt-1 text-[12px] px-2 py-0.5 rounded" style={{ background: "var(--pe)", color: "var(--pink)" }}>
-                  {v.venueType.replace("_", " ")}
-                </span>
-              </li>
-            ))}
+            {venues.map((v) => {
+              const isExpanded = expandedId === v.id;
+              return (
+                <li
+                  key={v.id}
+                  className="rounded-2xl border overflow-hidden"
+                  style={{ borderColor: "var(--bd)", background: "var(--card)" }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleVenueDetail(v.id)}
+                    className="w-full text-left p-4 flex items-start justify-between"
+                    style={{ background: "none", border: "none" }}
+                  >
+                    <div>
+                      <div className="font-medium" style={{ color: "var(--tx)" }}>{v.name}</div>
+                      <div className="text-[13px] mt-0.5" style={{ color: "var(--mu)" }}>{v.address}</div>
+                      <span className="inline-block mt-1 text-[12px] px-2 py-0.5 rounded" style={{ background: "var(--pe)", color: "var(--pink)" }}>
+                        {v.venueType.replace("_", " ")}
+                      </span>
+                    </div>
+                    {isExpanded ? <ChevronUp className="w-4 h-4 shrink-0 mt-1" style={{ color: "var(--mu)" }} /> : <ChevronDown className="w-4 h-4 shrink-0 mt-1" style={{ color: "var(--mu)" }} />}
+                  </button>
+
+                  {isExpanded && (
+                    <div className="px-4 pb-4 pt-0" style={{ borderTop: "1px solid var(--bd)" }}>
+                      <h3 className="text-[13px] font-medium mt-3 mb-2" style={{ color: "var(--tx)" }}>Reviews</h3>
+                      {reviewsLoading ? (
+                        <p className="text-[13px]" style={{ color: "var(--mu)" }}>Loading…</p>
+                      ) : reviews.length === 0 ? (
+                        <p className="text-[13px]" style={{ color: "var(--mu)" }}>No reviews yet.</p>
+                      ) : (
+                        <ul className="space-y-2 mb-3">
+                          {reviews.map(r => (
+                            <li key={r.id} className="rounded-xl p-3" style={{ background: "var(--bg)" }}>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-[12px] font-medium" style={{ color: r.wouldReturn === "yes" ? "#4a8a4a" : r.wouldReturn === "maybe" ? "#c4960a" : "#d4604a" }}>
+                                  {r.wouldReturn === "yes" ? "Would return" : r.wouldReturn === "maybe" ? "Maybe" : "Would not return"}
+                                </span>
+                              </div>
+                              {r.content && <p className="text-[13px]" style={{ color: "var(--tx)" }}>{r.content}</p>}
+                              <p className="text-[11px] mt-1" style={{ color: "var(--mu)" }}>{format(r.createdAt, SHORT_DATETIME_DISPLAY())}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
+                      {session?.access_token && (
+                        <div className="rounded-xl p-3 mt-2" style={{ background: "var(--bg)" }}>
+                          <div className="flex gap-2 mb-2">
+                            {(["yes", "maybe", "no"] as const).map(val => (
+                              <button
+                                key={val}
+                                type="button"
+                                onClick={() => setReviewWouldReturn(val)}
+                                className="py-1.5 px-3 rounded-lg text-[12px] font-medium"
+                                style={{
+                                  background: reviewWouldReturn === val ? "var(--pink)" : "var(--card)",
+                                  color: reviewWouldReturn === val ? "white" : "var(--tx)",
+                                  border: reviewWouldReturn === val ? "none" : "1px solid var(--bd)",
+                                }}
+                              >
+                                {val === "yes" ? "Would return" : val === "maybe" ? "Maybe" : "Wouldn't return"}
+                              </button>
+                            ))}
+                          </div>
+                          <textarea
+                            placeholder="Comment (optional)"
+                            value={reviewContent}
+                            onChange={e => setReviewContent(e.target.value)}
+                            rows={2}
+                            className="w-full rounded-xl border px-3 py-2 text-[13px] mb-2 resize-none"
+                            style={{ borderColor: "var(--bd)", background: "var(--card)", color: "var(--tx)" }}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddReview}
+                            disabled={reviewSubmitting}
+                            className="w-full py-2 rounded-xl font-medium text-white text-[13px]"
+                            style={{ background: "var(--pink)" }}
+                          >
+                            {reviewSubmitting ? "Posting…" : "Post review"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

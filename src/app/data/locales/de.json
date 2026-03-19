@@ -1,0 +1,50 @@
+{
+  "common": {
+    "close": "Schließen",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "next": "Weiter",
+    "back": "Zurück",
+    "skip": "Überspringen",
+    "done": "Fertig",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "add": "Hinzufügen",
+    "ok": "OK",
+    "yes": "Ja",
+    "no": "Nein",
+    "loading": "Laden…",
+    "error": "Etwas ist schiefgelaufen",
+    "retry": "Erneut versuchen",
+    "search": "Suchen",
+    "noData": "Noch keine Daten",
+    "premium": "Premium",
+    "upgradeToPremium": "Auf Premium upgraden",
+    "free": "Kostenlos",
+    "today": "Heute",
+    "yesterday": "Gestern",
+    "thisWeek": "Diese Woche",
+    "nav": {
+      "today": "Heute",
+      "journey": "Reise",
+      "village": "Dorf",
+      "me": "Ich"
+    },
+    "baby": "Baby",
+    "age": {
+      "days_one": "{{count}} Tag",
+      "days_other": "{{count}} Tage",
+      "weeks_one": "{{count}} Woche",
+      "weeks_other": "{{count}} Wochen",
+      "months_one": "{{count}} Monat",
+      "months_other": "{{count}} Monate"
+    },
+    "time": {
+      "hoursAgo_one": "vor {{count}} Stunde",
+      "hoursAgo_other": "vor {{count}} Stunden",
+      "minutesAgo_one": "vor {{count}} Minute",
+      "minutesAgo_other": "vor {{count}} Minuten",
+      "justNow": "Gerade eben"
+    }
+  }
+}

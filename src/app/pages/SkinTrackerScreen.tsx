@@ -5,6 +5,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { format } from "date-fns";
+import { DATETIME_DISPLAY } from "../utils/dateUtils";
 import { getSkinFlares, getSkinCreams, getSkinTriggers } from "../utils/skinStorage";
 import { AddFlareSheet } from "../components/AddFlareSheet";
 import { AddCreamSheet } from "../components/AddCreamSheet";
@@ -72,7 +73,7 @@ export function SkinTrackerScreen() {
               <ul className="space-y-2">
                 {[...flares].reverse().slice(0, 20).map((f) => (
                   <li key={f.id} className="rounded-xl border p-3" style={{ background: "var(--card)", borderColor: "var(--bd)" }}>
-                    <span className="text-[12px]" style={{ color: "var(--mu)" }}>{format(new Date(f.timestamp), "dd/MM/yyyy HH:mm")}</span>
+                    <span className="text-[12px]" style={{ color: "var(--mu)" }}>{format(new Date(f.timestamp), DATETIME_DISPLAY())}</span>
                     <p className="text-[14px] mt-0.5" style={{ color: "var(--tx)" }}>Severity {f.severity}/5 · {f.bodyAreas.join(", ")}</p>
                     {f.note && <p className="text-[12px] mt-1" style={{ color: "var(--mu)" }}>{f.note}</p>}
                   </li>
@@ -99,7 +100,7 @@ export function SkinTrackerScreen() {
               <ul className="space-y-2">
                 {[...creams].reverse().slice(0, 20).map((c) => (
                   <li key={c.id} className="rounded-xl border p-3" style={{ background: "var(--card)", borderColor: "var(--bd)" }}>
-                    <span className="text-[12px]" style={{ color: "var(--mu)" }}>{format(new Date(c.timestamp), "dd/MM/yyyy HH:mm")}</span>
+                    <span className="text-[12px]" style={{ color: "var(--mu)" }}>{format(new Date(c.timestamp), DATETIME_DISPLAY())}</span>
                     <p className="text-[14px] mt-0.5" style={{ color: "var(--tx)" }}>{c.product} · {c.bodyAreas.join(", ")}</p>
                   </li>
                 ))}
@@ -125,7 +126,7 @@ export function SkinTrackerScreen() {
               <ul className="space-y-2">
                 {[...triggers].reverse().slice(0, 20).map((t) => (
                   <li key={t.id} className="rounded-xl border p-3" style={{ background: "var(--card)", borderColor: "var(--bd)" }}>
-                    <span className="text-[12px]" style={{ color: "var(--mu)" }}>{format(new Date(t.timestamp), "dd/MM/yyyy HH:mm")}</span>
+                    <span className="text-[12px]" style={{ color: "var(--mu)" }}>{format(new Date(t.timestamp), DATETIME_DISPLAY())}</span>
                     <p className="text-[14px] mt-0.5" style={{ color: "var(--tx)" }}>{t.triggerType}: {t.description}</p>
                   </li>
                 ))}

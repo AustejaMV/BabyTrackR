@@ -16,6 +16,8 @@ export interface Baby {
   weight?: number;
   height?: number;
   headCircumference?: number;
+  sex?: "girl" | "boy" | "prefer_not_to_say";
+  bloodType?: string;
 }
 
 const BABIES_KEY = "babytrackr-babies";

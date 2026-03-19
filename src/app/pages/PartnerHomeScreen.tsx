@@ -123,16 +123,6 @@ export function PartnerHomeScreen() {
           See today&apos;s timeline
         </button>
 
-        {openDrawer && (
-          <div className="mt-4 rounded-2xl border overflow-hidden" style={{ background: "var(--card2)", borderColor: "var(--bd)" }}>
-            <div className="p-4 flex items-center justify-between border-b" style={{ borderColor: "var(--bd)" }}>
-              <span className="font-medium" style={{ color: "var(--tx)" }}>{logButtons.find((b) => b.type === openDrawer)?.label ?? openDrawer}</span>
-              <button type="button" onClick={() => setOpenDrawer(null)} className="py-2 px-3 rounded-lg text-sm" style={{ color: "var(--mu)" }}>Close</button>
-            </div>
-            <LogDrawer type={openDrawer} onClose={() => setOpenDrawer(null)} onSaved={handleSaved} session={session} />
-          </div>
-        )}
-
         {todayModalOpen && (
           <TodayTimelineModal
             open={todayModalOpen}
@@ -142,6 +132,56 @@ export function PartnerHomeScreen() {
           />
         )}
       </div>
+
+      {openDrawer && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 50,
+            background: "rgba(0,0,0,0.4)",
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "center",
+          }}
+          onClick={() => setOpenDrawer(null)}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 512,
+              maxHeight: "90dvh",
+              background: "var(--card)",
+              borderRadius: "16px 16px 0 0",
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
+            } as React.CSSProperties}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 flex items-center justify-between border-b" style={{ borderColor: "var(--bd)" }}>
+              <span className="font-semibold text-[15px]" style={{ color: "var(--tx)" }}>
+                {logButtons.find((b) => b.type === openDrawer)?.label ?? openDrawer}
+              </span>
+              <button
+                type="button"
+                onClick={() => setOpenDrawer(null)}
+                className="py-1.5 px-3 rounded-lg text-sm"
+                style={{ color: "var(--mu)" }}
+              >
+                Close
+              </button>
+            </div>
+            <LogDrawer
+              type={openDrawer}
+              onClose={() => setOpenDrawer(null)}
+              onSaved={handleSaved}
+              onSwitchType={(t) => setOpenDrawer(t as "feed" | "sleep" | "diaper" | "bottle")}
+              session={session}
+            />
+          </div>
+        </div>
+      )}
+
       <Navigation />
     </div>
   );

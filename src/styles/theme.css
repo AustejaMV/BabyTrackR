@@ -2,22 +2,22 @@
 
 :root {
   --font-size: 16px;
-  /* Cradl light (from example) */
+  /* Cradl redesign palette */
   --bg: #fffbf5;
   --bg2: #fff8f2;
   --bg3: #fdf5ee;
   --card: #ffffff;
   --card2: #fdf8f4;
-  --bd: #f0e0d0;
+  --bd: #ede0d4;
   --bd2: #e8d0c0;
-  --tx: #3d2c2c;
+  --tx: #2c1f1f;
   --mu: #9a8080;
-  --mu2: #c0a898;
-  --coral: #ff8c69;
+  --mu2: #8a6b5b;
+  --coral: #d4604a;
   --blue: #7ab3d4;
-  --grn: #8cbc7c;
+  --grn: #4a8a4a;
   --purp: #c4a0d4;
-  --pink: #e8748a;
+  --pink: #d4604a;
   --pe: #fde8d8;
   --ro: #f5c4c4;
   --sa: #d4e8d4;
@@ -26,7 +26,7 @@
   --hello1: #fef0e8;
   --hello2: #f8eeff;
   --pick-bg: #fdf5f0;
-  --hl-bg: rgba(232, 116, 138, 0.07);
+  --hl-bg: rgba(212, 96, 74, 0.07);
   --btn-row: #f5ede8;
   --stat-bg: #ffffff;
   --med-bg: #fde8d8;
@@ -34,6 +34,14 @@
   --rem-bg: #ffffff;
   --rng-track: #f5ede8;
   --ro-bub: #fff0f0;
+  --blue2: #4a7ab4;
+  --purp2: #7a4ab4;
+  --feed-red: #c05030;
+  --sleep-blue: #4080a0;
+  --notice-amber: #d4904a;
+  --notice-green: #4a8a4a;
+  --notice-blue: #4a6ab4;
+  --notice-purple: #7a4ab4;
   /* Tailwind compat */
   --background: var(--bg);
   --foreground: var(--tx);
@@ -84,12 +92,20 @@
   --bd2: #2a3d5e;
   --tx: #e8eef8;
   --mu: #7a90b0;
-  --mu2: #7a90b0;
-  --coral: #ffaa88;
+  --mu2: #8a9ab8;
+  --coral: #e87060;
   --blue: #88c8f0;
-  --grn: #88d4a8;
+  --grn: #5aa85a;
   --purp: #c8a8f0;
-  --pink: #f0a0c0;
+  --pink: #e87060;
+  --blue2: #6090c8;
+  --purp2: #9060d0;
+  --feed-red: #e07050;
+  --sleep-blue: #5090b8;
+  --notice-amber: #e0a060;
+  --notice-green: #5aa85a;
+  --notice-blue: #6080c0;
+  --notice-purple: #9060d0;
   --pe: #2a3d5e;
   --ro: #3d2a4a;
   --sa: #1a2e24;

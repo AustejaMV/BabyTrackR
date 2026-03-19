@@ -174,7 +174,7 @@ export function MilestonesTimeline({ birthDateMs, milestones, onSave, photoDataU
                   </span>
                   {achievedDays != null ? (
                     <span className="text-[9px] text-green-600 dark:text-green-400 font-medium" title="Your baby">
-                      Yours: {format(m.achievedAt!, DATE_DISPLAY)}
+                      Yours: {format(m.achievedAt!, DATE_DISPLAY())}
                     </span>
                   ) : (
                     <span className="text-[8px] text-gray-400 dark:text-gray-500 italic">Tap to set</span>

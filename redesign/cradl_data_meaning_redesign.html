@@ -1,0 +1,448 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-sans); }
+.wrap { padding: 20px; background: var(--color-background-secondary); border-radius: var(--border-radius-lg); }
+.section { margin-bottom: 28px; }
+.section-title { font-size: 12px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 4px; }
+.section-sub { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 12px; line-height: 1.5; }
+.phones-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; align-items: flex-start; }
+.ph { width: 220px; background: #fffbf5; border-radius: 24px; border: 1.5px solid #e8d8c8; overflow: hidden; flex-shrink: 0; }
+.sc { padding: 12px 10px; overflow-y: auto; max-height: 560px; }
+.sc::-webkit-scrollbar { display: none; }
+.card { background: #fff; border: 1px solid #f0e0d0; border-radius: 14px; padding: 12px 13px; margin-bottom: 8px; }
+.slbl { font-size: 9px; color: #9a8080; text-transform: uppercase; letter-spacing: 0.6px; margin: 4px 0 8px; }
+</style>
+
+<div class="wrap">
+
+<!-- SECTION 1: NAP WINDOW EXPLAINED -->
+<div class="section">
+<div class="section-title">1 — The nap window: explained in plain English</div>
+<div class="section-sub">The concept is shown once on first use, then referenced naturally. The word "window" is replaced everywhere with language that communicates consequence.</div>
+
+<div class="phones-row">
+
+<!-- FIRST TIME explanation card -->
+<div style="display:flex;flex-direction:column;align-items:center;">
+<div class="ph">
+<div class="sc">
+  <!-- The explanation card — shown once, dismissible -->
+  <div style="background:#fff8f0;border:1.5px solid #fde8d8;border-radius:16px;padding:14px;margin-bottom:8px;">
+    <div style="font-size:12px;font-weight:500;color:#3d2c2c;margin-bottom:8px;">Why timing matters 🌙</div>
+    <div style="font-size:10px;color:#3d2c2c;line-height:1.6;margin-bottom:10px;">Babies can only stay awake so long before becoming <strong>overtired</strong> — when that happens, stress hormones make them harder to settle and sleep worse, not better.</div>
+    <div style="font-size:10px;color:#3d2c2c;line-height:1.6;margin-bottom:10px;">There's a sweet spot — a window when she's tired enough to drift off easily. Miss it and you're fighting cortisol, not tiredness.</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:8px;background:#d4e8d4;border-radius:8px;padding:7px 10px;">
+        <span style="font-size:14px;">😴</span>
+        <div><div style="font-size:10px;font-weight:500;color:#2a5c2a;">Sweet spot open</div><div style="font-size:9px;color:#4a8c4a;">She'll settle quickly — go now</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:#fff8e8;border-radius:8px;padding:7px 10px;">
+        <span style="font-size:14px;">⚠️</span>
+        <div><div style="font-size:10px;font-weight:500;color:#7a5000;">Approaching — act soon</div><div style="font-size:9px;color:#9a7020;">10–15 min before she's overtired</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:#fde8e8;border-radius:8px;padding:7px 10px;">
+        <span style="font-size:14px;">😤</span>
+        <div><div style="font-size:10px;font-weight:500;color:#8c2020;">Overtired — harder now</div><div style="font-size:9px;color:#aa4040;">She'll fight sleep · try anyway</div></div>
+      </div>
+    </div>
+    <div style="font-size:9px;color:#9a8080;text-align:center;cursor:pointer;">Got it — show me her sweet spot →</div>
+  </div>
+</div>
+</div>
+<div style="font-size:10px;color:var(--color-text-secondary);text-align:center;margin-top:6px;">First-time explanation<br>(shown once, then dismissed)</div>
+</div>
+
+<!-- ONGOING nap card — new language -->
+<div style="display:flex;flex-direction:column;align-items:center;">
+<div class="ph">
+<div class="sc">
+
+  <!-- GREEN state — sweet spot open -->
+  <div style="background:#fff;border:1.5px solid #8cbc7c;border-radius:16px;padding:12px;margin-bottom:8px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <span style="font-size:10px;font-weight:500;color:#3d2c2c;">Sleep sweet spot</span>
+      <span style="font-size:9px;background:#d4e8d4;color:#2a5c2a;padding:2px 7px;border-radius:8px;font-weight:500;">● Open now</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <svg width="52" height="52" viewBox="0 0 52 52">
+        <circle cx="26" cy="26" r="20" fill="none" stroke="#f0e8d4" stroke-width="5"/>
+        <!-- Grey = too early -->
+        <circle cx="26" cy="26" r="20" fill="none" stroke="#f0e0d0" stroke-width="5" stroke-dasharray="40 125" stroke-dashoffset="0" transform="rotate(-90 26 26)"/>
+        <!-- Green = sweet spot -->
+        <circle cx="26" cy="26" r="20" fill="none" stroke="#8cbc7c" stroke-width="5" stroke-dasharray="50 125" stroke-dashoffset="-40" transform="rotate(-90 26 26)"/>
+        <!-- Amber = warning zone -->
+        <circle cx="26" cy="26" r="20" fill="none" stroke="#f5a623" stroke-width="5" stroke-dasharray="20 125" stroke-dashoffset="-90" transform="rotate(-90 26 26)"/>
+        <!-- Red = overtired -->
+        <circle cx="26" cy="26" r="20" fill="none" stroke="#e87474" stroke-width="5" stroke-dasharray="15 125" stroke-dashoffset="-110" transform="rotate(-90 26 26)"/>
+        <!-- Current position dot -->
+        <circle cx="26" cy="6" r="4" fill="#8cbc7c" transform="rotate(60 26 26)"/>
+      </svg>
+      <div>
+        <div style="font-size:14px;font-weight:500;color:#3d2c2c;">Now — 12:10</div>
+        <div style="font-size:9px;color:#9a8080;margin-top:2px;">Sweet spot closes in 28m</div>
+        <div style="font-size:9px;color:#c4a0d4;margin-top:3px;">✦ Usually settles best ~11:45</div>
+      </div>
+    </div>
+    <div style="margin-top:8px;background:#d4e8d4;border-radius:10px;padding:8px 10px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+      <span style="font-size:11px;">😴</span>
+      <span style="font-size:10px;font-weight:500;color:#2a5c2a;">She'll settle easily right now</span>
+      <span style="font-size:9px;color:#4a8c4a;margin-left:auto;">Start sleep →</span>
+    </div>
+  </div>
+
+  <!-- AMBER state — warning -->
+  <div style="background:#fff;border:1.5px solid #f5a623;border-radius:16px;padding:12px;margin-bottom:8px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <span style="font-size:10px;font-weight:500;color:#3d2c2c;">Sleep sweet spot</span>
+      <span style="font-size:9px;background:#fff8e8;color:#9a6000;padding:2px 7px;border-radius:8px;font-weight:500;">⚠ Closing soon</span>
+    </div>
+    <div style="font-size:10px;color:#3d2c2c;margin-bottom:6px;">About <strong>10 minutes</strong> before she starts getting overtired. Put her down soon.</div>
+    <div style="background:#fff8e8;border-radius:10px;padding:7px 10px;font-size:9px;color:#7a5000;">Once overtired she'll fight sleep — start your nap routine now.</div>
+  </div>
+
+  <!-- RED state — missed -->
+  <div style="background:#fff;border:1.5px solid #e87474;border-radius:16px;padding:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <span style="font-size:10px;font-weight:500;color:#3d2c2c;">Sleep sweet spot</span>
+      <span style="font-size:9px;background:#fde8e8;color:#8c2020;padding:2px 7px;border-radius:8px;font-weight:500;">● Overtired now</span>
+    </div>
+    <div style="font-size:10px;color:#3d2c2c;line-height:1.5;margin-bottom:6px;">The sweet spot passed 12 minutes ago. She's likely overtired — it'll take a little longer to settle but she'll still sleep.</div>
+    <div style="background:#fde8e8;border-radius:10px;padding:7px 10px;font-size:9px;color:#8c2020;">Try extra soothing — white noise, rocking, or feeding to sleep. Don't worry, this happens to everyone.</div>
+  </div>
+
+</div>
+</div>
+<div style="font-size:10px;color:var(--color-text-secondary);text-align:center;margin-top:6px;">Three states — with<br>consequence, not just colour</div>
+</div>
+
+</div>
+</div>
+
+<!-- SECTION 2: GROWTH — human language not statistics -->
+<div class="section">
+<div class="section-title">2 — Growth: what the numbers actually mean</div>
+<div class="section-sub">Percentile rank is a statistics concept. Parents want to know: is she healthy? Is she growing well? Should I worry? The trajectory matters more than the snapshot.</div>
+
+<div class="phones-row">
+
+<!-- Growth card — new design -->
+<div style="display:flex;flex-direction:column;align-items:center;">
+<div class="ph">
+<div class="sc">
+
+  <div class="card">
+    <!-- Header with plain English verdict -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+      <div>
+        <div style="font-size:12px;font-weight:500;color:#3d2c2c;">Audrone is growing well</div>
+        <div style="font-size:9px;color:#8cbc7c;margin-top:2px;">✓ Consistent trend · no concerns</div>
+      </div>
+      <div style="font-size:9px;color:#ff8c69;cursor:pointer;">+ Log</div>
+    </div>
+
+    <!-- Three metrics — plain English -->
+    <div style="display:flex;gap:6px;margin-bottom:10px;">
+
+      <!-- Weight -->
+      <div style="flex:1;background:#f8fbff;border-radius:10px;padding:8px 6px;">
+        <div style="font-size:15px;font-weight:500;color:#3d2c2c;text-align:center;">6.2kg</div>
+        <div style="font-size:8px;color:#9a8080;text-align:center;margin-top:1px;">Weight</div>
+        <!-- Plain English band -->
+        <div style="margin-top:6px;">
+          <div style="height:6px;background:#f0e8e0;border-radius:3px;position:relative;overflow:visible;">
+            <!-- Bands -->
+            <div style="position:absolute;left:0;width:15%;height:100%;background:#f5e8d8;border-radius:3px 0 0 3px;"></div>
+            <div style="position:absolute;left:15%;width:35%;height:100%;background:#e8f5e8;"></div>
+            <div style="position:absolute;left:50%;width:35%;height:100%;background:#e8f5e8;"></div>
+            <div style="position:absolute;left:85%;width:15%;height:100%;background:#f5e8d8;border-radius:0 3px 3px 0;"></div>
+            <!-- Dot -->
+            <div style="position:absolute;left:63%;top:-3px;width:12px;height:12px;border-radius:50%;background:#ff8c69;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.15);"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:5px;">
+            <span style="font-size:7px;color:#c0a898;">Light</span>
+            <span style="font-size:8px;color:#4a8c3c;font-weight:500;">Typical</span>
+            <span style="font-size:7px;color:#c0a898;">Heavy</span>
+          </div>
+        </div>
+        <div style="font-size:8px;color:#9a8080;text-align:center;margin-top:3px;">Heavier than most</div>
+      </div>
+
+      <!-- Height -->
+      <div style="flex:1;background:#f8fbff;border-radius:10px;padding:8px 6px;">
+        <div style="font-size:15px;font-weight:500;color:#3d2c2c;text-align:center;">62cm</div>
+        <div style="font-size:8px;color:#9a8080;text-align:center;margin-top:1px;">Length</div>
+        <div style="margin-top:6px;">
+          <div style="height:6px;background:#f0e8e0;border-radius:3px;position:relative;overflow:visible;">
+            <div style="position:absolute;left:0;width:15%;height:100%;background:#f5e8d8;border-radius:3px 0 0 3px;"></div>
+            <div style="position:absolute;left:15%;width:70%;height:100%;background:#e8f5e8;"></div>
+            <div style="position:absolute;left:85%;width:15%;height:100%;background:#f5e8d8;border-radius:0 3px 3px 0;"></div>
+            <div style="position:absolute;left:56%;top:-3px;width:12px;height:12px;border-radius:50%;background:#7ab3d4;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.15);"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:5px;">
+            <span style="font-size:7px;color:#c0a898;">Short</span>
+            <span style="font-size:8px;color:#4a8c3c;font-weight:500;">Typical</span>
+            <span style="font-size:7px;color:#c0a898;">Tall</span>
+          </div>
+        </div>
+        <div style="font-size:8px;color:#9a8080;text-align:center;margin-top:3px;">Average length</div>
+      </div>
+
+      <!-- Head -->
+      <div style="flex:1;background:#f8fbff;border-radius:10px;padding:8px 6px;">
+        <div style="font-size:15px;font-weight:500;color:#3d2c2c;text-align:center;">40cm</div>
+        <div style="font-size:8px;color:#9a8080;text-align:center;margin-top:1px;">Head</div>
+        <div style="margin-top:6px;">
+          <div style="height:6px;background:#f0e8e0;border-radius:3px;position:relative;overflow:visible;">
+            <div style="position:absolute;left:0;width:15%;height:100%;background:#f5e8d8;border-radius:3px 0 0 3px;"></div>
+            <div style="position:absolute;left:15%;width:70%;height:100%;background:#e8f5e8;"></div>
+            <div style="position:absolute;left:85%;width:15%;height:100%;background:#f5e8d8;border-radius:0 3px 3px 0;"></div>
+            <div style="position:absolute;left:70%;top:-3px;width:12px;height:12px;border-radius:50%;background:#c4a0d4;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.15);"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:5px;">
+            <span style="font-size:7px;color:#c0a898;">Small</span>
+            <span style="font-size:8px;color:#4a8c3c;font-weight:500;">Typical</span>
+            <span style="font-size:7px;color:#c0a898;">Large</span>
+          </div>
+        </div>
+        <div style="font-size:8px;color:#9a8080;text-align:center;margin-top:3px;">Larger than most</div>
+      </div>
+
+    </div>
+
+    <!-- Trend — the thing that actually matters -->
+    <div style="background:#f0f8f0;border-radius:10px;padding:8px 10px;margin-bottom:8px;">
+      <div style="font-size:10px;font-weight:500;color:#2a5c2a;margin-bottom:3px;">Gaining steadily ✓</div>
+      <div style="font-size:9px;color:#4a8c4a;line-height:1.4;">Up 320g in the last 4 weeks — right on track for her age. Consistent gain matters more than the exact number.</div>
+    </div>
+
+    <!-- Weight chart — trend focused -->
+    <div style="height:50px;display:flex;align-items:flex-end;gap:3px;margin-bottom:4px;">
+      <!-- WHO typical band (shaded) -->
+      <div style="position:relative;flex:1;height:50px;">
+        <div style="position:absolute;bottom:30%;width:100%;height:35%;background:#e8f5e8;border-radius:2px;"></div>
+        <div style="position:absolute;bottom:52%;width:4px;height:4px;border-radius:50%;background:#c0ddc0;left:0;"></div>
+      </div>
+      <div style="position:relative;flex:1;height:50px;">
+        <div style="position:absolute;bottom:30%;width:100%;height:35%;background:#e8f5e8;"></div>
+        <div style="position:absolute;bottom:58%;width:4px;height:4px;border-radius:50%;background:#a0c8a0;left:0;"></div>
+      </div>
+      <div style="position:relative;flex:1;height:50px;">
+        <div style="position:absolute;bottom:30%;width:100%;height:35%;background:#e8f5e8;"></div>
+        <div style="position:absolute;bottom:65%;width:4px;height:4px;border-radius:50%;background:#80b880;left:0;"></div>
+      </div>
+      <div style="position:relative;flex:1;height:50px;">
+        <div style="position:absolute;bottom:30%;width:100%;height:35%;background:#e8f5e8;"></div>
+        <div style="position:absolute;bottom:72%;width:6px;height:6px;border-radius:50%;background:#ff8c69;left:0;border:1.5px solid white;"></div>
+      </div>
+      <div style="position:relative;flex:1;height:50px;">
+        <div style="position:absolute;bottom:30%;width:100%;height:35%;background:#e8f5e8;border-radius:0 2px 2px 0;"></div>
+        <div style="position:absolute;bottom:80%;width:7px;height:7px;border-radius:50%;background:#ff8c69;left:0;border:1.5px solid white;box-shadow:0 1px 2px rgba(255,140,105,0.4);"></div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+      <span style="font-size:8px;color:#c0a898;">10 wks</span>
+      <span style="font-size:8px;color:#c0a898;">14 wks (today)</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:4px;">
+      <div style="width:10px;height:6px;background:#e8f5e8;border-radius:2px;"></div>
+      <span style="font-size:8px;color:#9a8080;">Typical range for her age</span>
+      <div style="width:8px;height:8px;border-radius:50%;background:#ff8c69;margin-left:6px;"></div>
+      <span style="font-size:8px;color:#9a8080;">Audrone</span>
+    </div>
+
+    <!-- What percentile actually means — expandable -->
+    <div style="margin-top:8px;border-top:1px solid #f8f0e8;padding-top:8px;">
+      <div style="font-size:9px;color:#c0a898;cursor:pointer;">What does "heavier than most" mean? ↓</div>
+      <div style="font-size:9px;color:#9a8080;margin-top:4px;line-height:1.5;">Out of 100 babies her age and sex, about 65 would weigh less than Audrone. She's in the healthy typical range. What matters most is that she keeps gaining steadily — not the exact number.</div>
+    </div>
+  </div>
+
+</div>
+</div>
+<div style="font-size:10px;color:var(--color-text-secondary);text-align:center;margin-top:6px;">Growth — plain English<br>not statistics</div>
+</div>
+
+<!-- What about when something IS a concern -->
+<div style="display:flex;flex-direction:column;align-items:center;">
+<div class="ph">
+<div class="sc">
+
+  <!-- CONCERN state — when trajectory drops -->
+  <div class="card" style="border-color:#f5a62360;">
+    <div style="font-size:12px;font-weight:500;color:#3d2c2c;margin-bottom:4px;">Weight gain has slowed</div>
+    <div style="font-size:9px;color:#f5a623;margin-bottom:8px;">⚠ Worth mentioning at your next check</div>
+    <div style="font-size:10px;color:#3d2c2c;line-height:1.5;margin-bottom:8px;">Audrone gained 120g in the last 4 weeks — less than the 150–200g typical for her age. This is common and often nothing to worry about, but your health visitor will want to know.</div>
+    <div style="background:#fff8e8;border-radius:8px;padding:8px 10px;margin-bottom:6px;">
+      <div style="font-size:9px;color:#7a5000;font-weight:500;margin-bottom:2px;">What to say at your appointment:</div>
+      <div style="font-size:9px;color:#9a6020;line-height:1.4;">"Her weight gain has slowed from about 180g/week to 120g/week over the last month."</div>
+    </div>
+    <div style="font-size:9px;color:#9a8080;line-height:1.4;">One slow month is rarely a concern. A consistent drop over 2–3 months is worth investigating.</div>
+  </div>
+
+  <!-- SMALL but consistent — reassurance -->
+  <div class="card" style="border-color:#d4eaf760;">
+    <div style="font-size:12px;font-weight:500;color:#3d2c2c;margin-bottom:4px;">On the smaller side — and that's fine</div>
+    <div style="font-size:9px;color:#7ab3d4;margin-bottom:8px;">Consistent trend · no concerns</div>
+    <div style="font-size:10px;color:#3d2c2c;line-height:1.5;margin-bottom:6px;">Audrone is lighter than most babies her age — but she's been consistently in this range since birth, and she's growing steadily. Small babies who gain consistently are healthy babies.</div>
+    <div style="background:#d4eaf7;border-radius:8px;padding:7px 10px;">
+      <div style="font-size:9px;color:#2a5070;line-height:1.4;">Consistent growth along a curve matters much more than which curve she's on.</div>
+    </div>
+  </div>
+
+</div>
+</div>
+<div style="font-size:10px;color:var(--color-text-secondary);text-align:center;margin-top:6px;">When there IS a concern —<br>specific, calm, actionable</div>
+</div>
+
+</div>
+</div>
+
+<!-- SECTION 3: TELLING WHAT DATA MEANS — new interpretations -->
+<div class="section">
+<div class="section-title">3 — New ways to interpret data: pattern-breaking, correlation, trend narration</div>
+<div class="section-sub">Beyond the crying diagnostic. These surface automatically when the data supports them — never as raw numbers, always as sentences a parent can act on.</div>
+
+<div class="phones-row">
+
+<div style="display:flex;flex-direction:column;align-items:center;">
+<div class="ph">
+<div class="sc">
+
+  <div class="slbl">Cradl noticed</div>
+
+  <!-- Anomaly with context -->
+  <div class="card" style="border-left:3px solid #ff8c69;border-radius:0 14px 14px 14px;padding-left:10px;">
+    <div style="font-size:11px;font-weight:500;color:#3d2c2c;margin-bottom:3px;">More feeds than usual today</div>
+    <div style="font-size:10px;color:#3d2c2c;line-height:1.5;margin-bottom:6px;">Audrone has fed 8 times — her usual is 5–6. This is common during <strong>growth spurts</strong>. She's 14 weeks, a classic growth spurt window.</div>
+    <div style="font-size:9px;color:#9a8080;line-height:1.4;">She may also be cluster feeding before a longer sleep tonight. Both are normal. Let her lead.</div>
+    <div style="font-size:9px;color:#c0a898;margin-top:4px;">Not a concern · dismiss</div>
+  </div>
+
+  <!-- Cross-log correlation -->
+  <div class="card" style="border-left:3px solid #c4a0d4;border-radius:0 14px 14px 14px;padding-left:10px;">
+    <div style="font-size:11px;font-weight:500;color:#3d2c2c;margin-bottom:3px;">Tummy time → longer naps</div>
+    <div style="font-size:10px;color:#3d2c2c;line-height:1.5;margin-bottom:6px;">In the last 2 weeks, Audrone's naps averaged <strong>52 min on days with 20+ min tummy time</strong>, vs 31 min on days without. She hasn't had tummy time yet today.</div>
+    <div style="font-size:9px;background:#e8d4f5;color:#6040a0;border-radius:8px;padding:5px 8px;cursor:pointer;">Add tummy time now — nap in 45 min →</div>
+  </div>
+
+  <!-- Trend narration — not a chart -->
+  <div class="card" style="border-left:3px solid #7ab3d4;border-radius:0 14px 14px 14px;padding-left:10px;">
+    <div style="font-size:11px;font-weight:500;color:#3d2c2c;margin-bottom:3px;">Sleep is getting better</div>
+    <div style="font-size:10px;color:#3d2c2c;line-height:1.5;margin-bottom:4px;">This week she's averaging <strong>10h 30m/day</strong> — up 45 minutes from last week. She's also down to 2 night wakings from 3.</div>
+    <div style="font-size:9px;color:#9a8080;">The 4-month sleep regression is coming in 3 days — enjoy this week.</div>
+  </div>
+
+  <!-- Short nap pattern + fix -->
+  <div class="card" style="border-left:3px solid #f5a623;border-radius:0 14px 14px 14px;padding-left:10px;">
+    <div style="font-size:11px;font-weight:500;color:#3d2c2c;margin-bottom:3px;">Short naps — she may be overtired going down</div>
+    <div style="font-size:10px;color:#3d2c2c;line-height:1.5;margin-bottom:6px;">Her last 4 naps were all under 35 minutes. Short naps at this age often mean she's <strong>overtired before the nap even starts</strong>.</div>
+    <div style="background:#fff8e8;border-radius:8px;padding:7px 10px;margin-bottom:4px;">
+      <div style="font-size:9px;color:#7a5000;font-weight:500;margin-bottom:2px;">Try this tomorrow:</div>
+      <div style="font-size:9px;color:#9a6020;">Start the nap routine 10–15 minutes earlier than usual. One day should show a difference.</div>
+    </div>
+    <div style="font-size:9px;color:#c0a898;">Based on 4 naps · medium confidence</div>
+  </div>
+
+  <!-- Supply signal -->
+  <div class="card" style="border-left:3px solid #8cbc7c;border-radius:0 14px 14px 14px;padding-left:10px;">
+    <div style="font-size:11px;font-weight:500;color:#3d2c2c;margin-bottom:3px;">Feeds spacing out — a good sign</div>
+    <div style="font-size:10px;color:#3d2c2c;line-height:1.5;margin-bottom:4px;">Average time between feeds this week: <strong>2h 55m</strong>, up from 2h 20m last week. Her stomach is growing — she's taking more at each feed.</div>
+    <div style="font-size:9px;color:#4a8c3c;">No action needed · she's leading the change herself.</div>
+  </div>
+
+</div>
+</div>
+<div style="font-size:10px;color:var(--color-text-secondary);text-align:center;margin-top:6px;">Pattern-breaking · correlations<br>trend narration · anomaly context</div>
+</div>
+
+<!-- IS THIS NORMAL — redesigned -->
+<div style="display:flex;flex-direction:column;align-items:center;">
+<div class="ph">
+<div class="sc">
+
+  <div class="slbl">Is this normal?</div>
+  <div style="font-size:9px;color:#9a8080;margin-bottom:8px;padding:0 2px;">Based on WHO data for 14-week-olds</div>
+
+  <!-- Each metric as a sentence, with a bar as visual support not primary communication -->
+  <div class="card" style="padding:10px 12px;">
+
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+        <span style="font-size:11px;font-weight:500;color:#3d2c2c;">Feeds today</span>
+        <span style="font-size:9px;color:#8cbc7c;font-weight:500;">Normal ✓</span>
+      </div>
+      <div style="font-size:10px;color:#3d2c2c;margin-bottom:5px;">6 feeds — right in the middle of the typical range for her age (5–8 feeds/day)</div>
+      <div style="height:6px;background:#f0e8e0;border-radius:3px;position:relative;overflow:visible;">
+        <div style="position:absolute;left:20%;width:60%;height:100%;background:#d4e8d4;border-radius:3px;"></div>
+        <div style="position:absolute;left:50%;top:-4px;width:14px;height:14px;border-radius:50%;background:#ff8c69;border:2px solid white;margin-left:-7px;box-shadow:0 1px 3px rgba(0,0,0,0.1);"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:3px;">
+        <span style="font-size:7px;color:#c0a898;">2</span>
+        <span style="font-size:7px;color:#8cbc7c;">Typical 5–8</span>
+        <span style="font-size:7px;color:#c0a898;">12</span>
+      </div>
+    </div>
+
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+        <span style="font-size:11px;font-weight:500;color:#3d2c2c;">Sleep today</span>
+        <span style="font-size:9px;color:#8cbc7c;font-weight:500;">Normal ✓</span>
+      </div>
+      <div style="font-size:10px;color:#3d2c2c;margin-bottom:5px;">10 hours — a little less than average but completely normal (typical: 10–14h)</div>
+      <div style="height:6px;background:#f0e8e0;border-radius:3px;position:relative;overflow:visible;">
+        <div style="position:absolute;left:25%;width:50%;height:100%;background:#d4eaf7;border-radius:3px;"></div>
+        <div style="position:absolute;left:25%;top:-4px;width:14px;height:14px;border-radius:50%;background:#7ab3d4;border:2px solid white;margin-left:-7px;box-shadow:0 1px 3px rgba(0,0,0,0.1);"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:3px;">
+        <span style="font-size:7px;color:#c0a898;">8h</span>
+        <span style="font-size:7px;color:#7ab3d4;">Typical 10–14h</span>
+        <span style="font-size:7px;color:#c0a898;">18h</span>
+      </div>
+    </div>
+
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+        <span style="font-size:11px;font-weight:500;color:#3d2c2c;">Nappies today</span>
+        <span style="font-size:9px;color:#8cbc7c;font-weight:500;">Normal ✓</span>
+      </div>
+      <div style="font-size:10px;color:#3d2c2c;margin-bottom:5px;">4 nappies — on the lower end but normal (typical: 4–8/day)</div>
+      <div style="height:6px;background:#f0e8e0;border-radius:3px;position:relative;overflow:visible;">
+        <div style="position:absolute;left:20%;width:55%;height:100%;background:#d4e8d4;border-radius:3px;"></div>
+        <div style="position:absolute;left:20%;top:-4px;width:14px;height:14px;border-radius:50%;background:#8cbc7c;border:2px solid white;margin-left:-7px;box-shadow:0 1px 3px rgba(0,0,0,0.1);"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:3px;">
+        <span style="font-size:7px;color:#c0a898;">0</span>
+        <span style="font-size:7px;color:#8cbc7c;">Typical 4–8</span>
+        <span style="font-size:7px;color:#c0a898;">12</span>
+      </div>
+    </div>
+
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+        <span style="font-size:11px;font-weight:500;color:#3d2c2c;">Tummy time</span>
+        <span style="font-size:9px;color:#f5a623;font-weight:500;">A little low</span>
+      </div>
+      <div style="font-size:10px;color:#3d2c2c;margin-bottom:5px;">15 min — below the 20–40 min/day recommended at this age. Not a problem today, just something to build toward.</div>
+      <div style="height:6px;background:#f0e8e0;border-radius:3px;position:relative;overflow:visible;">
+        <div style="position:absolute;left:15%;width:50%;height:100%;background:#fff0d4;border-radius:3px;"></div>
+        <div style="position:absolute;left:12%;top:-4px;width:14px;height:14px;border-radius:50%;background:#f5a623;border:2px solid white;margin-left:-7px;box-shadow:0 1px 3px rgba(0,0,0,0.1);"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:3px;">
+        <span style="font-size:7px;color:#c0a898;">0m</span>
+        <span style="font-size:7px;color:#f5a623;">Aim for 20–40m</span>
+        <span style="font-size:7px;color:#c0a898;">60m</span>
+      </div>
+      <div style="margin-top:5px;font-size:9px;color:#9a6020;background:#fff8e8;border-radius:6px;padding:4px 7px;">Try one 5-min session after the next nappy change.</div>
+    </div>
+
+  </div>
+
+</div>
+</div>
+<div style="font-size:10px;color:var(--color-text-secondary);text-align:center;margin-top:6px;">Is this normal — sentences first,<br>bars as visual support only</div>
+</div>
+
+</div>
+</div>
+
+</div>

@@ -1,20 +1,20 @@
 import { useState, useEffect } from "react";
 import { DayPicker } from "react-day-picker";
 import { format, addMonths, subMonths } from "date-fns";
+import { DATE_DISPLAY } from "../utils/dateUtils";
 import { getAppointments, saveAppointments, toDateStr, parseDateStr, type Appointment } from "../data/appointmentsStorage";
 import { getMedicationReminderConfig } from "../data/medicationReminderStorage";
 import { MedicationReminderModal } from "./MedicationReminderModal";
+import { AppointmentSheet } from "./AppointmentSheet";
 import { scheduleNextMedicationReminder } from "../utils/medicationReminderScheduler";
+import { exportAppointmentsToIcs, exportSingleAppointmentToIcs } from "../utils/icsExport";
 
 export function AppointmentsSection() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [month, setMonth] = useState(() => new Date());
-  const [showAdd, setShowAdd] = useState(false);
   const [pickDate, setPickDate] = useState<Date | null>(null);
-  const [newDate, setNewDate] = useState("");
-  const [newTime, setNewTime] = useState("");
-  const [newType, setNewType] = useState<Appointment["type"]>("GP");
-  const [newNotes, setNewNotes] = useState("");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editingAppt, setEditingAppt] = useState<Appointment | undefined>(undefined);
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
   const [reminderConfig, setReminderConfig] = useState(() => getMedicationReminderConfig());
 
@@ -25,6 +25,8 @@ export function AppointmentsSection() {
   useEffect(() => {
     setReminderConfig(getMedicationReminderConfig());
   }, [reminderModalOpen]);
+
+  const reload = () => setAppointments(getAppointments());
 
   const now = Date.now();
   const past = appointments
@@ -48,33 +50,14 @@ export function AppointmentsSection() {
     }
   }
 
-  const addAppointment = () => {
-    const d = pickDate || (newDate.trim() ? (() => {
-      const [y, m, day] = newDate.trim().split("-").map(Number);
-      if ([y, m, day].some(isNaN)) return null;
-      return new Date(y, m - 1, day);
-    })() : null);
-    if (!d) return;
-    const appt: Appointment = {
-      id: Date.now().toString(),
-      date: toDateStr(d),
-      time: newTime.trim() || "09:00",
-      type: newType,
-      notes: newNotes.trim(),
-    };
-    const next = [...appointments, appt];
-    setAppointments(next);
-    saveAppointments(next);
-    setShowAdd(false);
-    setNewDate("");
-    setNewTime("");
-    setNewNotes("");
+  const openNewSheet = () => {
+    setEditingAppt(undefined);
+    setSheetOpen(true);
   };
 
-  const removeAppointment = (id: string) => {
-    const next = appointments.filter((a) => a.id !== id);
-    setAppointments(next);
-    saveAppointments(next);
+  const openEditSheet = (appt: Appointment) => {
+    setEditingAppt(appt);
+    setSheetOpen(true);
   };
 
   const handleDaySelect = (day: Date | undefined) => {
@@ -83,12 +66,9 @@ export function AppointmentsSection() {
     const isDeselect = pickDate && format(pickDate, "yyyy-MM-dd") === nextKey;
     if (isDeselect) {
       setPickDate(null);
-      setShowAdd(false);
       return;
     }
     setPickDate(day);
-    setNewDate(format(day, "yyyy-MM-dd"));
-    setShowAdd(true);
   };
 
   const selectedDayKey = pickDate ? format(pickDate, "yyyy-MM-dd") : null;
@@ -139,9 +119,11 @@ export function AppointmentsSection() {
             style={{ color: "var(--tx)" }}
             modifiers={{
               hasAppt: (d) => datesWithAppts.has(format(d, "yyyy-MM-dd")),
+              hasReminder: (d) => datesWithReminder.has(format(d, "yyyy-MM-dd")),
             }}
             modifiersClassNames={{
               hasAppt: "rdp-has-appt",
+              hasReminder: "rdp-has-reminder",
             }}
           />
         </div>
@@ -183,7 +165,7 @@ export function AppointmentsSection() {
       {pickDate && (
         <div className="mb-3">
           <p className="text-[11px] font-medium mb-2" style={{ color: "var(--tx)" }}>
-            {format(pickDate, "dd/MM/yyyy")}
+            {format(pickDate, DATE_DISPLAY())}
           </p>
           {reminderConfig.enabled && reminderConfig.repeatDays.includes(pickDate.getDay()) && (
             <div className="p-2.5 rounded-lg border mb-2" style={{ borderColor: "var(--grn)", background: "color-mix(in srgb, var(--grn) 12%, transparent)" }}>
@@ -202,15 +184,22 @@ export function AppointmentsSection() {
               appointmentsOnSelectedDay.map((a) => (
                 <div key={a.id} className="p-2.5 rounded-lg border text-[11px]" style={{ borderColor: "var(--bd)", background: "var(--bg2)" }}>
                   <div className="flex justify-between items-start gap-2">
-                    <div>
-                      <span style={{ color: "var(--tx)" }}>{a.time} · {a.type}</span>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <span className="font-medium" style={{ color: "var(--tx)" }}>{a.name || a.type}</span>
+                      <span style={{ color: "var(--mu)" }}> · {a.time || "No time"} · {a.type}</span>
                       {a.notes && (
-                        <p className="mt-1.5 text-[10px]" style={{ color: "var(--mu)" }}>
-                          <span className="font-medium">Questions to ask:</span> {a.notes}
+                        <p className="mt-1 text-[10px]" style={{ color: "var(--mu)" }}>{a.notes}</p>
+                      )}
+                      {a.questions && (
+                        <p className="mt-1 text-[10px]" style={{ color: "var(--mu)" }}>
+                          <span className="font-medium">Questions:</span> {a.questions}
                         </p>
                       )}
                     </div>
-                    <button type="button" onClick={() => removeAppointment(a.id)} className="text-red-500 text-[10px] shrink-0">Remove</button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button type="button" onClick={() => exportSingleAppointmentToIcs(a)} className="text-[10px] p-1" style={{ color: "var(--mu)" }} aria-label="Export to calendar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg></button>
+                      <button type="button" onClick={() => openEditSheet(a)} className="text-[10px]" style={{ color: "var(--pink)" }}>Edit</button>
+                    </div>
                   </div>
                 </div>
               ))
@@ -230,26 +219,26 @@ export function AppointmentsSection() {
         </details>
       )}
 
-      {!showAdd ? (
-        <button type="button" onClick={() => { setShowAdd(true); setPickDate(null); const t = new Date(); setNewDate(format(t, "yyyy-MM-dd")); setNewTime(format(t, "HH:mm")); }} className="text-[11px] py-1.5 px-2 rounded-lg border" style={{ borderColor: "var(--bd)", color: "var(--pink)" }}>+ New appointment</button>
-      ) : (
-        <div className="space-y-2 p-2 rounded-lg border mb-2" style={{ borderColor: "var(--bd)", background: "var(--bg2)" }}>
-          <label className="block text-[10px]" style={{ color: "var(--mu)" }}>Date</label>
-          <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="w-full rounded px-2 py-1.5 text-[11px] min-h-[36px]" style={{ border: "1px solid var(--bd)", background: "var(--card)", color: "var(--tx)" }} />
-          <label className="block text-[10px]" style={{ color: "var(--mu)" }}>Time</label>
-          <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} className="w-full rounded px-2 py-1.5 text-[11px] min-h-[36px]" style={{ border: "1px solid var(--bd)", background: "var(--card)", color: "var(--tx)" }} />
-          <select value={newType} onChange={(e) => setNewType(e.target.value as Appointment["type"])} className="w-full rounded px-2 py-1.5 text-[11px]" style={{ border: "1px solid var(--bd)", background: "var(--card)", color: "var(--tx)" }}>
-            <option value="GP">GP</option>
-            <option value="Health visitor">Health visitor</option>
-            <option value="Hospital">Hospital</option>
-          </select>
-          <input type="text" placeholder="Questions to ask" value={newNotes} onChange={(e) => setNewNotes(e.target.value)} className="w-full rounded px-2 py-1.5 text-[11px]" style={{ border: "1px solid var(--bd)", background: "var(--card)", color: "var(--tx)" }} />
-          <div className="flex gap-2">
-            <button type="button" onClick={() => { setShowAdd(false); setPickDate(null); }} className="flex-1 py-1.5 text-[11px] rounded border" style={{ borderColor: "var(--bd)", color: "var(--mu)" }}>Cancel</button>
-            <button type="button" onClick={addAppointment} className="flex-1 py-1.5 text-[11px] rounded text-white" style={{ background: "var(--pink)" }}>Add</button>
-          </div>
-        </div>
-      )}
+      <div className="flex items-center gap-2 flex-wrap">
+        <button type="button" onClick={openNewSheet} className="text-[11px] py-1.5 px-2 rounded-lg border" style={{ borderColor: "var(--bd)", color: "var(--pink)" }}>+ New appointment</button>
+        {appointments.length > 0 && (
+          <button
+            type="button"
+            onClick={() => exportAppointmentsToIcs(appointments)}
+            className="text-[11px] py-1.5 px-2 rounded-lg border"
+            style={{ borderColor: "var(--bd)", color: "var(--mu)" }}
+          >
+            Export to calendar
+          </button>
+        )}
+      </div>
+
+      <AppointmentSheet
+        open={sheetOpen}
+        onClose={() => { setSheetOpen(false); setEditingAppt(undefined); }}
+        appointment={editingAppt}
+        onSaved={reload}
+      />
     </div>
   );
 }

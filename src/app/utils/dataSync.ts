@@ -65,7 +65,7 @@ export const SYNCED_DATA_KEYS = [
   'feedingInterval',
   'feedingActiveSession',
   'painkillerHistory',
-  'notes',
+  'cradl-notes',
   'shoppingList',
   'babyProfile',
   'milestones',
@@ -89,6 +89,7 @@ export const SYNCED_DATA_KEYS = [
   'customTrackers',
   'customTrackerLogs',
   'spitUpHistory',
+  'babytrackr-appointments',
 ] as const;
 
 /** Default value when server doesn't return a key. */
@@ -104,7 +105,7 @@ export const SYNCED_DATA_DEFAULTS: Record<(typeof SYNCED_DATA_KEYS)[number], unk
   feedingInterval: '3',
   feedingActiveSession: null,
   painkillerHistory: [],
-  notes: [],
+  'cradl-notes': [],
   shoppingList: [],
   babyProfile: null as { birthDate: number; name?: string } | null,
   milestones: [] as { id: string; label: string; typicalDaysMin: number; typicalDaysMax: number; achievedAt?: number }[],
@@ -128,6 +129,7 @@ export const SYNCED_DATA_DEFAULTS: Record<(typeof SYNCED_DATA_KEYS)[number], unk
   customTrackers: [] as { id: string; name: string; icon: string; unit?: string | null; createdAt: number }[],
   customTrackerLogs: [] as { id: string; trackerId: string; timestamp: number; value?: number | null; note?: string | null }[],
   spitUpHistory: [] as { id: string; timestamp: number; severity: string; timing: string; note: string | null }[],
+  'babytrackr-appointments': [] as { id: string; name: string; date: string; time: string; type: string; notes: string; questions: string }[],
 };
 
 /** Poll interval when any live session is active (feeding, sleep, tummy time). */
@@ -372,24 +374,26 @@ export async function saveManyToServer(
   if (!accessToken || typeof accessToken !== 'string') return;
   if (!Array.isArray(updates) || updates.length === 0) return;
   const clientUpdatedAt = Date.now();
-  try {
-    const response = await fetch(`${serverUrl}/data/save-many`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        updates: updates.map((u) => ({ ...u, clientUpdatedAt })),
-      }),
-    });
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      console.error('saveManyToServer failed:', response.status, text);
-    }
-  } catch (error) {
-    console.error('saveManyToServer network error:', error);
+  const results = await Promise.allSettled(
+    updates.map(async (u) => {
+      const response = await fetch(`${serverUrl}/data/save`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ dataType: u.dataType, data: u.data, clientUpdatedAt }),
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        console.warn(`saveManyToServer: "${u.dataType}" failed ${response.status}`, text);
+      }
+    }),
+  );
+  const failures = results.filter((r) => r.status === 'rejected');
+  if (failures.length > 0) {
+    console.warn(`saveManyToServer: ${failures.length}/${updates.length} requests failed`);
   }
 }
 

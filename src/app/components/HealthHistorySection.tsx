@@ -3,6 +3,7 @@
  */
 import { useMemo } from "react";
 import { format } from "date-fns";
+import { SHORT_DATE_DISPLAY, TIME_DISPLAY } from "../utils/dateUtils";
 import { getTemperatureHistory, getSymptomHistory, getMedicationHistory } from "../utils/healthStorage";
 import type { TemperatureEntry, SymptomEntry, MedicationEntry } from "../types/health";
 
@@ -58,7 +59,7 @@ export function HealthHistorySection() {
                     background: t.tempC >= 38 ? "#e87474" : "var(--coral)",
                     opacity: 0.6 + (t.tempC - minT) / range * 0.4,
                   }}
-                  title={`${format(new Date(t.timestamp), "dd/MM HH:mm")} — ${t.tempC}°C`}
+                  title={`${format(new Date(t.timestamp), `${SHORT_DATE_DISPLAY()} ${TIME_DISPLAY()}`)} — ${t.tempC}°C`}
                 />
               );
             })}
@@ -93,7 +94,7 @@ export function HealthHistorySection() {
           <ul className="space-y-1 list-none p-0 m-0">
             {last7Meds.slice(0, 10).map((m) => (
               <li key={m.id} className="text-[13px]" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
-                {format(new Date(m.timestamp), "dd MMM HH:mm")} — {m.medication}
+                {format(new Date(m.timestamp), `dd MMM ${TIME_DISPLAY()}`)} — {m.medication}
                 {m.doseML != null ? ` ${m.doseML}ml` : ""}
               </li>
             ))}

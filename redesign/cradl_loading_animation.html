@@ -1,0 +1,226 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+
+.scene{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:320px;background:#fffbf5;padding:40px 20px;
+  border-radius:24px;
+}
+
+.sky{
+  position:relative;width:240px;height:160px;margin-bottom:24px;
+}
+
+.star{
+  position:absolute;
+  width:4px;height:4px;border-radius:50%;background:#d4604a;opacity:0;
+  animation:twinkle 3s ease-in-out infinite;
+}
+.s1{top:12px;left:30px;animation-delay:0s}
+.s2{top:8px;left:110px;width:3px;height:3px;animation-delay:.6s}
+.s3{top:18px;left:190px;animation-delay:1.2s}
+.s4{top:35px;left:60px;width:3px;height:3px;animation-delay:.3s}
+.s5{top:28px;left:155px;animation-delay:.9s}
+.s6{top:42px;left:215px;width:3px;height:3px;animation-delay:1.5s}
+.s7{top:20px;left:80px;width:2px;height:2px;animation-delay:2s}
+.s8{top:50px;left:130px;width:2px;height:2px;animation-delay:1.8s}
+
+@keyframes twinkle{
+  0%,100%{opacity:0;transform:scale(0.8)}
+  50%{opacity:.9;transform:scale(1)}
+}
+
+.moon{
+  position:absolute;top:10px;right:20px;
+  animation:moonFloat 4s ease-in-out infinite;
+}
+@keyframes moonFloat{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-6px)}
+}
+
+.cradle-wrap{
+  position:absolute;bottom:0;left:50%;transform:translateX(-50%);
+  animation:sway 2.8s ease-in-out infinite;
+  transform-origin:center top;
+}
+@keyframes sway{
+  0%,100%{transform:translateX(-50%) rotate(-8deg)}
+  50%{transform:translateX(-50%) rotate(8deg)}
+}
+
+.rope{
+  width:2px;height:28px;background:#e8d0bc;margin:0 auto;
+  border-radius:1px;
+}
+
+.cradle-outer{
+  width:84px;height:48px;position:relative;
+}
+
+.cradle-body{
+  position:absolute;bottom:0;left:0;right:0;
+  width:84px;height:44px;
+  background:#fff8f0;
+  border:2px solid #e8c8b0;
+  border-radius:0 0 42px 42px;
+  border-top:none;
+}
+
+.cradle-top{
+  position:absolute;top:0;left:0;right:0;
+  width:84px;height:14px;
+  background:#fde8d8;
+  border:2px solid #e8c8b0;
+  border-radius:8px;
+  border-bottom:none;
+}
+
+.canopy{
+  position:absolute;top:-10px;left:-4px;right:-4px;
+  width:92px;height:18px;
+  background:#fde8d8;
+  border:2px solid #d4a090;
+  border-radius:46px 46px 0 0;
+}
+
+.bunny{
+  position:absolute;
+  bottom:12px;left:50%;transform:translateX(-50%);
+  animation:breathe 2.8s ease-in-out infinite;
+}
+@keyframes breathe{
+  0%,100%{transform:translateX(-50%) scaleY(1)}
+  50%{transform:translateX(-50%) scaleY(0.96)}
+}
+
+.cloud{
+  position:absolute;
+  background:#fff5ee;
+  border-radius:20px;
+  opacity:0.7;
+  animation:cloudDrift linear infinite;
+}
+.cloud::before,.cloud::after{
+  content:'';position:absolute;background:inherit;border-radius:50%;
+}
+.cl1{width:48px;height:18px;top:55px;left:-10px;animation-duration:18s;animation-delay:0s}
+.cl1::before{width:22px;height:22px;top:-10px;left:8px}
+.cl1::after{width:16px;height:16px;top:-7px;left:24px}
+.cl2{width:36px;height:14px;top:75px;left:160px;animation-duration:14s;animation-delay:-7s}
+.cl2::before{width:18px;height:18px;top:-8px;left:6px}
+.cl2::after{width:12px;height:12px;top:-5px;left:18px}
+@keyframes cloudDrift{
+  from{transform:translateX(0)}
+  to{transform:translateX(260px)}
+}
+
+.zzz-wrap{
+  position:absolute;
+  top:30px;right:55px;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+}
+.z{
+  font-size:13px;font-weight:600;color:#d4a0b4;
+  opacity:0;
+  animation:riseZ 3s ease-in-out infinite;
+}
+.z1{animation-delay:0s;font-size:10px}
+.z2{animation-delay:.5s;font-size:12px}
+.z3{animation-delay:1s;font-size:14px}
+@keyframes riseZ{
+  0%{opacity:0;transform:translateY(6px)}
+  30%,60%{opacity:.8;transform:translateY(0)}
+  100%{opacity:0;transform:translateY(-8px)}
+}
+
+.floor{
+  position:absolute;bottom:0;left:0;right:0;
+  height:12px;
+  background:#fde8d8;
+  border-radius:0 0 20px 20px;
+  opacity:.5;
+}
+
+.dots{
+  display:flex;gap:7px;align-items:center;margin-top:4px;
+}
+.dot{
+  width:7px;height:7px;border-radius:50%;background:#d4604a;opacity:.3;
+  animation:dotPulse 1.6s ease-in-out infinite;
+}
+.dot:nth-child(2){animation-delay:.25s}
+.dot:nth-child(3){animation-delay:.5s}
+@keyframes dotPulse{
+  0%,100%{opacity:.25;transform:scale(0.85)}
+  50%{opacity:.9;transform:scale(1)}
+}
+
+.label{
+  margin-top:12px;
+  font-size:13px;color:#c4a090;letter-spacing:.04em;
+  font-style:italic;
+}
+</style>
+
+<div class="scene">
+  <div class="sky">
+
+    <div class="star s1"></div>
+    <div class="star s2"></div>
+    <div class="star s3"></div>
+    <div class="star s4"></div>
+    <div class="star s5"></div>
+    <div class="star s6"></div>
+    <div class="star s7"></div>
+    <div class="star s8"></div>
+
+    <div class="cloud cl1"></div>
+    <div class="cloud cl2"></div>
+
+    <div class="moon">
+      <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+        <path d="M26 18a12 12 0 01-12 12 12 12 0 010-24 9 9 0 000 12 9 9 0 0012 0z" fill="#fde8d8" stroke="#d4a090" stroke-width="1.5"/>
+      </svg>
+    </div>
+
+    <div class="zzz-wrap">
+      <div class="z z3">z</div>
+      <div class="z z2">z</div>
+      <div class="z z1">z</div>
+    </div>
+
+    <div class="cradle-wrap">
+      <div class="rope"></div>
+      <div class="cradle-outer">
+        <div class="canopy"></div>
+        <div class="cradle-top"></div>
+        <div class="cradle-body">
+          <div class="bunny">
+            <svg width="28" height="22" viewBox="0 0 28 22" fill="none">
+              <ellipse cx="14" cy="14" rx="8" ry="7" fill="#fff0e8" stroke="#d4a090" stroke-width="1.2"/>
+              <ellipse cx="9" cy="8" rx="3.5" ry="6" fill="#fff0e8" stroke="#d4a090" stroke-width="1.2" transform="rotate(-15 9 8)"/>
+              <ellipse cx="19" cy="8" rx="3.5" ry="6" fill="#fff0e8" stroke="#d4a090" stroke-width="1.2" transform="rotate(15 19 8)"/>
+              <ellipse cx="10" cy="8" rx="1.5" ry="3" fill="#fde8d8" transform="rotate(-15 10 8)"/>
+              <ellipse cx="18" cy="8" rx="1.5" ry="3" fill="#fde8d8" transform="rotate(15 18 8)"/>
+              <ellipse cx="11.5" cy="15.5" rx="1.2" ry=".7" fill="#d4604a" opacity=".4"/>
+              <ellipse cx="16.5" cy="15.5" rx="1.2" ry=".7" fill="#d4604a" opacity=".4"/>
+              <circle cx="14" cy="14" r="1" fill="#d4604a" opacity=".5"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="floor"></div>
+  </div>
+
+  <div class="dots">
+    <div class="dot"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
+  </div>
+  <div class="label">loading your little one's day…</div>
+</div>

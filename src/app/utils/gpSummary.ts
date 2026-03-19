@@ -4,6 +4,7 @@
 
 import { format } from "date-fns";
 import type { SleepRecord, FeedingRecord, DiaperRecord, TummyTimeRecord, BabyProfile } from "../types";
+import { DATE_DISPLAY, DATETIME_DISPLAY } from './dateUtils';
 
 export interface GPSummarySection {
   title: string;
@@ -53,7 +54,7 @@ export function generateGPSummary(daysBack: number = 14): GPSummary {
     title: "Overview",
     lines: [
       `Summary for: ${babyName}`,
-      babyProfile?.birthDate ? `Age: ${ageWeeks} weeks (DOB: ${format(new Date(babyProfile.birthDate), "dd/MM/yyyy")})` : "DOB not set",
+      babyProfile?.birthDate ? `Age: ${ageWeeks} weeks (DOB: ${format(new Date(babyProfile.birthDate), DATE_DISPLAY())})` : "DOB not set",
       `Period: last ${daysBack} days`,
     ],
   });
@@ -111,7 +112,7 @@ export function generateGPSummary(daysBack: number = 14): GPSummary {
 
   return {
     babyName,
-    generatedAt: format(new Date(), "dd/MM/yyyy HH:mm"),
+    generatedAt: format(new Date(), DATETIME_DISPLAY()),
     ageWeeks,
     sections,
   };

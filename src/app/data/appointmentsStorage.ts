@@ -5,10 +5,12 @@ const APPT_KEY = "babytrackr-appointments";
 
 export interface Appointment {
   id: string;
+  name: string;
   date: string; // dd/mm/yyyy
   time: string;
-  type: "GP" | "Health visitor" | "Hospital";
+  type: "GP" | "Health visitor" | "Hospital" | "Other";
   notes: string;
+  questions: string;
 }
 
 export function getAppointments(): Appointment[] {
