@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router';
 import { Button } from '../components/ui/button';
+import { CradlLoadingAnimation } from '../components/CradlLoadingAnimation';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { checkPasswordBreach } from '../utils/passwordBreachCheck';
@@ -147,14 +148,7 @@ export function Login() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 mx-auto" style={{ borderColor: 'var(--coral)' }} />
-          <p className="mt-4 text-[14px]" style={{ color: 'var(--mu)' }}>Loading…</p>
-        </div>
-      </div>
-    );
+    return <CradlLoadingAnimation fullScreen label="Loading…" />;
   }
 
   return (

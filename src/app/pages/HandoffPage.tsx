@@ -4,6 +4,7 @@ import { getHandoffSessionFromLocal, isHandoffSessionExpired, updateHandoffSessi
 import { fetchHandoffSession, addHandoffLog, fetchHandoffLogs } from "../utils/handoffApi";
 import { getAgeMonthsWeeks } from "../utils/babyUtils";
 import { HandoffLogSheet } from "../components/HandoffLogSheet";
+import { CradlLoadingAnimation } from "../components/CradlLoadingAnimation";
 import { formatClockTime } from "../utils/dateUtils";
 import type { HandoffSession, HandoffLog } from "../types/handoff";
 
@@ -154,21 +155,7 @@ export function HandoffPage() {
 
   // LOADING state
   if (loading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: "var(--bg)" }}>
-        <style>{`@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}</style>
-        <img
-          src="/logo-no-tagline.png"
-          alt="Cradl"
-          style={{ height: 48, objectFit: "contain", marginBottom: 24 }}
-        />
-        <div className="w-64">
-          <ShimmerBlock width="100%" height={18} />
-          <ShimmerBlock width="80%" height={14} />
-          <ShimmerBlock width="90%" height={14} />
-        </div>
-      </div>
-    );
+    return <CradlLoadingAnimation fullScreen label="Loading handoff…" />;
   }
 
   // NOT FOUND

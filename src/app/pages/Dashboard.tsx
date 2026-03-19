@@ -52,6 +52,7 @@ import type { SleepRecord, FeedingRecord, DiaperRecord, TummyTimeRecord, BottleR
 import { generateInsights, type Insight } from "../utils/insights";
 import { HealthHistorySection } from "../components/HealthHistorySection";
 import { ColicSection } from "../components/ColicSection";
+import { CradlLoadingAnimation } from "../components/CradlLoadingAnimation";
 import type { CustomTrackerDefinition } from "../types/customTracker";
 import { syncWidgetData } from "../plugins/CapacitorBridge";
 
@@ -383,11 +384,7 @@ export function Dashboard() {
   const hoursSinceLastDose = lastPainkiller ? Math.round((Date.now() - lastPainkiller.timestamp) / 3600000) : null;
 
   if (loading) {
-    return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)" }}>
-        <div style={{ textAlign: "center", color: "#9a8080", fontFamily: F, fontSize: 14 }}>Loading…</div>
-      </div>
-    );
+    return <CradlLoadingAnimation fullScreen />;
   }
 
   const sharedModals = (
