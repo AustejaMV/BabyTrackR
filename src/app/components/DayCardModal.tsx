@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { format } from "date-fns";
+import { formatWeekdayLongDate } from "../utils/dateUtils";
+import { getLanguage } from "../utils/languageStorage";
 import type { MemoryDayEntry } from "../types/memory";
 import { useBaby } from "../contexts/BabyContext";
 import { getAgeMonthsWeeks } from "../utils/babyUtils";
@@ -100,7 +101,7 @@ export function DayCardModal({ entry, onClose }: DayCardModalProps) {
     saveNotes(text);
   };
 
-  const dateLabel = format(new Date(entry.date + "T12:00:00"), "EEEE, d MMMM yyyy");
+  const dateLabel = formatWeekdayLongDate(new Date(entry.date + "T12:00:00").getTime(), getLanguage());
 
   const statItems = [
     { label: "Feeds", value: String(stats.feeds), icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 2h8v4l2 16H6L8 6V2z"/><path d="M8 6h8"/></svg> },

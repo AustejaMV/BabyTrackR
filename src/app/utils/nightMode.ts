@@ -47,3 +47,31 @@ export function getNightMessage(nowMs?: number): string {
   const msg = NIGHT_MESSAGES[bucket];
   return typeof msg === "string" && msg.length > 0 ? msg : NIGHT_MESSAGES[0];
 }
+
+/** Prompt 14: Five rotating messages for 3am mode; advance on each night session (stored index). */
+export const PROMPT_14_ROTATING_MESSAGES = [
+  "Right now, thousands of other parents are doing exactly what you're doing.",
+  "The nights are long. They do get shorter. You are doing it.",
+  "She knows your voice better than anything else in the world.",
+  "Every feed you do tonight is an act of love. Even the hard ones.",
+  "You don't have to have it figured out. You just have to be here.",
+];
+
+const NIGHT_INDEX_KEY = "cradl-night-message-index";
+
+/** Advance index for next app open / feed log (Prompt 14). */
+export function advanceNightMessageIndex(): void {
+  try {
+    const idx = parseInt(localStorage.getItem(NIGHT_INDEX_KEY) ?? "0", 10);
+    localStorage.setItem(NIGHT_INDEX_KEY, String((idx + 1) % PROMPT_14_ROTATING_MESSAGES.length));
+  } catch {}
+}
+
+export function getNightRotatingMessage(): string {
+  try {
+    const idx = parseInt(localStorage.getItem(NIGHT_INDEX_KEY) ?? "0", 10) % PROMPT_14_ROTATING_MESSAGES.length;
+    return PROMPT_14_ROTATING_MESSAGES[idx] ?? PROMPT_14_ROTATING_MESSAGES[0];
+  } catch {
+    return PROMPT_14_ROTATING_MESSAGES[0];
+  }
+}

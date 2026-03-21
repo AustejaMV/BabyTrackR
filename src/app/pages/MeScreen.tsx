@@ -5,6 +5,11 @@ import { useBaby } from "../contexts/BabyContext";
 import { detectOverwhelmedPattern, type MoodEntry } from "../utils/ragePattern";
 import { getTimeCapsuleTrigger } from "../utils/timeCapsuleTrigger";
 import { saveTimeCapsule } from "../utils/timeCapsuleStorage";
+import {
+  getQuestionForWeek,
+  getSavedReflectionForWeek,
+  saveWeeklyReflection,
+} from "../utils/weeklyReflectionStorage";
 import { useDesktop } from "../components/AppLayout";
 import { DesktopLayout } from "../components/DesktopLayout";
 import { generateAllCSVs, downloadBlob } from "../utils/csvExport";
@@ -13,6 +18,7 @@ import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { IconLeaf, IconHeartPulse, IconStethoscope, IconHeart, IconPill, IconCrown, IconUsers, IconExport, IconShield } from "../components/BrandIcons";
 import { PregnancyToolsSection } from "../components/PregnancyToolsSection";
+import { BreathingExerciseModal } from "../components/BreathingExerciseModal";
 
 const ICON_MAP: Record<string, (size: number) => React.ReactNode> = {
   leaf: (s) => <IconLeaf size={s} />,
@@ -60,18 +66,17 @@ const SLEEP_RANGES = [
 const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 const MAX_SLEEP = 8;
 
+/** Prompt 8: Skin tracker and Medication moved to Health tab */
 const TOOLS: readonly { label: string; path: string; isSafety?: boolean; isExport?: boolean }[] = [
   { label: "Export data", path: "#export", isExport: true },
   { label: "Memory book", path: "/memories" },
   { label: "GP summary", path: "/gp-summary" },
-  { label: "Skin tracker", path: "/skin" },
   { label: "Shopping list", path: "/shopping-list" },
   { label: "Handoff", path: "/settings" },
   { label: "Return to work", path: "/return-to-work" },
   { label: "Library", path: "/library" },
   { label: "My notes to myself", path: "/time-capsule/write" },
   { label: "Quick notes", path: "/notes" },
-  { label: "Medication", path: "/settings" },
   { label: "Safety", path: "/safety", isSafety: true },
 ];
 
@@ -125,7 +130,6 @@ const DESKTOP_TOOLS_CHIPS = [
   { label: "Handoff card", path: "/settings" },
   { label: "Return to work", path: "/return-to-work" },
   { label: "Health log", path: "/mum-health" },
-  { label: "Skin tracker", path: "/skin" },
   { label: "Memory book", path: "/memories" },
   { label: "Knowledge library", path: "/library" },
   { label: "Jaundice watch", path: "/jaundice" },
@@ -185,11 +189,12 @@ function saveMoodEntry(mood: string): void {
   } catch {}
 }
 
+/** Prompt 19: 7-day cooldown after "I'm okay, thank you". */
 function canShowOverwhelmedNotice(): boolean {
   try {
     const ts = localStorage.getItem(OVERWHELMED_NOTICE_KEY);
     if (!ts) return true;
-    return Date.now() - Number(ts) > 48 * 60 * 60 * 1000;
+    return Date.now() - Number(ts) > 7 * 24 * 60 * 60 * 1000;
   } catch {
     return true;
   }
@@ -285,6 +290,9 @@ export function MeScreen() {
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
   const [reflectionText, setReflectionText] = useState("");
   const [reflectionSaved, setReflectionSaved] = useState(false);
+  const [reflectionEditMode, setReflectionEditMode] = useState(false);
+  const [showBreathing, setShowBreathing] = useState(false);
+  const [overwhelmedAck, setOverwhelmedAck] = useState(0);
 
   const handleExportCSV = useCallback(() => {
     try {
@@ -344,6 +352,16 @@ export function MeScreen() {
     setShowRageCard(false);
   }, [rageMoodKey]);
 
+  const currentWeekReflection = useMemo(() => {
+    const w = weeks ?? 0;
+    return w >= 1 && w <= 18 ? getSavedReflectionForWeek(w) : null;
+  }, [weeks]);
+
+  const weeklyQuestion = useMemo(
+    () => getQuestionForWeek(weeks ?? 0),
+    [weeks]
+  );
+
   const handleSaveReflection = useCallback(() => {
     const body = reflectionText.trim();
     if (!body) {
@@ -352,6 +370,7 @@ export function MeScreen() {
     }
     try {
       const currentWeeks = weeks ?? 0;
+      saveWeeklyReflection(currentWeeks, body);
       saveTimeCapsule({
         writtenAtWeeks: currentWeeks,
         writtenAt: new Date().toISOString(),
@@ -360,7 +379,8 @@ export function MeScreen() {
       });
       setReflectionText("");
       setReflectionSaved(true);
-      toast.success("Saved! You'll see this note again in 6 months.");
+      setReflectionEditMode(false);
+      toast.success("Saved to your notes");
       setTimeout(() => setReflectionSaved(false), 3000);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save");
@@ -373,14 +393,24 @@ export function MeScreen() {
     const result = detectOverwhelmedPattern(log);
     if (!result?.shouldSuggestSupport) return null;
     if (!canShowOverwhelmedNotice()) return null;
-    markOverwhelmedNoticeShown();
     return {
       id: "overwhelmed-pattern",
       color: "amber" as const,
       title: "You\u2019ve logged \u2018overwhelmed\u2019 several times recently.",
       body: result.message,
       dismissible: true,
+      onDismiss: () => { markOverwhelmedNoticeShown(); setOverwhelmedAck((c) => c + 1); },
     };
+  }, [selectedMood, overwhelmedAck]);
+
+  const overwhelmedElevated = useMemo(() => {
+    const log = loadMoodLog();
+    const last7 = log.filter((e) => {
+      const t = new Date(e.date).getTime();
+      return Date.now() - t <= 7 * 24 * 60 * 60 * 1000;
+    });
+    const count = last7.filter((e) => e.mood === "overwhelmed" || e.mood === "rage").length;
+    return count >= 5;
   }, [selectedMood]);
 
   const timeCapsuleTrigger = useMemo(() => {
@@ -390,9 +420,9 @@ export function MeScreen() {
 
   const notices: NoticeCard[] = useMemo(() => {
     const list: NoticeCard[] = [];
-    if (overwhelmedNotice) list.push(overwhelmedNotice);
+    if (overwhelmedNotice && !overwhelmedElevated) list.push(overwhelmedNotice);
     return list;
-  }, [overwhelmedNotice]);
+  }, [overwhelmedNotice, overwhelmedElevated]);
 
   const handleSleepLog = useCallback((range: string) => {
     try {
@@ -446,9 +476,37 @@ export function MeScreen() {
             to { opacity: 1; transform: translateY(0); }
           }
         `}</style>
+        <BreathingExerciseModal open={showBreathing} onClose={() => setShowBreathing(false)} />
         <DesktopLayout
           left={
             <>
+              {/* P13: I need a moment — first on Me (desktop) */}
+              <button
+                type="button"
+                onClick={() => setShowBreathing(true)}
+                style={{
+                  width: "100%",
+                  marginBottom: 10,
+                  padding: "12px 14px",
+                  borderRadius: 12,
+                  background: "linear-gradient(135deg, #f0eef4, #f4ecf8)",
+                  border: "1px solid #e4d8ec",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  textAlign: "left",
+                  fontFamily: font,
+                }}
+              >
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(122,74,180,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7a4ab4" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h0" /></svg>
+                </div>
+                <div>
+                  <div style={{ fontFamily: "Lora, Georgia, serif", fontSize: 13, fontWeight: 600, color: "#2c1f1f" }}>I need a moment</div>
+                  <div style={{ fontSize: 10, color: "var(--mu)" }}>60-second breathing exercise</div>
+                </div>
+              </button>
               {/* Hero card */}
               <div
                 style={{
@@ -894,44 +952,60 @@ export function MeScreen() {
                     overflowWrap: "break-word",
                   }}
                 >
-                  {timeCapsuleTrigger
-                    ? timeCapsuleTrigger.message
-                    : "What surprised you most about becoming a parent?"}
+                  {timeCapsuleTrigger ? timeCapsuleTrigger.message : weeklyQuestion}
                 </div>
-                <textarea
-                  value={reflectionText}
-                  onChange={(e) => setReflectionText(e.target.value)}
-                  placeholder="Write something..."
-                  maxLength={2000}
-                  style={{
-                    width: "100%",
-                    border: "1px solid #e4d4f4",
-                    borderRadius: 8,
-                    padding: "9px 10px",
-                    fontSize: 11,
-                    height: 56,
-                    resize: "none" as const,
-                    fontFamily: font,
-                    boxSizing: "border-box" as const,
-                    background: "#fff",
-                    outline: "none",
-                  }}
-                />
-                <div style={{ textAlign: "right" as const, marginTop: 4 }}>
-                  <span
-                    onClick={handleSaveReflection}
-                    style={{
-                      fontSize: 11,
-                      color: reflectionSaved ? "#6a9a6a" : "#7a4ab4",
-                      fontWeight: 600,
-                      cursor: reflectionText.trim() ? "pointer" : "default",
-                      fontFamily: font,
-                      opacity: reflectionText.trim() ? 1 : 0.5,
-                    }}
-                  >
-                    {reflectionSaved ? "Saved" : "Save →"}
-                  </span>
-                </div>
+                {currentWeekReflection && !reflectionEditMode ? (
+                  <>
+                    <div style={{ fontSize: 11, color: "#5a4a40", lineHeight: 1.5, marginBottom: 6, whiteSpace: "pre-wrap" }}>{currentWeekReflection.body}</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span onClick={() => { setReflectionText(currentWeekReflection?.body ?? ""); setReflectionEditMode(true); }} style={{ fontSize: 11, color: "#7a4ab4", fontWeight: 600, cursor: "pointer" }}>Edit</span>
+                      {reflectionSaved && (
+                        <a href="/memories" style={{ fontSize: 11, color: "#6a9a6a", fontWeight: 600 }}>Saved to your notes →</a>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <textarea
+                      value={reflectionText}
+                      onChange={(e) => setReflectionText(e.target.value)}
+                      placeholder="Write something..."
+                      maxLength={2000}
+                      style={{
+                        width: "100%",
+                        border: "1px solid #e4d4f4",
+                        borderRadius: 8,
+                        padding: "9px 10px",
+                        fontSize: 11,
+                        height: 56,
+                        resize: "none" as const,
+                        fontFamily: font,
+                        boxSizing: "border-box" as const,
+                        background: "#fff",
+                        outline: "none",
+                      }}
+                    />
+                    <div style={{ textAlign: "right" as const, marginTop: 4 }}>
+                      {reflectionSaved ? (
+                        <a href="/memories" style={{ fontSize: 11, color: "#6a9a6a", fontWeight: 600 }}>Saved to your notes →</a>
+                      ) : (
+                        <span
+                          onClick={handleSaveReflection}
+                          style={{
+                            fontSize: 11,
+                            color: "#7a4ab4",
+                            fontWeight: 600,
+                            cursor: reflectionText.trim() ? "pointer" : "default",
+                            fontFamily: font,
+                            opacity: reflectionText.trim() ? 1 : 0.5,
+                          }}
+                        >
+                          Save →
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             </>
           }
@@ -1084,6 +1158,37 @@ export function MeScreen() {
         fontFamily: font,
       }}
     >
+      {/* Prompt 13: "I need a moment" first on Me — always accessible */}
+      <LocalErrorBoundary>
+        <button
+          type="button"
+          onClick={() => setShowBreathing(true)}
+          style={{
+            width: "calc(100% - 24px)",
+            margin: "12px 12px 8px",
+            padding: "14px 16px",
+            borderRadius: 14,
+            background: "linear-gradient(135deg, #f0eef4, #f4ecf8)",
+            border: "1px solid #e4d8ec",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            textAlign: "left",
+            fontFamily: font,
+          }}
+        >
+          <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(122,74,180,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7a4ab4" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h0" /></svg>
+          </div>
+          <div>
+            <div style={{ fontFamily: "Lora, Georgia, serif", fontSize: 14, fontWeight: 600, color: "#2c1f1f" }}>I need a moment</div>
+            <div style={{ fontSize: 11, color: "var(--mu)" }}>60-second breathing exercise</div>
+          </div>
+        </button>
+      </LocalErrorBoundary>
+      <BreathingExerciseModal open={showBreathing} onClose={() => setShowBreathing(false)} />
+
       {/* Hero card */}
       <LocalErrorBoundary>
         <div
@@ -1148,6 +1253,32 @@ export function MeScreen() {
           </div>
         </div>
       </LocalErrorBoundary>
+
+      {/* Prompt 19: Elevated overwhelmed card (5+ of last 7 days) — above sleep question */}
+      {overwhelmedNotice && overwhelmedElevated && (
+        <LocalErrorBoundary>
+          <div
+            style={{
+              background: "#fff",
+              border: "2px solid rgba(122,74,180,0.35)",
+              borderRadius: 14,
+              margin: "0 12px 8px",
+              padding: 14,
+              fontFamily: font,
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#2c1f1f", marginBottom: 4 }}>{overwhelmedNotice.title}</div>
+            <div style={{ fontSize: 11, color: "#9a8080", lineHeight: 1.5, marginBottom: 8 }}>{overwhelmedNotice.body}</div>
+            <button
+              type="button"
+              onClick={() => { markOverwhelmedNoticeShown(); setOverwhelmedAck((c) => c + 1); }}
+              style={{ fontSize: 10, color: "var(--mu)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}
+            >
+              I'm okay, thank you
+            </button>
+          </div>
+        </LocalErrorBoundary>
+      )}
 
       {/* Sleep logging prompt */}
       {showSleepPrompt && (
@@ -1654,44 +1785,60 @@ export function MeScreen() {
               overflowWrap: "break-word",
             }}
           >
-            {timeCapsuleTrigger
-              ? timeCapsuleTrigger.message
-              : "What surprised you most about becoming a parent?"}
+            {timeCapsuleTrigger ? timeCapsuleTrigger.message : weeklyQuestion}
           </div>
-          <textarea
-            value={reflectionText}
-            onChange={(e) => setReflectionText(e.target.value)}
-            placeholder="Write something..."
-            maxLength={2000}
-            style={{
-              width: "100%",
-              border: "1px solid #e4d4f4",
-              borderRadius: 8,
-              padding: "9px 10px",
-              fontSize: 11,
-              height: 56,
-              resize: "none" as const,
-              fontFamily: font,
-              boxSizing: "border-box" as const,
-              background: "#fff",
-              outline: "none",
-            }}
-          />
-          <div style={{ textAlign: "right" as const, marginTop: 4 }}>
-            <span
-              onClick={handleSaveReflection}
-              style={{
-                fontSize: 11,
-                color: reflectionSaved ? "#6a9a6a" : "#7a4ab4",
-                fontWeight: 600,
-                cursor: reflectionText.trim() ? "pointer" : "default",
-                fontFamily: font,
-                opacity: reflectionText.trim() ? 1 : 0.5,
-              }}
-            >
-              {reflectionSaved ? "Saved" : "Save →"}
-            </span>
-          </div>
+          {currentWeekReflection && !reflectionEditMode ? (
+            <>
+              <div style={{ fontSize: 11, color: "#5a4a40", lineHeight: 1.5, marginBottom: 6, whiteSpace: "pre-wrap" }}>{currentWeekReflection.body}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span onClick={() => { setReflectionText(currentWeekReflection?.body ?? ""); setReflectionEditMode(true); }} style={{ fontSize: 11, color: "#7a4ab4", fontWeight: 600, cursor: "pointer" }}>Edit</span>
+                {reflectionSaved && (
+                  <a href="/memories" style={{ fontSize: 11, color: "#6a9a6a", fontWeight: 600 }}>Saved to your notes →</a>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <textarea
+                value={reflectionText}
+                onChange={(e) => setReflectionText(e.target.value)}
+                placeholder="Write something..."
+                maxLength={2000}
+                style={{
+                  width: "100%",
+                  border: "1px solid #e4d4f4",
+                  borderRadius: 8,
+                  padding: "9px 10px",
+                  fontSize: 11,
+                  height: 56,
+                  resize: "none" as const,
+                  fontFamily: font,
+                  boxSizing: "border-box" as const,
+                  background: "#fff",
+                  outline: "none",
+                }}
+              />
+              <div style={{ textAlign: "right" as const, marginTop: 4 }}>
+                {reflectionSaved ? (
+                  <a href="/memories" style={{ fontSize: 11, color: "#6a9a6a", fontWeight: 600 }}>Saved to your notes →</a>
+                ) : (
+                  <span
+                    onClick={handleSaveReflection}
+                    style={{
+                      fontSize: 11,
+                      color: "#7a4ab4",
+                      fontWeight: 600,
+                      cursor: reflectionText.trim() ? "pointer" : "default",
+                      fontFamily: font,
+                      opacity: reflectionText.trim() ? 1 : 0.5,
+                    }}
+                  >
+                    Save →
+                  </span>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </LocalErrorBoundary>
 

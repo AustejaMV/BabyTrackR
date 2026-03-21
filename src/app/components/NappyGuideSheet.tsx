@@ -35,7 +35,7 @@ export function NappyGuideSheet({ onClose }: { onClose: () => void }) {
               border: `1px solid var(--bd)`,
             }}
           >
-            {f === "all" ? "Show all" : f === "normal" ? "All normal" : "When to call GP"}
+            {f === "all" ? "Show all" : f === "normal" ? "All normal" : "When to see a doctor"}
           </button>
         ))}
       </div>
@@ -78,12 +78,12 @@ function NappyEntryRow({ entry }: { entry: NappyEntry }) {
           <p className="text-[12px] mt-2" style={{ color: "var(--tx)" }}>{entry.meaning}</p>
           {entry.whenToCallGP && (
             <div className="mt-2 p-2 rounded-lg text-[12px]" style={{ background: "rgba(255,200,200,0.2)", color: "var(--tx)" }}>
-              <strong>When to call GP:</strong> {entry.whenToCallGP}
+              <strong>When to see a doctor or call your health advice line:</strong> {entry.whenToCallGP}
             </div>
           )}
           {entry.whenToCall999 && (
             <div className="mt-1 p-2 rounded-lg text-[12px]" style={{ background: "rgba(200,80,80,0.15)", color: "var(--tx)" }}>
-              <strong>When to call 999:</strong> {entry.whenToCall999}
+              <strong>When to call your local emergency number:</strong> {entry.whenToCall999}
             </div>
           )}
         </div>

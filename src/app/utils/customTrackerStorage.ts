@@ -63,6 +63,20 @@ export function getLogsForTracker(trackerId: string): CustomTrackerLogEntry[] {
     .sort((a, b) => b.timestamp - a.timestamp);
 }
 
+/** Prompt 17: True if any custom tracker has no log today (show Health tab badge). */
+export function hasCustomTrackerReminderDue(): boolean {
+  const trackers = getCustomTrackers();
+  if (trackers.length === 0) return false;
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayMs = todayStart.getTime();
+  return trackers.some((t) => {
+    const logs = getLogsForTracker(t.id);
+    const hasToday = logs.some((e) => e.timestamp >= todayMs);
+    return !hasToday;
+  });
+}
+
 export function saveCustomTrackerLog(entry: Omit<CustomTrackerLogEntry, "id">): CustomTrackerLogEntry {
   const list = getCustomTrackerLogs();
   const id = `ctl-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;

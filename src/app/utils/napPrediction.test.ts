@@ -49,8 +49,8 @@ describe('getWakeWindowForAge', () => {
     expect(getWakeWindowForAge(-1)).toBeNull();
   });
 
-  it('returns null for age > 200', () => {
-    expect(getWakeWindowForAge(250)).toBeNull();
+  it('clamps very old ages to the last wake-window bracket', () => {
+    expect(getWakeWindowForAge(250)).toEqual({ minMinutes: 240, maxMinutes: 300 });
   });
 });
 
@@ -96,7 +96,7 @@ describe('computeNapWindow', () => {
   it('returns null when getWakeWindowForAge returns null', () => {
     const lastWake = new Date(NOW - h(1));
     expect(computeNapWindow(lastWake, -1)).toBeNull();
-    expect(computeNapWindow(lastWake, 300)).toBeNull();
+    expect(computeNapWindow(lastWake, Number.NaN)).toBeNull();
   });
 });
 
@@ -180,6 +180,13 @@ describe('getSweetSpotPrediction', () => {
     const pred = getSweetSpotPrediction(hist, dob, NOW);
     expect(pred).not.toBeNull();
     expect(pred!.status).toBe('red');
+  });
+
+  it('returns null when last wake is older than 20h (stale anchor — missing logs)', () => {
+    const dob = NOW - 10 * 7 * 24 * 3600 * 1000;
+    const lastWake = NOW - 21 * 60 * 60 * 1000;
+    const hist: SleepEntryLike[] = [{ startTime: lastWake - h(1), endTime: lastWake }];
+    expect(getSweetSpotPrediction(hist, dob, NOW)).toBeNull();
   });
 
   it('returns null when ageInWeeks > 156', () => {

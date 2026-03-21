@@ -132,7 +132,7 @@ describe("Dashboard (Today tab)", () => {
 
   it("renders 6 log buttons (Feed, Sleep, Nappy, Tummy, Bottle, More)", () => {
     render(<Dashboard />);
-    expect(screen.getByText("Feed")).toBeDefined();
+    expect(screen.getByText("Nurse")).toBeDefined();
     expect(screen.getByText("Sleep")).toBeDefined();
     expect(screen.getByText("Nappy")).toBeDefined();
     expect(screen.getByText("Tummy")).toBeDefined();

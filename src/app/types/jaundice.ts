@@ -42,7 +42,7 @@ export type JaundiceAlertLevel =
 export interface JaundiceAlert {
   level: JaundiceAlertLevel;
   message: string;
-  /** If true, show 111 / call midwife CTA; min 3s before dismiss */
+  /** If true, show local health advice line / call midwife CTA; min 3s before dismiss */
   showDialler: boolean;
   /** Daylight warning: check in good natural light */
   daylightWarning?: boolean;

@@ -17,6 +17,7 @@
     "error": "Kažkas nutiko",
     "retry": "Bandyti dar kartą",
     "search": "Ieškoti",
+    "notes": "Užrašai",
     "noData": "Dar nėra duomenų",
     "premium": "Premium",
     "upgradeToPremium": "Atnaujinti į Premium",
@@ -26,7 +27,8 @@
     "thisWeek": "Šią savaitę",
     "nav": {
       "today": "Šiandien",
-      "journey": "Kelionė",
+      "journey": "Istorija",
+      "health": "Sveikata",
       "village": "Kaimas",
       "me": "Aš"
     },
@@ -88,7 +90,57 @@
     "logFeed": "Registruoti maitinimą",
     "logSleep": "Registruoti miegą",
     "logNappy": "Registruoti sauskelnę",
-    "logTummyTime": "Registruoti gulėjimą ant pilvo"
+    "logTummyTime": "Registruoti gulėjimą ant pilvo",
+    "logSection": "Registruoti",
+    "feed": "Krūtimi",
+    "sleep": "Miegas",
+    "nappy": "Sauskelnė",
+    "tummy": "Pilvas",
+    "bottle": "Buteliukas",
+    "health": "Sveikata",
+    "pump": "Pumpuoti",
+    "solids": "Kietas maistas",
+    "activity": "Veikla",
+    "spitup": "Atrytis",
+    "now": "Dabar",
+    "awake": "Pabudęs",
+    "sleepingNow": "Miega dabar",
+    "noFeedYet": "Dar nemaitinta",
+    "noBottle": "Nėra buteliuko",
+    "tapToEdit": "Paspauskite redaguoti",
+    "holdToStop": "Laikykite sustabdyti",
+    "napRunningLong": "Miegas per ilgai — laikykite sustabdyti",
+    "feedRunningLong": "Maitinimas per ilgai — laikykite sustabdyti",
+    "tummyRunningLong": "Gulėjimas ant pilvo per ilgai — laikykite sustabdyti",
+    "runningVeryLong": "Vyksta per ilgai — laikykite sustabdyti",
+    "timeline": "Šiandienos chronologija",
+    "noEventsToday": "Šiandien įvykių nėra",
+    "desktopPatternsTitle": "Šablonai ir akcentai",
+    "desktopPatternsEmpty": "Kai Cradl pastebės naudingas tendencijas jūsų įrašuose, čia pasirodys trumpa pastaba.",
+    "desktopQuickLinks": "Eiti į",
+    "desktopLinkLibrary": "Biblioteka",
+    "desktopTimelineTitle": "Kol kas tuščia",
+    "desktopTimelineHint": "Užregistruokite maitinimą, miegą ar sauskelnę mygtukais aukščiau — įrašai čia išsirikiuos per dieną.",
+    "thisWeek": "Šią savaitę",
+    "side": "Pusė",
+    "addBirthDate": "pridėkite gimimo datą",
+    "addBirthDateSettings": "pridėkite gimimo datą nustatymuose",
+    "youreNotAlone": "Tu ne viena.",
+    "needMoment": "Man reikia akimirkos",
+    "breathingSubtitle": "60 sekundžių kvėpavimo pratimas",
+    "moreLogTypes": "Daugiau registravimo tipų",
+    "more": "Daugiau",
+    "pumpHealth": "pumpa · sveikata",
+    "greetingHi": "Sveiki",
+    "greetingWithNameBaby": "{{timeOfDay}}, {{name}} — {{baby}} gerai nakvojo.",
+    "greetingWithBaby": "{{timeOfDay}} — {{baby}} gerai nakvojo.",
+    "greetingSolo": "{{timeOfDay}}.",
+    "logHelp": {
+      "areaTitle": "Registravimo sritis",
+      "areaDesc": "Paspauskite mygtuką, kad atidarytumėte formą ir pridėtumėte detalių (pusė, trukmė, pastabos).",
+      "holdTitle": "Laikykite (2 sek)",
+      "holdDesc": "Greitas registravimas be formos: pradėkite arba sustabdykite laikmatį (maitinimas, miegas, pilvas) arba pridėkite vieną įrašą (sauskelnė)."
+    }
   },
 
   "story": {
@@ -198,5 +250,45 @@
     "feverInfo": "A temperature of 38°C or above is a fever. In babies under 3 months, always seek medical advice for any fever.",
     "emergencyNumbers": "Emergency numbers",
     "callEmergency": "Call {{number}}"
+  },
+
+  "desktop": {
+    "askCradl": "Ask Cradl",
+    "askCradlAria": "Užduokite Cradl klausimą apie kūdikį",
+    "searchPlaceholder": "Ieškoti maitinimų, miego, sauskelnių, užrašų…",
+    "searchAria": "Ieškoti įrašuose",
+    "noResults": "Nieko nerasta: \"{{query}}\"",
+    "typeToSearch": "Rašykite, kad ieškotumėte įrašuose",
+    "upgrade": "Atnaujinti",
+    "pro": "PRO",
+    "settings": "Nustatymai",
+    "profileSettings": "Profilio nustatymai"
+  },
+
+  "library": {
+    "title": "Žinių biblioteka",
+    "subtitle": "Straipsniai pagal NHS, peržiūrėti sveikatos specialistų",
+    "searchPlaceholder": "Ieškoti straipsnių…",
+    "categoryAll": "Visi",
+    "categorySleep": "Miegas",
+    "categoryFeeding": "Maitinimas",
+    "categoryNappies": "Sauskelnės",
+    "categoryDevelopment": "Raida",
+    "categoryMumsHealth": "Mamos sveikata",
+    "helpful": "Ar buvo naudinga?",
+    "translateWithGoogle": "Išversti su Google",
+    "noMatch": "Jūsų paieškai straipsnių nerasta.",
+    "lastReviewed": "Paskutinį kartą peržiūrėta {{date}}"
+  },
+
+  "statsRow": {
+    "lastSide": "Paskutinė pusė"
+  },
+
+  "handoff": {
+    "leavingNow": "Išeinate — pasidalykite gyvu santrauka su globėju",
+    "share": "Dalintis →",
+    "linkCopied": "Nuoroda nukopijuota",
+    "couldNotShare": "Nepavyko pasidalinti"
   }
 }

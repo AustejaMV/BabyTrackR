@@ -31,24 +31,20 @@ function minutesSince(target: Date, now: number) {
   return Math.max(0, Math.round((now - target.getTime()) / 60000));
 }
 
+/** Above this, "passed X minutes ago" reads silly — anchor wake / window is stale vs reality */
+const RED_PAST_WINDOW_CAP_MINUTES = 90;
+
 function formatTime(d: Date) {
   return format(d, TIME_DISPLAY());
 }
 
+/** localStorage key: hasSeenSweetSpotExplainer (Prompt 2) */
 const EXPLAINER_KEY = "cradl-nap-explainer-seen";
 
-function NapExplainer({ onDismiss, compact }: { onDismiss: () => void; compact?: boolean }) {
+/** Shared content for first-run card and ? bottom sheet (Prompt 2). */
+function WhyTimingMattersContent() {
   return (
-    <div
-      style={{
-        background: "#fff8f0",
-        border: "1.5px solid #fde8d8",
-        borderRadius: 16,
-        padding: 14,
-        margin: compact ? "0 0 8px" : "0 12px 8px",
-        fontFamily: "system-ui, sans-serif",
-      }}
-    >
+    <>
       <div style={{ fontSize: 12, fontWeight: 600, color: "#2c1f1f", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
         Why timing matters
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
@@ -62,7 +58,6 @@ function NapExplainer({ onDismiss, compact }: { onDismiss: () => void; compact?:
         Cradl tracks your baby's patterns to show when the sweet spot is open.
         The three zones help you make decisions at a glance.
       </p>
-
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         {[
           { bg: "#e4f4e4", border: "#4a8a4a", title: "Sweet spot", sub: "She'll go down easily" },
@@ -85,7 +80,23 @@ function NapExplainer({ onDismiss, compact }: { onDismiss: () => void; compact?:
           </div>
         ))}
       </div>
+    </>
+  );
+}
 
+function NapExplainer({ onDismiss, compact }: { onDismiss: () => void; compact?: boolean }) {
+  return (
+    <div
+      style={{
+        background: "#fff8f0",
+        border: "1.5px solid #fde8d8",
+        borderRadius: 16,
+        padding: 14,
+        margin: compact ? "0 0 8px" : "0 12px 8px",
+        fontFamily: "system-ui, sans-serif",
+      }}
+    >
+      <WhyTimingMattersContent />
       <div
         onClick={onDismiss}
         style={{
@@ -200,6 +211,8 @@ export function SleepSweetSpot({ prediction, onStartSleep, babyName, compact }: 
       return false;
     }
   });
+  const [showExplainerSheet, setShowExplainerSheet] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60000);
@@ -217,24 +230,28 @@ export function SleepSweetSpot({ prediction, onStartSleep, babyName, compact }: 
 
   if (!prediction) {
     return (
-      <div
-        style={{
-          border: "1px solid #e8d8c8",
-          borderRadius: 18,
-          margin: compact ? "0 0 8px" : "0 12px 8px",
-          padding: 14,
-          background: "#fff",
-          textAlign: "center" as const,
-          fontFamily: "system-ui, sans-serif",
-        }}
-      >
-        <div style={{ fontSize: 12, fontWeight: 600, color: "#2c1f1f" }}>
-          Sleep sweet spot
+      <>
+        {/* Why timing matters only when expanded; no expanded state here so no explainer or ? */}
+        <div
+          style={{
+            border: "1px solid #e8d8c8",
+            borderRadius: 12,
+            margin: compact ? "0 0 8px" : "0 12px 8px",
+            padding: "10px 12px",
+            background: "#faf8f6",
+            fontFamily: "system-ui, sans-serif",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#b0a090", flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#7a6a60" }}>Sleep sweet spot — </span>
+            <span style={{ fontSize: 11, color: "#9a8080" }}>log a sleep to activate</span>
+          </div>
         </div>
-        <div style={{ fontSize: 11, color: "#9a8080", marginTop: 4 }}>
-          Log a sleep to see {babyName ? `${babyName}'s` : "your baby's"} nap prediction
-        </div>
-      </div>
+      </>
     );
   }
 
@@ -257,11 +274,61 @@ export function SleepSweetSpot({ prediction, onStartSleep, babyName, compact }: 
   };
 
   const tag = TAG[state];
+  const showFullCard = state === "green" || isExpanded;
+  const DOT_COLOR: Record<SweetState, string> = {
+    pre: "#b0a090",
+    green: "#4a8a4a",
+    amber: "#d4904a",
+    red: "#c04040",
+  };
+  const compactStatusText =
+    state === "pre"
+      ? `Opens in ${minutesUntil(prediction.opensAt, now)}m`
+      : state === "amber"
+        ? `Closing soon · window was ${formatTime(prediction.opensAt)}–${formatTime(prediction.closesAt)}`
+        : `Overtired now · window was ${formatTime(prediction.opensAt)}–${formatTime(prediction.closesAt)}`;
 
   return (
     <>
-      {!explainerSeen && <NapExplainer onDismiss={dismissExplainer} compact={compact} />}
+      {/* Why timing matters only when expanded: first-run explainer inside expanded card below */}
 
+      {/* Prompt 3: compact row when closed/missed/overtired; full card when green or expanded. No ? when collapsed. */}
+      {!showFullCard && (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setIsExpanded(true)}
+          onKeyDown={(e) => e.key === "Enter" && setIsExpanded(true)}
+          style={{
+            border: `1px solid ${state === "red" ? "rgba(192,64,64,0.4)" : BORDER_COLORS[state]}`,
+            borderRadius: 12,
+            margin: compact ? "0 0 8px" : "0 12px 8px",
+            padding: "10px 12px",
+            background: state === "red" ? "#fef8f8" : "#fff",
+            fontFamily: "system-ui, sans-serif",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            cursor: "pointer",
+          }}
+        >
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: DOT_COLOR[state], flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: state === "red" ? "#8a3030" : "#2c1f1f" }}>Sleep sweet spot — </span>
+            <span style={{ fontSize: 11, color: state === "red" ? "#9a6060" : "#9a8080" }}>{compactStatusText}</span>
+            {state === "red" && (
+              <div style={{ fontSize: 10, color: "#8a2020", marginTop: 2, fontStyle: "italic" }}>
+                Try extra soothing — she&apos;ll still settle
+              </div>
+            )}
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: "#9a8080" }}>
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </div>
+      )}
+
+      {showFullCard && (
       <div
         role="region"
         aria-label="Sleep sweet spot"
@@ -274,6 +341,8 @@ export function SleepSweetSpot({ prediction, onStartSleep, babyName, compact }: 
           fontFamily: "system-ui, sans-serif",
         }}
       >
+        {/* Why timing matters: only in expanded card — first-run card or ? button */}
+        {!explainerSeen && <NapExplainer onDismiss={dismissExplainer} compact={compact} />}
         <div
           style={{
             display: "flex",
@@ -282,9 +351,51 @@ export function SleepSweetSpot({ prediction, onStartSleep, babyName, compact }: 
             marginBottom: 10,
           }}
         >
-          <span style={{ fontSize: 12, fontWeight: 600, color: "#2c1f1f" }}>
-            Sleep sweet spot
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#2c1f1f" }}>
+              Sleep sweet spot
+            </span>
+            {state !== "green" && (
+              <button
+                type="button"
+                onClick={() => setIsExpanded(false)}
+                aria-label="Collapse"
+                style={{
+                  width: 22, height: 22, borderRadius: "50%", border: "1px solid #e8d0c8",
+                  background: "#f4ece8", color: "#9a8080", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  padding: 0, fontFamily: "system-ui, sans-serif",
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 15l-6-6-6 6" /></svg>
+              </button>
+            )}
+            {explainerSeen && (
+              <button
+                type="button"
+                onClick={() => setShowExplainerSheet(true)}
+                aria-label="Why timing matters"
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: "50%",
+                  border: "1px solid #e8d0c8",
+                  background: "#fff8f0",
+                  color: "#9a8080",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 0,
+                  fontFamily: "system-ui, sans-serif",
+                }}
+              >
+                ?
+              </button>
+            )}
+          </div>
           <span
             style={{
               fontSize: 10,
@@ -298,6 +409,58 @@ export function SleepSweetSpot({ prediction, onStartSleep, babyName, compact }: 
             {tag.text}
           </span>
         </div>
+
+        {showExplainerSheet && (
+          <div
+            role="dialog"
+            aria-label="Why timing matters"
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 100,
+              background: "rgba(0,0,0,0.4)",
+              display: "flex",
+              alignItems: "flex-end",
+              justifyContent: "center",
+            }}
+            onClick={() => setShowExplainerSheet(false)}
+          >
+            <div
+              style={{
+                width: "100%",
+                maxWidth: 512,
+                maxHeight: "85vh",
+                background: "#fff",
+                borderRadius: "16px 16px 0 0",
+                padding: 20,
+                overflowY: "auto",
+                fontFamily: "system-ui, sans-serif",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <WhyTimingMattersContent />
+              <button
+                type="button"
+                onClick={() => setShowExplainerSheet(false)}
+                style={{
+                  width: "100%",
+                  padding: "10px 0",
+                  marginTop: 8,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#2c1f1f",
+                  background: "#f0ece8",
+                  border: "1px solid #e8d8c8",
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  fontFamily: "system-ui, sans-serif",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
           <ArcSvg prediction={prediction} state={state} now={now} />
@@ -325,19 +488,37 @@ export function SleepSweetSpot({ prediction, onStartSleep, babyName, compact }: 
                 )}
               </>
             )}
-            {state === "amber" && (
-              <div style={{ fontSize: 10, color: "#2c1f1f", marginTop: 2, lineHeight: 1.4 }}>
-                About {minutesSince(prediction.closesAt, now)} minutes before she
-                starts getting overtired. Put her down soon.
-              </div>
-            )}
-            {state === "red" && (
-              <div style={{ fontSize: 10, color: "#2c1f1f", marginTop: 2, lineHeight: 1.4 }}>
-                The sweet spot passed {minutesSince(prediction.closesAt, now)} minutes
-                ago. She's likely overtired — it'll take a little longer to settle but
-                she'll still sleep.
-              </div>
-            )}
+            {state === "amber" && (() => {
+              const m = minutesSince(prediction.closesAt, now);
+              return (
+                <div style={{ fontSize: 10, color: "#2c1f1f", marginTop: 2, lineHeight: 1.4 }}>
+                  The ideal window just closed about {m} minute{m === 1 ? "" : "s"} ago — settle her
+                  now before it gets harder.
+                </div>
+              );
+            })()}
+            {state === "red" && (() => {
+              const pastMin = minutesSince(prediction.closesAt, now);
+              const useStaleCopy = pastMin > RED_PAST_WINDOW_CAP_MINUTES;
+              return (
+                <div style={{ fontSize: 10, color: "#2c1f1f", marginTop: 2, lineHeight: 1.4 }}>
+                  {useStaleCopy ? (
+                    <>
+                      This timing is probably out of date — it&apos;s based on an older wake, and
+                      we may be missing a recent sleep. Log when she last woke or fell asleep so the
+                      window stays accurate. For now, watch her tired cues and settle her when she
+                      seems ready — she&apos;ll still sleep.
+                    </>
+                  ) : (
+                    <>
+                      The sweet spot passed {pastMin} minute{pastMin === 1 ? "" : "s"} ago.
+                      She&apos;s likely overtired — it may take a bit longer to settle, but
+                      she&apos;ll still sleep.
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
 
@@ -395,11 +576,12 @@ export function SleepSweetSpot({ prediction, onStartSleep, babyName, compact }: 
               lineHeight: 1.4,
             }}
           >
-            Try extra soothing — white noise, rocking, or feeding to sleep. Don't
+            Try extra soothing — white noise, rocking, or feeding to sleep. Don&apos;t
             worry, this happens to everyone.
           </div>
         )}
       </div>
+      )}
     </>
   );
 }

@@ -20,10 +20,20 @@ export function getDateFormatPref(): DateFormatPref {
   return "DD/MM/YYYY";
 }
 
+/** Bumped when date/time display prefs change so the UI can re-read localStorage. */
+function notifyFormatPrefsChanged(): void {
+  try {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("cradl-format-prefs"));
+    }
+  } catch {}
+}
+
 export function setDateFormatPref(pref: DateFormatPref): void {
   try {
     localStorage.setItem(DATE_KEY, pref);
   } catch {}
+  notifyFormatPrefsChanged();
 }
 
 export function getTimeFormatPref(): TimeFormatPref {
@@ -73,24 +83,45 @@ export function userDateTimePattern(): string {
 }
 
 /**
- * Long display pattern with named month: "d MMMM yyyy" stays the same
- * regardless of preference (day-first vs month-first doesn't affect
- * named-month patterns since the month name makes order unambiguous).
+ * Long display with named month — order follows date preference
+ * (e.g. "8 March 2025" vs "March 8, 2025").
  */
 export function userLongDatePattern(): string {
-  return "d MMMM yyyy";
+  return getDateFormatPref() === "MM/DD/YYYY" ? "MMMM d, yyyy" : "d MMMM yyyy";
+}
+
+/** Short day + month, no year: "8 Mar" vs "Mar 8" */
+export function userDayMonthShortPattern(): string {
+  return getDateFormatPref() === "MM/DD/YYYY" ? "MMM d" : "d MMM";
+}
+
+/** Medium: "8 Mar 2025" vs "Mar 8, 2025" */
+export function userMediumDatePattern(): string {
+  return getDateFormatPref() === "MM/DD/YYYY" ? "MMM d, yyyy" : "d MMM yyyy";
+}
+
+/** Weekday + medium date for headings */
+export function userWeekdayMediumDatePattern(): string {
+  return getDateFormatPref() === "MM/DD/YYYY" ? "EEEE, MMM d, yyyy" : "EEEE, d MMM yyyy";
+}
+
+/** Weekday + long month name */
+export function userWeekdayLongDatePattern(): string {
+  return getDateFormatPref() === "MM/DD/YYYY" ? "EEEE, MMMM d, yyyy" : "EEEE, d MMMM yyyy";
 }
 
 /**
- * "d MMM HH:mm" → respects time preference
+ * Short date-time: respects day/month order and 12h/24h.
  */
 export function userShortDateTimePattern(): string {
-  return `d MMM ${userTimePattern()}`;
+  return `${userDayMonthShortPattern()} ${userTimePattern()}`;
 }
 
 /**
- * "EEE d MMM · HH:mm" → respects time preference
+ * Weekday + short date + time — respects all display prefs.
  */
 export function userDayDateTimePattern(): string {
-  return `EEE d MMM · ${userTimePattern()}`;
+  const dayPart =
+    getDateFormatPref() === "MM/DD/YYYY" ? "EEE, MMM d" : "EEE d MMM";
+  return `${dayPart} · ${userTimePattern()}`;
 }

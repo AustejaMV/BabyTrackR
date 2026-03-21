@@ -23,6 +23,17 @@ interface GrowthSectionProps {
   onLogMeasurement?: () => void;
 }
 
+const GROWTH_SOURCE_LINKS = [
+  {
+    label: "WHO Child Growth Standards",
+    url: "https://www.who.int/tools/child-growth-standards",
+  },
+  {
+    label: "WHO standards methodology",
+    url: "https://www.who.int/tools/child-growth-standards/standards",
+  },
+];
+
 export function getPercentileDescriptor(percentile: number): string {
   if (percentile < 3) return 'Well below average — please discuss with your GP';
   if (percentile <= 15) return 'Lighter than most — but consistent growth is what matters';
@@ -342,6 +353,23 @@ export function GrowthSection({
             }}
           >
             + Log measurement
+          </div>
+
+          <div style={{ marginTop: 8, fontSize: 9, color: "var(--mu)", lineHeight: 1.45 }}>
+            <span style={{ fontWeight: 600 }}>Sources: </span>
+            {GROWTH_SOURCE_LINKS.map((src, idx) => (
+              <React.Fragment key={src.url}>
+                {idx > 0 ? <span> · </span> : null}
+                <a
+                  href={src.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "#4080a0", textDecoration: "underline", textUnderlineOffset: 2 }}
+                >
+                  {src.label}
+                </a>
+              </React.Fragment>
+            ))}
           </div>
         </>
       )}

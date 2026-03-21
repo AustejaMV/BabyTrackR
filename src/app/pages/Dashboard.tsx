@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -9,11 +9,12 @@ import { StatsRow } from "../components/StatsRow";
 import { SleepSweetSpot } from "../components/SleepSweetSpot";
 import { IfUnsettledCard } from "../components/IfUnsettledCard";
 import { CradlNoticedSection, type NoticeCard } from "../components/CradlNoticedSection";
+import { CradlNoticedCollapsed } from "../components/CradlNoticedCollapsed";
+import { DailySignOffCard } from "../components/DailySignOffCard";
+import { getLeapAtWeek, getNextLeap } from "../data/leaps";
 import { PainReliefCard } from "../components/PainReliefCard";
 import { DailyGoodEnoughCard } from "../components/DailyGoodEnoughCard";
-import { LeapWarningBanner } from "../components/LeapWarningBanner";
 import { HandoffCardCompact } from "../components/HandoffCardCompact";
-import { AppointmentsSection } from "../components/AppointmentsSection";
 import { LogDrawer } from "../components/LogDrawer";
 import { HealthLogDrawer } from "../components/HealthLogDrawer";
 import { SolidFoodDrawer } from "../components/SolidFoodDrawer";
@@ -26,10 +27,10 @@ import { CustomTrackerDrawer } from "../components/CustomTrackerDrawer";
 import { useAuth } from "../contexts/AuthContext";
 import { usePremium } from "../contexts/PremiumContext";
 import { useBaby } from "../contexts/BabyContext";
+import { useLanguage } from "../contexts/LanguageContext";
 import { useFeedTimer } from "../contexts/FeedTimerContext";
 import { getAgeMonthsWeeks } from "../utils/babyUtils";
-import { getGreeting } from "../utils/personalAddress";
-import { isNightHours, getNightMessage } from "../utils/nightMode";
+import { isNightHours, getNightRotatingMessage, advanceNightMessageIndex } from "../utils/nightMode";
 import { BreathingExerciseModal } from "../components/BreathingExerciseModal";
 import { ReturnToWorkCountdown } from "../components/ReturnToWorkCountdown";
 import { BabySwitcher } from "../components/BabySwitcher";
@@ -39,22 +40,25 @@ import { generateCryingReasons } from "../utils/cryingDiagnostic";
 import { getCustomTrackers, getLogsForTracker } from "../utils/customTrackerStorage";
 import { getIconDisplay } from "../data/customTrackerIcons";
 import { readStoredArray } from "../utils/warningUtils";
-import { loadAllDataFromServer, saveData, clearSyncedDataFromLocalStorage, SYNCED_DATA_KEYS, SYNCED_DATA_DEFAULTS } from "../utils/dataSync";
-import { requestNotificationPermission, scheduleNotification } from "../utils/notifications";
+import { loadAllDataFromServer, saveData, applyServerSnapshotToLocalStorage, flushPendingSaves, getPendingSavesCount } from "../utils/dataSync";
+import { requestNotificationPermission } from "../utils/notifications";
+import { rescheduleCareNotifications } from "../utils/careNotifications";
 import { scheduleNextMedicationReminder } from "../utils/medicationReminderScheduler";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
 import { detectSleepRegression } from "../utils/sleepRegression";
 import { generateReadinessCards } from "../utils/readinessUtils";
-import { formatTimeAndAgo, TIME_DISPLAY } from "../utils/dateUtils";
+import { formatDurationMsProse, formatIntervalMinutesProse, formatTimeAndAgo, TIME_DISPLAY } from "../utils/dateUtils";
 import { buildActiveTriggers, checkArticleTriggers } from "../utils/articleTrigger";
 import { ContextualArticleCard } from "../components/ContextualArticleCard";
 import type { SleepRecord, FeedingRecord, DiaperRecord, TummyTimeRecord, BottleRecord, PainkillerDose, ActiveFeedingSession, BabyProfile, TimelineEvent } from "../types";
 import { generateInsights, type Insight } from "../utils/insights";
-import { HealthHistorySection } from "../components/HealthHistorySection";
 import { ColicSection } from "../components/ColicSection";
 import { CradlLoadingAnimation } from "../components/CradlLoadingAnimation";
+import { HoldToLogButton } from "../components/HoldToLogButton";
 import type { CustomTrackerDefinition } from "../types/customTracker";
 import { syncWidgetData } from "../plugins/CapacitorBridge";
+import { quickLogFeed, quickLogSleep, quickLogDiaper, quickLogTummy, quickEndFeed, quickEndSleep, quickEndTummy } from "../utils/quickLog";
+import { getTimerThresholdState } from "../utils/activeTimerThresholds";
 
 type DrawerType = "feed" | "sleep" | "diaper" | "tummy" | "bottle" | "pump" | "health" | "solids" | "activity" | "spitup" | null;
 
@@ -69,13 +73,14 @@ const CARD: React.CSSProperties = {
 };
 
 import { IconNursing, IconBottle, IconMoon, IconDroplet, IconHand, IconThermo, IconPump, IconSpoon, IconBaby } from "../components/BrandIcons";
+import { HelpCircle, ClipboardList } from "lucide-react";
 
-const LOG_ITEMS = [
-  { type: "feed" as const, label: "Feed", color: "#c05030" },
-  { type: "sleep" as const, label: "Sleep", color: "#4080a0" },
-  { type: "diaper" as const, label: "Nappy", color: "#4a8a4a" },
-  { type: "tummy" as const, label: "Tummy", color: "#7a4ab4" },
-  { type: "bottle" as const, label: "Bottle", color: "#c05030" },
+const LOG_ITEM_CONFIG = [
+  { type: "feed" as const, labelKey: "today.feed", color: "#c05030" },
+  { type: "sleep" as const, labelKey: "today.sleep", color: "#4080a0" },
+  { type: "diaper" as const, labelKey: "today.nappy", color: "#4a8a4a" },
+  { type: "tummy" as const, labelKey: "today.tummy", color: "#7a4ab4" },
+  { type: "bottle" as const, labelKey: "today.bottle", color: "#c05030" },
 ] as const;
 
 const LOG_ICON_MAP: Record<string, (color: string, size: number) => React.ReactNode> = {
@@ -89,7 +94,17 @@ const LOG_ICON_MAP: Record<string, (color: string, size: number) => React.ReactN
   solids: (c, s) => <IconSpoon size={s} color={c} />,
 };
 
+/** Wall-clock elapsed for active sleep; supports string timestamps from JSON/sync. */
+function getSleepTrackingStartMs(record: SleepRecord | null): number {
+  if (!record) return 0;
+  const raw = record.startTime ?? record.serverStartTime;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export function Dashboard() {
+  const { t } = useLanguage();
   const [sleepHistory, setSleepHistory] = useState<SleepRecord[]>([]);
   const [feedingHistory, setFeedingHistory] = useState<FeedingRecord[]>([]);
   const [diaperHistory, setDiaperHistory] = useState<DiaperRecord[]>([]);
@@ -99,6 +114,12 @@ export function Dashboard() {
   const [lastFeeding, setLastFeeding] = useState<FeedingRecord | null>(null);
   const [lastPainkiller, setLastPainkiller] = useState<PainkillerDose | null>(null);
   const [openDrawer, setOpenDrawer] = useState<DrawerType>(null);
+  /** Bumped when sleep/tummy session changes in LogDrawer so hold-to-log RAF/progress resets and colors sync immediately */
+  const [logButtonUiEpoch, setLogButtonUiEpoch] = useState(0);
+  /** Live elapsed for sleep/tummy tiles; bumped on load and every second while a session runs */
+  const [timerTick, setTimerTick] = useState(0);
+  const [logHelpOpen, setLogHelpOpen] = useState(false);
+  const logHelpRef = useRef<HTMLDivElement>(null);
   const [todayModalOpen, setTodayModalOpen] = useState(false);
   const [todayFilter, setTodayFilter] = useState<"feed" | "sleep" | "diaper" | "tummy" | null>(null);
   const [editEvent, setEditEvent] = useState<TimelineEvent | null>(null);
@@ -107,22 +128,104 @@ export function Dashboard() {
   const [customTrackerDrawerId, setCustomTrackerDrawerId] = useState<string | null>(null);
   const [showCreateTrackerSheet, setShowCreateTrackerSheet] = useState(false);
   const [showMoreDrawers, setShowMoreDrawers] = useState(false);
+  const [thisWeekHelpOpen, setThisWeekHelpOpen] = useState(false);
   const [statsToday, setStatsToday] = useState({ feeds: 0, sleepH: "0h", diapers: 0, tummyM: 0, totalMl: 0 });
   const [showBreathingModal, setShowBreathingModal] = useState(false);
 
 
   const nightMode = isNightHours();
 
+  const LOG_ITEMS = useMemo(
+    () => LOG_ITEM_CONFIG.map((c) => ({ ...c, label: t(c.labelKey) })),
+    [t]
+  );
+
   const { user, session, loading, familyId } = useAuth();
   const { isPremium } = usePremium();
   const { activeBaby } = useBaby();
   const feedTimer = useFeedTimer();
   const navigate = useNavigate();
+
+  const handleHoldToLog = useCallback(
+    (type: "feed" | "sleep" | "diaper" | "tummy") => {
+      const token = session?.access_token ?? "";
+      let result: { toastMessage: string; openDrawer?: "feed" | "sleep" | "diaper" | "tummy" } | null = null;
+      if (type === "feed") {
+        if (feedTimer?.timerRunning || feedTimer?.timerPaused) {
+          result = quickEndFeed(feedTimer.elapsedMs, feedTimer.feedSegments, feedTimer.feedSide, saveData, token);
+          feedTimer.resetFeedTimer();
+        } else {
+          result = quickLogFeed(
+            (side) => {
+              feedTimer?.setFeedSide(side);
+              feedTimer?.setTimerRunning(true);
+            },
+            saveData,
+            token,
+          );
+        }
+      } else if (type === "sleep") {
+        let hasCurrent = false;
+        try {
+          const raw = localStorage.getItem("currentSleep");
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed?.id) hasCurrent = true;
+          }
+        } catch {}
+        // Starting sleep ends an active nurse session (can't sleep + feed at once).
+        if (
+          !hasCurrent &&
+          feedTimer &&
+          (feedTimer.timerRunning || feedTimer.timerPaused)
+        ) {
+          quickEndFeed(
+            feedTimer.elapsedMs,
+            feedTimer.feedSegments,
+            feedTimer.feedSide,
+            saveData,
+            token,
+          );
+          feedTimer.resetFeedTimer();
+        }
+        result = hasCurrent ? quickEndSleep(saveData, token) : quickLogSleep(saveData, token);
+        if (!result) result = quickLogSleep(saveData, token);
+      } else if (type === "diaper") {
+        result = quickLogDiaper(saveData, token);
+      } else {
+        result = quickEndTummy(saveData, token) ?? quickLogTummy(saveData, token);
+      }
+      if (!result) return;
+      loadLocalDataRef.current();
+      syncWidgetData();
+      setLogButtonUiEpoch((e) => e + 1);
+      setTimerTick((n) => n + 1);
+      toast.success(result.toastMessage, {
+        duration: 3000,
+        action: result.openDrawer ? { label: t("today.tapToEdit"), onClick: () => setOpenDrawer(result.openDrawer!) } : undefined,
+      });
+      // Do not auto-open drawer on hold — user can tap "Tap to edit" in the toast if they want the form
+    },
+    [session?.access_token, feedTimer]
+  );
   const [searchParams] = useSearchParams();
 
   const babyProfile: BabyProfile | null = activeBaby
     ? { birthDate: activeBaby.birthDate, name: activeBaby.name, parentName: activeBaby.parentName, photoDataUrl: activeBaby.photoDataUrl, weight: activeBaby.weight, height: activeBaby.height }
     : null;
+
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    const name = (babyProfile?.parentName ?? "").trim();
+    const baby = (babyProfile?.name ?? "").trim();
+    let timeOfDay = t("today.goodMorning");
+    if (hour >= 12 && hour < 18) timeOfDay = t("today.goodAfternoon");
+    else if (hour >= 18 && hour < 23) timeOfDay = t("today.goodEvening");
+    else if (hour >= 23 || hour < 5) timeOfDay = t("today.greetingHi");
+    if (name && baby) return t("today.greetingWithNameBaby", { timeOfDay, name, baby });
+    if (baby) return t("today.greetingWithBaby", { timeOfDay, baby });
+    return t("today.greetingSolo", { timeOfDay });
+  }, [t, babyProfile?.parentName, babyProfile?.name]);
 
   const loadLocalDataRef = useRef<() => void>(() => {});
 
@@ -168,19 +271,82 @@ export function Dashboard() {
 
   useEffect(() => { if (activeBaby?.id) { loadLocalData(); syncWidgetData(); } }, [activeBaby?.id]);
 
+  const prevDrawerRef = useRef<DrawerType>(null);
   useEffect(() => {
-    if (!user || !session) { loadLocalData(); return; }
+    if (prevDrawerRef.current !== null && openDrawer === null) window.scrollTo(0, 0);
+    prevDrawerRef.current = openDrawer;
+  }, [openDrawer]);
+
+  const refreshLogButtonsNow = useCallback(() => {
+    loadLocalDataRef.current();
+    syncWidgetData();
+    setLogButtonUiEpoch((e) => e + 1);
+    setTimerTick((n) => n + 1);
+  }, []);
+
+  // Any drawer visibility change should immediately cancel stale hold animations
+  // and recompute active timer visuals rather than waiting for the next second tick.
+  useEffect(() => {
+    setLogButtonUiEpoch((e) => e + 1);
+    setTimerTick((n) => n + 1);
+  }, [openDrawer]);
+
+  useEffect(() => {
+    if (!logHelpOpen) return;
+    const close = (e: MouseEvent) => {
+      if (logHelpRef.current && !logHelpRef.current.contains(e.target as Node)) setLogHelpOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [logHelpOpen]);
+
+  useEffect(() => {
+    if (!thisWeekHelpOpen) return;
+    const close = (e: MouseEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && !el.closest("[data-thisweek-help-wrap]")) setThisWeekHelpOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [thisWeekHelpOpen]);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (nightMode) advanceNightMessageIndex();
+    };
+  }, [nightMode]);
+
+  useEffect(() => {
+    if (!user || !session) {
+      loadLocalData();
+      requestNotificationPermission();
+      return;
+    }
+    // Show local/cached data immediately so dashboard doesn't feel stuck loading
+    loadLocalData();
+    requestNotificationPermission();
     if (familyId) {
+      // Prevent stale server snapshots from overwriting fresh local logs.
+      // saveData() batches writes; if we fetch too soon after logging, server may still be behind.
+      flushPendingSaves(session.access_token);
+      if (getPendingSavesCount() > 0) {
+        return;
+      }
       loadAllDataFromServer(session.access_token).then(({ ok, data }) => {
+        // If saves are currently pending, don't clobber local state with older remote data.
+        if (getPendingSavesCount() > 0) {
+          return;
+        }
         if (ok && Object.keys(data).length > 0) {
-          clearSyncedDataFromLocalStorage();
-          Object.entries(data).forEach(([k, v]) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} });
-          for (const key of SYNCED_DATA_KEYS) { if (!(key in data)) try { localStorage.setItem(key, JSON.stringify(SYNCED_DATA_DEFAULTS[key])); } catch {} }
+          applyServerSnapshotToLocalStorage(data);
         }
         loadLocalDataRef.current();
       });
     }
-    requestNotificationPermission();
   }, [user, loading, session, navigate, familyId]);
 
   useEffect(() => {
@@ -194,7 +360,8 @@ export function Dashboard() {
     else if (action === "pump") setOpenDrawer("pump");
     else if (action === "timeline") setTodayModalOpen(true);
     else if (action === "pee") logDiaper("pee");
-  }, [searchParams]);
+    else if (action === "health") navigate("/health");
+  }, [searchParams, navigate]);
 
   const logDiaper = (type: "pee" | "poop") => {
     endCurrentSleepIfActive((sl) => { if (session?.access_token) { saveData("sleepHistory", sl, session.access_token); saveData("currentSleep", null, session.access_token); } });
@@ -218,8 +385,6 @@ export function Dashboard() {
     if (session?.access_token) saveData("painkillerHistory", history, session.access_token);
     setLastPainkiller(dose);
     scheduleNextMedicationReminder();
-    const remaining = 8 * 3600000 - 0;
-    if (remaining > 0) scheduleNotification("Painkiller reminder", "It has been 8 hours since your last dose.", remaining);
     toast.success("Dose logged");
   };
 
@@ -227,6 +392,35 @@ export function Dashboard() {
     () => getSweetSpotPrediction(sleepHistory, babyProfile?.birthDate ?? null),
     [sleepHistory, babyProfile?.birthDate]
   );
+
+  useEffect(() => {
+    if (!babyProfile?.birthDate) return;
+    const handle = window.setTimeout(() => {
+      void rescheduleCareNotifications({
+        babyDob: babyProfile.birthDate,
+        sleepHistory,
+        feedingHistory,
+        bottleHistory,
+        diaperHistory,
+        currentSleep,
+        prediction,
+        lastPainkiller,
+        feedInProgress: Boolean(feedTimer?.timerRunning && !feedTimer?.timerPaused),
+      });
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [
+    babyProfile?.birthDate,
+    sleepHistory,
+    feedingHistory,
+    bottleHistory,
+    diaperHistory,
+    currentSleep,
+    prediction,
+    lastPainkiller,
+    feedTimer?.timerRunning,
+    feedTimer?.timerPaused,
+  ]);
 
   const cryReasons = useMemo(
     () => generateCryingReasons({ feedingHistory, sleepHistory, diaperHistory, babyDob: babyProfile?.birthDate ?? null }),
@@ -264,15 +458,66 @@ export function Dashboard() {
     return Math.floor((Date.now() - dobMs) / (7 * 24 * 60 * 60 * 1000));
   }, [babyProfile?.birthDate]);
 
+  const birthDateMs = babyProfile?.birthDate != null ? (typeof babyProfile.birthDate === "number" ? babyProfile.birthDate : new Date(babyProfile.birthDate).getTime()) : null;
+  const feedActive = !!(feedTimer?.timerRunning && !feedTimer?.timerPaused);
+  const feedElapsedMs = feedTimer?.elapsedMs ?? 0;
+  const sleepElapsedMs = useMemo(() => {
+    if (!currentSleep) return 0;
+    const t0 = getSleepTrackingStartMs(currentSleep);
+    if (t0 <= 0) return 0;
+    return Math.max(0, Date.now() - t0);
+  }, [currentSleep, timerTick]);
+  const activeTummy = useMemo(() => {
+    const withoutEnd = tummyTimeHistory.filter((r) => r.endTime == null);
+    return withoutEnd.length > 0 ? withoutEnd[withoutEnd.length - 1]! : null;
+  }, [tummyTimeHistory]);
+  const tummyElapsedMs = useMemo(() => {
+    if (!activeTummy) return 0;
+    const t0 = typeof activeTummy.startTime === "number" && Number.isFinite(activeTummy.startTime)
+      ? activeTummy.startTime
+      : Number(activeTummy.startTime);
+    if (!Number.isFinite(t0) || t0 <= 0) return 0;
+    return Math.max(0, Date.now() - t0);
+  }, [activeTummy, timerTick]);
+  useEffect(() => {
+    if (!currentSleep && !activeTummy) return;
+    const id = setInterval(() => setTimerTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [currentSleep?.id, activeTummy?.id]);
+
+  const feedThresholdState = getTimerThresholdState("feed", feedElapsedMs, {});
+  const sleepThresholdState = getTimerThresholdState("sleep", sleepElapsedMs, { sleepHistory, birthDateMs });
+  const tummyThresholdState = getTimerThresholdState("tummy", tummyElapsedMs, {});
+  const anyOtherInAlert = (currentSleep && sleepThresholdState === "alert") || (activeTummy && tummyThresholdState === "alert");
+
+  const activeSubLabelFor = (timerType: "feed" | "sleep" | "tummy", state: "normal" | "warning" | "alert") => {
+    if (state === "alert") return t("today.runningVeryLong");
+    if (state === "warning") {
+      if (timerType === "sleep") return t("today.napRunningLong");
+      if (timerType === "feed") return t("today.feedRunningLong");
+      return t("today.tummyRunningLong");
+    }
+    return t("today.holdToStop");
+  };
+
   const insights = useMemo<Insight[]>(() => {
     try {
       return generateInsights({
         sleepHistory, feedingHistory, diaperHistory,
         tummyHistory: tummyTimeHistory, bottleHistory,
         babyProfile: babyProfile ?? null, ageInWeeks: ageInWeeks ?? 0,
-      }).slice(0, 3);
+      }).slice(0, 5);
     } catch { return []; }
   }, [sleepHistory, feedingHistory, diaperHistory, tummyTimeHistory, bottleHistory, babyProfile, ageInWeeks]);
+
+  const leapText = useMemo(() => {
+    const weeks = ageInWeeks ?? 0;
+    const current = getLeapAtWeek(weeks);
+    if (current) return `Leap ${current.leapNumber} is happening now — extra fussiness is normal`;
+    const next = getNextLeap(weeks);
+    if (next && next.inDays <= 3) return `Leap ${next.leap.leapNumber} starts in ${next.inDays} day${next.inDays === 1 ? "" : "s"} — extra fussiness is normal`;
+    return null;
+  }, [ageInWeeks]);
 
   const notices = useMemo<NoticeCard[]>(() => {
     const cards: NoticeCard[] = [];
@@ -297,7 +542,7 @@ export function Dashboard() {
         cards.push({
           id: "short-naps", color: "amber",
           title: "Short naps — she may be overtired going down",
-          body: `Average nap is ${Math.round(avgDur / 60000)} minutes this week. Try putting her down 10 minutes earlier.`,
+          body: `Average nap is ${formatDurationMsProse(avgDur)} this week. Try putting her down 10 minutes earlier.`,
         });
       }
     }
@@ -313,7 +558,7 @@ export function Dashboard() {
         cards.push({
           id: "feed-spacing", color: "green",
           title: "Feeds spacing out — a good sign",
-          body: `Average ${Math.round(avgGap)} minutes between feeds today. She's settling into a rhythm.`,
+          body: `Average ${formatIntervalMinutesProse(avgGap)} between feeds today. She's settling into a rhythm.`,
         });
       }
     }
@@ -392,7 +637,10 @@ export function Dashboard() {
       {openDrawer && (
         <div
           style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
-          onClick={() => setOpenDrawer(null)}
+          onClick={() => {
+            refreshLogButtonsNow();
+            setOpenDrawer(null);
+          }}
         >
           <div
             style={{ width: "100%", maxWidth: 512, maxHeight: "90dvh", background: "#fff", borderRadius: "16px 16px 0 0", overflowY: "auto", WebkitOverflowScrolling: "touch" } as React.CSSProperties}
@@ -403,7 +651,22 @@ export function Dashboard() {
             {openDrawer === "activity" && <ActivityDrawer onClose={() => setOpenDrawer(null)} onSaved={() => { loadLocalDataRef.current(); syncWidgetData(); setOpenDrawer(null); }} />}
             {openDrawer === "spitup" && <SpitUpDrawer onClose={() => setOpenDrawer(null)} onSaved={() => { loadLocalDataRef.current(); syncWidgetData(); setOpenDrawer(null); }} session={session} />}
             {openDrawer && !["health", "solids", "activity", "spitup"].includes(openDrawer) && (
-              <LogDrawer type={openDrawer as "feed" | "sleep" | "diaper" | "tummy" | "bottle" | "pump"} onClose={() => setOpenDrawer(null)} onSaved={() => { loadLocalDataRef.current(); syncWidgetData(); setOpenDrawer(null); }} onSwitchType={(t) => setOpenDrawer(t as DrawerType)} session={session} />
+              <LogDrawer
+                type={openDrawer as "feed" | "sleep" | "diaper" | "tummy" | "bottle" | "pump"}
+                onClose={() => {
+                  refreshLogButtonsNow();
+                  setOpenDrawer(null);
+                }}
+                onSaved={() => {
+                  refreshLogButtonsNow();
+                  setOpenDrawer(null);
+                }}
+                onSessionChange={() => {
+                  refreshLogButtonsNow();
+                }}
+                onSwitchType={(t) => setOpenDrawer(t as DrawerType)}
+                session={session}
+              />
             )}
           </div>
         </div>
@@ -453,8 +716,8 @@ export function Dashboard() {
     const todayStart = new Date().setHours(0, 0, 0, 0);
     const timelineEvents: { time: string; desc: string; color: string }[] = [];
     for (const f of feedingHistory) {
-      const t = f.endTime ?? f.timestamp ?? 0;
-      if (t >= todayStart) timelineEvents.push({ time: format(t, TIME_DISPLAY()), desc: "Feed", color: "#c05030" });
+      const ts = f.endTime ?? f.timestamp ?? 0;
+      if (ts >= todayStart) timelineEvents.push({ time: format(ts, TIME_DISPLAY()), desc: t("today.feed"), color: "#c05030" });
     }
     for (const s of sleepHistory) {
       if (s.endTime && s.endTime >= todayStart) {
@@ -480,14 +743,16 @@ export function Dashboard() {
     const noticeColor = (c: string) => c === "amber" ? "#e8a040" : c === "green" ? "#4a8a4a" : c === "purple" ? "#7a4ab4" : "#4080a0";
 
     const logButtons: { type: DrawerType; label: string; sub: string; bg: string; color: string }[] = [
-      { type: "feed", label: "Feed", sub: lastFeeding ? formatTimeAndAgo(lastFeeding.endTime ?? lastFeeding.timestamp).ago : "—", bg: "#feeae4", color: "#c05030" },
-      { type: "sleep", label: "Sleep", sub: currentSleep ? "Now" : "Awake", bg: "#e4eef8", color: "#4080a0" },
-      { type: "diaper", label: "Nappy", sub: `${statsToday.diapers} today`, bg: "#e4f4e4", color: "#4a8a4a" },
-      { type: "tummy", label: "Tummy", sub: `${statsToday.tummyM}m`, bg: "#f0eafe", color: "#7a4ab4" },
-      { type: "bottle", label: "Bottle", sub: statsToday.totalMl > 0 ? `${statsToday.totalMl}ml` : "—", bg: "#feeae4", color: "#c05030" },
-      { type: "health", label: "Health", sub: "Log", bg: "#ffd4c8", color: "#c05030" },
-      { type: "pump", label: "Pump", sub: "Log", bg: "#f4ece8", color: "#9a7060" },
-      { type: "solids", label: "Solids", sub: "Log", bg: "#e8f4e0", color: "#4a8a4a" },
+      { type: "feed", label: t("today.feed"), sub: lastFeeding ? formatTimeAndAgo(lastFeeding.endTime ?? lastFeeding.timestamp).ago : "—", bg: "#feeae4", color: "#c05030" },
+      { type: "sleep", label: t("today.sleep"), sub: currentSleep ? t("today.now") : t("today.awake"), bg: "#e4eef8", color: "#4080a0" },
+      { type: "diaper", label: t("today.nappy"), sub: `${statsToday.diapers} today`, bg: "#e4f4e4", color: "#4a8a4a" },
+      { type: "tummy", label: t("today.tummy"), sub: `${statsToday.tummyM}m`, bg: "#f0eafe", color: "#7a4ab4" },
+      { type: "bottle", label: t("today.bottle"), sub: statsToday.totalMl > 0 ? `${statsToday.totalMl}ml` : "—", bg: "#feeae4", color: "#c05030" },
+      { type: "health", label: t("today.health"), sub: t("today.logSection"), bg: "#ffd4c8", color: "#c05030" },
+      { type: "pump", label: t("today.pump"), sub: t("today.logSection"), bg: "#f4ece8", color: "#9a7060" },
+      { type: "solids", label: t("today.solids"), sub: t("today.logSection"), bg: "#e8f4e0", color: "#4a8a4a" },
+      { type: "activity", label: t("today.activity"), sub: t("today.logSection"), bg: "#fef4e4", color: "#b08040" },
+      { type: "spitup", label: t("today.spitup"), sub: t("today.logSection"), bg: "#f0ece8", color: "#9a8080" },
     ];
 
     const nm = nightMode;
@@ -498,31 +763,25 @@ export function Dashboard() {
 
     const leftColumn = (
       <>
-        {/* Night companion hero (desktop) */}
+        {/* P14 desktop: 3am — "You're not alone" + rotating message */}
         {nm && (
           <div style={{
             padding: "20px 16px", marginBottom: 12, borderRadius: 14, textAlign: "center",
             background: "linear-gradient(135deg, #1a1428, #1e1832)",
             border: "1px solid rgba(196,160,212,0.2)",
           }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: "50%", margin: "0 auto 12px",
-              background: "radial-gradient(circle, rgba(196,160,212,0.3), rgba(122,179,212,0.15))",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(196,160,212,0.8)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-              </svg>
+            <div style={{ fontFamily: "Georgia, serif", fontSize: 15, fontWeight: 600, color: "rgba(255,255,255,0.95)", marginBottom: 8 }}>
+              {t("today.youreNotAlone")}
             </div>
-            <div style={{ fontFamily: "Georgia, serif", fontSize: 14, lineHeight: 1.6, color: "rgba(255,255,255,0.9)", marginBottom: 14 }}>
-              {getNightMessage()}
+            <div style={{ fontFamily: "Georgia, serif", fontSize: 13, lineHeight: 1.6, color: "rgba(255,255,255,0.85)", marginBottom: 14 }}>
+              {getNightRotatingMessage()}
             </div>
             <button type="button" onClick={() => setShowBreathingModal(true)} style={{
               background: "rgba(196,160,212,0.2)", border: "1px solid rgba(196,160,212,0.3)",
               borderRadius: 12, padding: "10px 20px", fontSize: 13, fontWeight: 600,
               color: "rgba(255,255,255,0.85)", cursor: "pointer", fontFamily: F,
             }}>
-              I need a moment
+              {t("today.needMoment")}
             </button>
           </div>
         )}
@@ -535,36 +794,43 @@ export function Dashboard() {
           </div>
           <div>
             <div style={{ fontSize: 15, fontWeight: 600, color: dTx, display: "flex", alignItems: "center", gap: 6 }}>
-              {getGreeting(babyProfile?.parentName ?? null, babyProfile?.name ?? null, new Date().getHours())}
+              {greeting}
               <BabySwitcher />
             </div>
-            <div style={{ fontSize: 12, color: dMu }}>{babyProfile?.name ?? "Baby"} · {ageStr || "add birth date"}</div>
+            <div style={{ fontSize: 12, color: dMu }}>{babyProfile?.name ?? t("common.baby")} · {ageStr || t("today.addBirthDate")}</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-          {statPill(statsToday.feeds, "Feeds", "#c05030")}
-          {statPill(statsToday.sleepH, "Sleep", "#4080a0")}
-          {statPill(statsToday.diapers, "Nappies", "#4a8a4a")}
+          {statPill(statsToday.feeds, t("today.statsRow.feeds"), "#c05030")}
+          {statPill(statsToday.sleepH, t("today.statsRow.sleep"), "#4080a0")}
+          {statPill(statsToday.diapers, t("today.statsRow.nappies"), "#4a8a4a")}
         </div>
         <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-          {statPill(getLastFeedSide() === "left" ? "L" : getLastFeedSide() === "right" ? "R" : "—", "Side", "#9a7060")}
-          {statPill(`${statsToday.tummyM}m`, "Tummy", "#7a4ab4")}
-          {statPill(awakeTimeSince, "Awake", "#b08040")}
+          {statPill(getLastFeedSide() === "left" ? "L" : getLastFeedSide() === "right" ? "R" : "—", t("today.side"), "#9a7060")}
+          {statPill(`${statsToday.tummyM}m`, t("today.tummy"), "#7a4ab4")}
+          {statPill(awakeTimeSince, t("today.awake"), "#b08040")}
         </div>
         <LocalErrorBoundary>
           <SleepSweetSpot prediction={prediction} onStartSleep={() => setOpenDrawer("sleep")} babyName={babyProfile?.name} compact />
         </LocalErrorBoundary>
         <IfUnsettledCard reasons={unsettledReasons} compact nightMode={nm} />
         <LocalErrorBoundary>
-          <ColicSection ageInWeeks={ageInWeeks ?? 0} compact />
-        </LocalErrorBoundary>
-        <LocalErrorBoundary>
-          <PainReliefCard hoursSinceLastDose={hoursSinceLastDose} onLog={logPainkiller} compact />
+          <ColicSection ageInWeeks={ageInWeeks ?? 0} compact collapsedRow />
         </LocalErrorBoundary>
 
         {/* Handoff card */}
         <LocalErrorBoundary>
-          <HandoffCardCompact />
+          <HandoffCardCompact compact />
+        </LocalErrorBoundary>
+
+        {/* P9 desktop: Daily sign-off */}
+        <LocalErrorBoundary>
+          <DailySignOffCard
+            feedsToday={statsToday.feeds}
+            nappiesToday={statsToday.diapers}
+            tummyMinutesToday={statsToday.tummyM}
+            parentName={babyProfile?.parentName}
+          />
         </LocalErrorBoundary>
 
         {/* Breathing button (daytime desktop) */}
@@ -579,8 +845,8 @@ export function Dashboard() {
               <circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h0" />
             </svg>
             <div style={{ textAlign: "left" }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#2c1f1f" }}>I need a moment</div>
-              <div style={{ fontSize: 10, color: "var(--mu)" }}>60-second breathing exercise</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#2c1f1f" }}>{t("today.needMoment")}</div>
+              <div style={{ fontSize: 10, color: "var(--mu)" }}>{t("today.breathingSubtitle")}</div>
             </div>
           </button>
         )}
@@ -596,55 +862,98 @@ export function Dashboard() {
           </LocalErrorBoundary>
         )}
 
-        {/* Leap warning */}
-        <LocalErrorBoundary>
-          <LeapWarningBanner />
-        </LocalErrorBoundary>
-
-        <div style={dLabel}>Log</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 }}>
-          {logButtons.map((btn) => (
+        {/* P4 desktop: hold-to-log for Feed/Sleep/Nappy/Tummy; P6: Leap folded into CradlNoticedCollapsed below; P8: Custom trackers moved to Health tab */}
+        <div ref={logHelpRef} style={{ ...dLabel, position: "relative", display: "flex", alignItems: "center", gap: 4 }}>
+          <span>{t("today.logSection")}</span>
+          <button
+            type="button"
+            onClick={() => setLogHelpOpen((o) => !o)}
+            aria-label="What is the log area and hold-to-log?"
+            style={{ background: "none", border: "none", padding: 2, cursor: "pointer", color: "var(--mu)", display: "flex" }}
+          >
+            <HelpCircle size={14} />
+          </button>
+          {logHelpOpen && (
             <div
-              key={btn.label}
-              onClick={() => setOpenDrawer(btn.type)}
-              style={{ background: dBg, border: `1px solid ${dBd}`, borderRadius: 14, padding: "14px 8px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 5, cursor: "pointer", transition: "border-color 0.15s" }}
-              onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#d4604a")}
-              onMouseLeave={(e) => (e.currentTarget.style.borderColor = nm ? "rgba(255,255,255,0.1)" : "#ede0d4")}
+              style={{
+                position: "absolute",
+                left: 0,
+                top: "100%",
+                marginTop: 4,
+                maxWidth: 280,
+                padding: "10px 12px",
+                background: "var(--card)",
+                border: "1px solid var(--bd)",
+                borderRadius: 12,
+                fontSize: 12,
+                lineHeight: 1.5,
+                fontWeight: 400,
+                letterSpacing: "normal",
+                textTransform: "none",
+                color: "var(--tx)",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                zIndex: 100,
+              }}
             >
-              <div style={{ width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: nm ? `color-mix(in srgb, ${btn.color} 20%, transparent)` : btn.bg }}>
-                {LOG_ICON_MAP[btn.type ?? ""]?.(btn.color, 20) ?? <IconBaby size={20} color={btn.color} />}
-              </div>
-              <span style={{ fontSize: 13, fontWeight: 600, color: dTx }}>{btn.label}</span>
-              <span style={{ fontSize: 11, color: dMu, textAlign: "center", lineHeight: 1.3 }}>{btn.sub}</span>
+              <p style={{ margin: "0 0 6px", fontWeight: 600 }}>{t("today.logHelp.areaTitle")}</p>
+              <p style={{ margin: 0 }}>{t("today.logHelp.areaDesc")}</p>
+              <p style={{ margin: "8px 0 0", fontWeight: 600 }}>{t("today.logHelp.holdTitle")}</p>
+              <p style={{ margin: 0 }}>{t("today.logHelp.holdDesc")}</p>
             </div>
-          ))}
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={dLabel}>Custom trackers</span>
-          <span onClick={() => setShowCreateTrackerSheet(true)} style={{ fontSize: 12, fontWeight: 600, color: nm ? "rgba(196,160,212,0.8)" : "#d4604a", cursor: "pointer" }}>+ Add</span>
-        </div>
-        <div style={dSmall}>
-          {customTrackers.length === 0 ? (
-            <div style={{ fontSize: 13, color: dMu }}>Track anything — vitamins, medicine, etc.</div>
-          ) : (
-            customTrackers.map((t) => {
-              const logs = getLogsForTracker(t.id);
-              const lastLog = logs.length > 0 ? logs[0] : null;
-              const lastAgo = lastLog ? formatTimeAndAgo(lastLog.timestamp).ago : null;
-              return (
-                <div key={t.id} onClick={() => setCustomTrackerDrawerId(t.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", cursor: "pointer" }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#d4604a", flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: 13, fontWeight: 500, color: dTx }} className="inline-flex items-center gap-1">{getIconDisplay(t.icon)} {t.name}</span>
-                    {lastAgo && <span style={{ fontSize: 12, color: dMu, marginLeft: 6 }}>{lastAgo}</span>}
-                  </div>
-                  <button type="button" onClick={(e) => { e.stopPropagation(); setCustomTrackerDrawerId(t.id); }} style={{ fontSize: 12, fontWeight: 600, color: nm ? "rgba(196,160,212,0.8)" : "#d4604a", background: "none", border: "none", cursor: "pointer" }}>Log</button>
-                </div>
-              );
-            })
           )}
         </div>
-        <div style={dLabel}>Today&apos;s timeline</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 }}>
+          {logButtons.map((btn) => {
+            const isHold = btn.type === "feed" || btn.type === "sleep" || btn.type === "diaper" || btn.type === "tummy";
+            if (isHold) {
+              const holdType = btn.type as "feed" | "sleep" | "diaper" | "tummy";
+              const isFeed = holdType === "feed";
+              const isSleep = holdType === "sleep";
+              const isTummy = holdType === "tummy";
+              const active = isFeed ? feedActive : isSleep ? !!currentSleep : isTummy ? !!activeTummy : false;
+              const elapsed = isFeed ? feedElapsedMs : isSleep ? sleepElapsedMs : isTummy ? tummyElapsedMs : 0;
+              const thState = isFeed ? feedThresholdState : isSleep ? sleepThresholdState : isTummy ? tummyThresholdState : "normal";
+              const timerType = isFeed ? "feed" : isSleep ? "sleep" : "tummy";
+              const iconColor = active ? (thState === "alert" ? "#C17D5E" : "#0F6E56") : (isFeed && anyOtherInAlert && !active ? "#E8C9B8" : btn.color);
+              return (
+                <HoldToLogButton
+                  key={btn.label}
+                  type={holdType}
+                  color={btn.color}
+                  icon={LOG_ICON_MAP[btn.type ?? ""]?.(iconColor, 20) ?? <IconBaby size={20} color={btn.color} />}
+                  label={btn.label}
+                  subLabel={btn.sub}
+                  onTap={() => setOpenDrawer(btn.type)}
+                  onHoldComplete={() => handleHoldToLog(holdType)}
+                  nightMode={nm}
+                  style={{ background: dBg, border: `1px solid ${dBd}`, borderRadius: 14, padding: "14px 8px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 5, cursor: "pointer", transition: "border-color 0.15s", minHeight: 72 }}
+                  isActive={active}
+                  activeElapsedMs={elapsed}
+                  thresholdState={thState}
+                  activeSubLabel={activeSubLabelFor(timerType, thState)}
+                  muteRestColor={isFeed && !feedActive && anyOtherInAlert}
+                  uiEpoch={logButtonUiEpoch}
+                />
+              );
+            }
+            return (
+              <div
+                key={btn.label}
+                onClick={() => setOpenDrawer(btn.type)}
+                style={{ background: dBg, border: `1px solid ${dBd}`, borderRadius: 14, padding: "14px 8px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 5, cursor: "pointer", transition: "border-color 0.15s" }}
+                onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#d4604a")}
+                onMouseLeave={(e) => (e.currentTarget.style.borderColor = nm ? "rgba(255,255,255,0.1)" : "#ede0d4")}
+              >
+                <div style={{ width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: nm ? `color-mix(in srgb, ${btn.color} 20%, transparent)` : btn.bg }}>
+                  {LOG_ICON_MAP[btn.type ?? ""]?.(btn.color, 20) ?? <IconBaby size={20} color={btn.color} />}
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: dTx }}>{btn.label}</span>
+                <span style={{ fontSize: 11, color: dMu, textAlign: "center", lineHeight: 1.3 }}>{btn.sub}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div style={dLabel}>{t("today.timeline")}</div>
         <div style={dSmall}>
           <div style={{ display: "flex", gap: 12, padding: "7px 0", borderBottom: `1px solid ${nm ? "rgba(255,255,255,0.06)" : "#f4ece4"}` }}>
             <span style={{ fontSize: 12, color: "#d4604a", fontWeight: 700, minWidth: 42, flexShrink: 0 }}>NOW</span>
@@ -658,31 +967,23 @@ export function Dashboard() {
               <span style={{ fontSize: 13, color: dTx }}>{ev.desc}</span>
             </div>
           ))}
-          {recentTimeline.length === 0 && <div style={{ fontSize: 13, color: dMu, padding: "6px 0" }}>No events logged today</div>}
-        </div>
-
-        {/* Pattern insights */}
-        <div style={{ ...dSmall, padding: 14 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: dTx, fontFamily: "Georgia, serif", marginBottom: 8 }}>Patterns</div>
-          {insights.length === 0 ? (
-            <div style={{ fontSize: 11, color: dMu, fontFamily: F, lineHeight: 1.5 }}>
-              Keep logging for a few days and Cradl will spot patterns like
-              &ldquo;longest sleeps follow 20+ min feeds&rdquo;. The more you log, the smarter this gets.
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {insights.map((ins) => (
-                <div key={ins.id} style={{ padding: "8px 10px", borderRadius: 10, background: nm ? "rgba(255,255,255,0.04)" : "#faf7f4", border: `1px solid ${nm ? "rgba(255,255,255,0.06)" : "#f0ece4"}` }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: dTx, fontFamily: F, marginBottom: 2 }}>{ins.message}</div>
-                  {ins.detail && <div style={{ fontSize: 10, color: dMu, fontFamily: F, lineHeight: 1.4 }}>{ins.detail}</div>}
-                </div>
-              ))}
+          {recentTimeline.length === 0 && (
+            <div style={{ padding: "16px 12px 18px", textAlign: "center" }}>
+              <ClipboardList
+                size={28}
+                strokeWidth={1.25}
+                style={{ color: nm ? "rgba(255,255,255,0.2)" : "#d4c8b8", margin: "0 auto 10px", display: "block" }}
+                aria-hidden
+              />
+              <div style={{ fontSize: 14, fontWeight: 600, color: dTx, marginBottom: 6 }}>{t("today.desktopTimelineTitle")}</div>
+              <div style={{ fontSize: 12, color: dMu, lineHeight: 1.55, maxWidth: 300, margin: "0 auto" }}>{t("today.desktopTimelineHint")}</div>
             </div>
           )}
         </div>
 
+        {/* P6 desktop: Cradl noticed + Patterns + Leap in one collapsed row */}
         <LocalErrorBoundary>
-          <CradlNoticedSection notices={notices} compact />
+          <CradlNoticedCollapsed notices={notices} insights={insights} leapText={leapText} nightMode={nm} />
         </LocalErrorBoundary>
 
         {/* Contextual articles */}
@@ -698,33 +999,90 @@ export function Dashboard() {
       </>
     );
 
-    const rightColumn = (
-      <>
-        <LocalErrorBoundary>
-          <AppointmentsSection />
-        </LocalErrorBoundary>
+    const desktopQuickLink = (path: string, label: string) => (
+      <button
+        key={path}
+        type="button"
+        onClick={() => navigate(path)}
+        style={{
+          padding: "6px 10px",
+          borderRadius: 10,
+          border: `1px solid ${dBd}`,
+          background: nm ? "rgba(255,255,255,0.04)" : "#fff",
+          color: dTx,
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: "pointer",
+          fontFamily: F,
+        }}
+      >
+        {label}
+      </button>
+    );
 
-        {/* Health history section */}
-        <div style={{ margin: "8px 0" }}>
-          <LocalErrorBoundary>
-            <HealthHistorySection />
-          </LocalErrorBoundary>
+    const desktopQuickLinksRow = (
+      <div style={{ marginTop: 4 }}>
+        <div style={{ ...dLabel, marginTop: 0, marginBottom: 8 }}>{t("today.desktopQuickLinks")}</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {desktopQuickLink("/health", t("common.nav.health"))}
+          {desktopQuickLink("/journey", t("common.nav.journey"))}
+          {desktopQuickLink("/library", t("today.desktopLinkLibrary"))}
+          {desktopQuickLink("/more", t("common.nav.me"))}
         </div>
+      </div>
+    );
 
-        {/* Return to work countdown */}
+    const rightColumn = (
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 200 }}>
+        {/* P8: Appointments & Health log moved to Health tab */}
         <LocalErrorBoundary>
           <ReturnToWorkCountdown />
         </LocalErrorBoundary>
 
-        {notices.length > 0 && (
+        {notices.length > 0 ? (
           <>
-            <div style={dLabel}>This week</div>
+            <div data-thisweek-help-wrap style={{ ...dLabel, display: "flex", alignItems: "center", gap: 4, position: "relative", marginTop: 0 }}>
+              <span>{t("today.thisWeek")}</span>
+              <button
+                type="button"
+                aria-label="What does this week mean?"
+                onClick={() => setThisWeekHelpOpen((v) => !v)}
+                style={{ background: "none", border: "none", padding: 1, cursor: "pointer", color: dMu, display: "flex" }}
+              >
+                <HelpCircle size={13} />
+              </button>
+              {thisWeekHelpOpen && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    top: "100%",
+                    marginTop: 4,
+                    maxWidth: 280,
+                    padding: "10px 12px",
+                    background: "var(--card)",
+                    border: "1px solid var(--bd)",
+                    borderRadius: 12,
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                    fontWeight: 400,
+                    letterSpacing: "normal",
+                    textTransform: "none",
+                    color: "var(--tx)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                    zIndex: 120,
+                  }}
+                >
+                  Weekly pattern highlights from recent logs so you can spot changes early.
+                </div>
+              )}
+            </div>
             {notices.slice(0, 1).map((n) => (
               <div
                 key={n.id}
                 style={{
                   borderLeft: `3px solid ${noticeColor(n.color)}`,
-                  borderRadius: "0 12px 12px 0", padding: "12px 14px", marginBottom: 9,
+                  borderRadius: "0 12px 12px 0", padding: "12px 14px", marginBottom: 0,
                   background: dBg, borderTop: `1px solid ${dBd}`, borderBottom: `1px solid ${dBd}`, borderRight: `1px solid ${dBd}`,
                 }}
               >
@@ -733,8 +1091,24 @@ export function Dashboard() {
               </div>
             ))}
           </>
+        ) : (
+          <div
+            style={{
+              borderRadius: 12,
+              padding: "14px 14px 16px",
+              background: dBg,
+              border: `1px solid ${dBd}`,
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 600, color: dMu, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>
+              {t("today.desktopPatternsTitle")}
+            </div>
+            <div style={{ fontSize: 13, color: dTx, lineHeight: 1.55, marginBottom: 4 }}>{t("today.desktopPatternsEmpty")}</div>
+          </div>
         )}
-      </>
+
+        {desktopQuickLinksRow}
+      </div>
     );
 
     return (
@@ -765,42 +1139,23 @@ export function Dashboard() {
 
       {nightMode ? (
         <>
-          {/* ── 3am companion hero ── */}
+          {/* ── 3am companion (Prompt 14): "You're not alone" + rotating message ── */}
           <div style={{
             padding: "32px 20px 16px", textAlign: "center",
             background: "linear-gradient(180deg, #1a1428 0%, #110e1a 100%)",
           }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: "50%", margin: "0 auto 16px",
-              background: "radial-gradient(circle, rgba(196,160,212,0.3), rgba(122,179,212,0.15))",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(196,160,212,0.8)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-              </svg>
+            <div style={{ fontFamily: "Georgia, serif", fontSize: 18, fontWeight: 600, color: "rgba(255,255,255,0.95)", marginBottom: 12 }}>
+              {t("today.youreNotAlone")}
             </div>
             <div style={{
-              fontFamily: "Georgia, serif", fontSize: 16, lineHeight: 1.6,
-              color: "rgba(255,255,255,0.9)", maxWidth: 300, margin: "0 auto 20px",
+              fontFamily: "Georgia, serif", fontSize: 14, lineHeight: 1.6,
+              color: "rgba(255,255,255,0.85)", maxWidth: 320, margin: "0 auto",
             }}>
-              {getNightMessage()}
+              {getNightRotatingMessage()}
             </div>
-            <button
-              type="button"
-              onClick={() => setShowBreathingModal(true)}
-              style={{
-                background: "rgba(196,160,212,0.2)",
-                border: "1px solid rgba(196,160,212,0.3)", borderRadius: 14,
-                padding: "12px 24px", fontSize: 14, fontWeight: 600,
-                color: "rgba(255,255,255,0.85)", cursor: "pointer",
-                fontFamily: F, letterSpacing: 0.2,
-              }}
-            >
-              I need a moment
-            </button>
           </div>
 
-          {/* Night-mode greeting (compact) */}
+          {/* Night-mode greeting row */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px 8px" }}>
             <div
               style={{
@@ -818,10 +1173,10 @@ export function Dashboard() {
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.75)", fontFamily: F, display: "flex", alignItems: "center", gap: 6 }}>
-                {babyProfile?.name ?? "Baby"} <BabySwitcher />
+                {t("today.youreNotAlone")} <BabySwitcher />
               </div>
               <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontFamily: F }}>
-                {ageStr || "add birth date in settings"}
+                {babyProfile?.name ?? t("common.baby")} · {ageStr || t("today.addBirthDateSettings")}
               </div>
             </div>
             <div
@@ -855,11 +1210,11 @@ export function Dashboard() {
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 15, fontWeight: 600, color: "#2c1f1f", fontFamily: F, overflowWrap: "break-word", display: "flex", alignItems: "center", gap: 6 }}>
-                {getGreeting(babyProfile?.parentName ?? null, babyProfile?.name ?? null, new Date().getHours())}
+                {greeting}
                 <BabySwitcher />
               </div>
               <div style={{ fontSize: 11, color: "var(--mu)", fontFamily: F }}>
-                {babyProfile?.name ?? "Baby"} · {ageStr || "add birth date in settings"}
+                {babyProfile?.name ?? t("common.baby")} · {ageStr || t("today.addBirthDateSettings")}
               </div>
             </div>
             <div
@@ -892,63 +1247,105 @@ export function Dashboard() {
       />
       </LocalErrorBoundary>
 
-      {/* 3. Sleep sweet spot hero */}
-      <LocalErrorBoundary>
-      <SleepSweetSpot
-        prediction={prediction}
-        onStartSleep={() => setOpenDrawer("sleep")}
-        babyName={babyProfile?.name}
-      />
-      </LocalErrorBoundary>
-
-      {/* 3b. Leap warning */}
-      <LocalErrorBoundary>
-      <LeapWarningBanner />
-      </LocalErrorBoundary>
-
-      {/* 4. Why is she crying? */}
-      <IfUnsettledCard reasons={unsettledReasons} nightMode={nightMode} />
-
-      {/* 4b. Colic tracker */}
-      <LocalErrorBoundary>
-        <ColicSection ageInWeeks={ageInWeeks ?? 0} />
-      </LocalErrorBoundary>
-
-      {/* 5. Log section */}
-      <div style={{ ...SECTION_LABEL, ...(nightMode ? { color: "rgba(255,255,255,0.35)" } : {}) }}>Log</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, padding: "0 12px 8px" }}>
-        {LOG_ITEMS.map((item) => (
-          <button
-            key={item.type}
-            type="button"
-            onClick={() => setOpenDrawer(item.type)}
+      {/* 3. Log grid — above the fold (Prompt 1); hold-to-log for Feed/Sleep/Nappy/Tummy (Prompt 4) */}
+      <div ref={logHelpRef} style={{ position: "relative", display: "flex", alignItems: "center", gap: 4, ...SECTION_LABEL, ...(nightMode ? { color: "rgba(255,255,255,0.35)" } : {}) }}>
+        <span>{t("today.logSection")}</span>
+        <button
+          type="button"
+          onClick={() => setLogHelpOpen((o) => !o)}
+          aria-label="What is the log area and hold-to-log?"
+          style={{ background: "none", border: "none", padding: 2, cursor: "pointer", color: "var(--mu)", display: "flex" }}
+        >
+          <HelpCircle size={14} />
+        </button>
+        {logHelpOpen && (
+          <div
             style={{
-              border: openDrawer === item.type ? "1px solid #d4604a" : nightMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ede0d4",
-              background: openDrawer === item.type ? (nightMode ? "rgba(212,96,74,0.15)" : "#fff8f5") : (nightMode ? "rgba(255,255,255,0.06)" : "#fff"),
-              borderRadius: 14, padding: "10px 6px", cursor: "pointer",
-              display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-              fontFamily: F,
+              position: "absolute",
+              left: 12,
+              top: "100%",
+              marginTop: 4,
+              maxWidth: 280,
+              padding: "10px 12px",
+              background: "var(--card)",
+              border: "1px solid var(--bd)",
+              borderRadius: 12,
+              fontSize: 12,
+              lineHeight: 1.5,
+              fontWeight: 400,
+              letterSpacing: "normal",
+              textTransform: "none",
+              color: "var(--tx)",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+              zIndex: 100,
             }}
           >
-            <div
+<p style={{ margin: "0 0 6px", fontWeight: 600 }}>{t("today.logHelp.areaTitle")}</p>
+              <p style={{ margin: 0 }}>{t("today.logHelp.areaDesc")}</p>
+              <p style={{ margin: "8px 0 0", fontWeight: 600 }}>{t("today.logHelp.holdTitle")}</p>
+              <p style={{ margin: 0 }}>{t("today.logHelp.holdDesc")}</p>
+          </div>
+        )}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, padding: "0 12px 8px" }}>
+        {LOG_ITEMS.map((item) => {
+          const isHoldType = item.type === "feed" || item.type === "sleep" || item.type === "diaper" || item.type === "tummy";
+          const subLabel =
+            item.type === "feed" && (lastFeeding ? (() => { const { time, ago } = formatTimeAndAgo(lastFeeding.endTime ?? lastFeeding.timestamp); return `${time} · ${ago}`; })() : t("today.noFeedYet"))
+            || (item.type === "sleep" && (currentSleep ? t("today.sleepingNow") : t("today.awake")))
+            || (item.type === "diaper" && `${statsToday.diapers} today`)
+            || (item.type === "tummy" && `${statsToday.tummyM}m today`)
+            || (item.type === "bottle" && (statsToday.totalMl > 0 ? `${statsToday.totalMl}ml` : t("today.noBottle")));
+          if (isHoldType) {
+            const isFeed = item.type === "feed";
+            const isSleep = item.type === "sleep";
+            const isTummy = item.type === "tummy";
+            const active = isFeed ? feedActive : isSleep ? !!currentSleep : isTummy ? !!activeTummy : false;
+            const elapsed = isFeed ? feedElapsedMs : isSleep ? sleepElapsedMs : isTummy ? tummyElapsedMs : 0;
+            const thState = isFeed ? feedThresholdState : isSleep ? sleepThresholdState : isTummy ? tummyThresholdState : "normal";
+            const timerType = isFeed ? "feed" : isSleep ? "sleep" : "tummy";
+            const iconColor = active ? (thState === "alert" ? "#C17D5E" : "#0F6E56") : (isFeed && anyOtherInAlert && !active ? "#E8C9B8" : item.color);
+            return (
+              <HoldToLogButton
+                key={item.type}
+                type={item.type}
+                color={item.color}
+                icon={LOG_ICON_MAP[item.type]?.(iconColor, 16)}
+                label={item.label}
+                subLabel={subLabel}
+                nightMode={nightMode}
+                onTap={() => setOpenDrawer(item.type)}
+                onHoldComplete={() => handleHoldToLog(item.type)}
+                isActive={active}
+                activeElapsedMs={elapsed}
+                thresholdState={thState}
+                activeSubLabel={activeSubLabelFor(timerType, thState)}
+                muteRestColor={isFeed && !feedActive && anyOtherInAlert}
+                uiEpoch={logButtonUiEpoch}
+              />
+            );
+          }
+          return (
+            <button
+              key={item.type}
+              type="button"
+              onClick={() => setOpenDrawer(item.type)}
               style={{
-                width: 28, height: 28, borderRadius: 8,
-                background: nightMode ? `color-mix(in srgb, ${item.color} 20%, transparent)` : `color-mix(in srgb, ${item.color} 15%, #fff)`,
-                display: "flex", alignItems: "center", justifyContent: "center",
+                border: openDrawer === item.type ? "1px solid #d4604a" : nightMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ede0d4",
+                background: openDrawer === item.type ? (nightMode ? "rgba(212,96,74,0.15)" : "#fff8f5") : (nightMode ? "rgba(255,255,255,0.06)" : "#fff"),
+                borderRadius: 14, padding: "10px 6px", cursor: "pointer",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                fontFamily: F,
               }}
             >
-              {LOG_ICON_MAP[item.type]?.(item.color, 16)}
-            </div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: nightMode ? "rgba(255,255,255,0.8)" : "#2c1f1f" }}>{item.label}</div>
-            <div style={{ fontSize: 10, color: nightMode ? "rgba(255,255,255,0.35)" : "var(--mu)" }}>
-              {item.type === "feed" && (lastFeeding ? (() => { const { time, ago } = formatTimeAndAgo(lastFeeding.endTime ?? lastFeeding.timestamp); return `${time} · ${ago}`; })() : "No feed yet")}
-              {item.type === "sleep" && (currentSleep ? "Sleeping now" : "Awake")}
-              {item.type === "diaper" && `${statsToday.diapers} today`}
-              {item.type === "tummy" && `${statsToday.tummyM}m today`}
-              {item.type === "bottle" && (statsToday.totalMl > 0 ? `${statsToday.totalMl}ml` : "No bottle")}
-            </div>
-          </button>
-        ))}
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: nightMode ? `color-mix(in srgb, ${item.color} 20%, transparent)` : `color-mix(in srgb, ${item.color} 15%, #fff)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {LOG_ICON_MAP[item.type]?.(item.color, 16)}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: nightMode ? "rgba(255,255,255,0.8)" : "#2c1f1f" }}>{item.label}</div>
+              <div style={{ fontSize: 10, color: nightMode ? "rgba(255,255,255,0.35)" : "var(--mu)" }}>{subLabel}</div>
+            </button>
+          );
+        })}
         <button
           type="button"
           onClick={() => setShowMoreDrawers(true)}
@@ -966,10 +1363,40 @@ export function Dashboard() {
           >
             ＋
           </div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#2c1f1f" }}>More</div>
-          <div style={{ fontSize: 10, color: "var(--mu)" }}>pump · health</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#2c1f1f" }}>{t("today.more")}</div>
+          <div style={{ fontSize: 10, color: "var(--mu)" }}>{t("today.pumpHealth")}</div>
         </button>
       </div>
+
+      {/* Prompt 14: "I need a moment" prominent below log grid in 3am mode */}
+      {nightMode && (
+        <button
+          type="button"
+          onClick={() => setShowBreathingModal(true)}
+          style={{
+            width: "calc(100% - 24px)",
+            margin: "0 12px 12px",
+            padding: "14px 16px",
+            borderRadius: 14,
+            background: "rgba(196,160,212,0.2)",
+            border: "1px solid rgba(196,160,212,0.35)",
+            color: "rgba(255,255,255,0.9)",
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontFamily: F,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+          }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h0" />
+          </svg>
+          I need a moment
+        </button>
+      )}
 
       {showMoreDrawers && (
         <div
@@ -980,14 +1407,14 @@ export function Dashboard() {
             style={{ width: "100%", maxWidth: 512, background: "#fff", borderRadius: "16px 16px 0 0", padding: 16 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#2c1f1f", marginBottom: 12, fontFamily: F }}>More log types</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#2c1f1f", marginBottom: 12, fontFamily: F }}>{t("today.moreLogTypes")}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
               {([
-                { type: "pump" as const, label: "Pump", color: "#9a7060", bg: "#f4ece8" },
-                { type: "health" as const, label: "Health", color: "#c05030", bg: "#ffd4c8" },
-                { type: "solids" as const, label: "Solids", color: "#4a8a4a", bg: "#e8f4e0" },
-                { type: "activity" as const, label: "Activity", color: "#b08040", bg: "#fef4e4" },
-                { type: "spitup" as const, label: "Spit-up", color: "#9a8080", bg: "#f0ece8" },
+                { type: "pump" as const, labelKey: "today.pump", color: "#9a7060", bg: "#f4ece8" },
+                { type: "health" as const, labelKey: "today.health", color: "#c05030", bg: "#ffd4c8" },
+                { type: "solids" as const, labelKey: "today.solids", color: "#4a8a4a", bg: "#e8f4e0" },
+                { type: "activity" as const, labelKey: "today.activity", color: "#b08040", bg: "#fef4e4" },
+                { type: "spitup" as const, labelKey: "today.spitup", color: "#9a8080", bg: "#f0ece8" },
               ] as const).map((item) => (
                 <button
                   key={item.type}
@@ -1002,7 +1429,7 @@ export function Dashboard() {
                   <div style={{ width: 32, height: 32, borderRadius: 8, background: item.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {LOG_ICON_MAP[item.type]?.(item.color, 18) ?? <IconDroplet size={18} color={item.color} />}
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: "#2c1f1f" }}>{item.label}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#2c1f1f" }}>{t(item.labelKey)}</span>
                 </button>
               ))}
             </div>
@@ -1011,163 +1438,47 @@ export function Dashboard() {
               onClick={() => setShowMoreDrawers(false)}
               style={{ width: "100%", padding: "10px 0", marginTop: 12, fontSize: 12, color: "var(--mu)", background: "none", border: "none", cursor: "pointer", fontFamily: F }}
             >
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
         </div>
       )}
 
-      {/* 6b. Handoff card */}
+      {/* 4. Sleep sweet spot (Prompt 1 order) */}
+      <LocalErrorBoundary>
+      <SleepSweetSpot
+        prediction={prediction}
+        onStartSleep={() => setOpenDrawer("sleep")}
+        babyName={babyProfile?.name}
+      />
+      </LocalErrorBoundary>
+
+      {/* 5. Why is she crying? (Leap folded into Cradl noticed row — Prompt 6) */}
+      <IfUnsettledCard reasons={unsettledReasons} nightMode={nightMode} />
+
+      {/* 7. Colic tracker (Prompt 5: collapsed row, only if ever logged) */}
+      <LocalErrorBoundary>
+        <ColicSection ageInWeeks={ageInWeeks ?? 0} collapsedRow />
+      </LocalErrorBoundary>
+
+      {/* 8. Cradl noticed + Patterns + Leap (Prompt 6: one collapsed row) */}
+      <LocalErrorBoundary>
+      <CradlNoticedCollapsed notices={notices} insights={insights} leapText={leapText} nightMode={nightMode} />
+      </LocalErrorBoundary>
+
+      {/* 9. Handoff strip */}
       <LocalErrorBoundary>
       <HandoffCardCompact />
       </LocalErrorBoundary>
 
-      {/* 7. Custom trackers */}
-      <div style={{ ...CARD, display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "#2c1f1f", fontFamily: F }}>Custom trackers</span>
-          <span
-            onClick={() => setShowCreateTrackerSheet(true)}
-            style={{ fontSize: 11, fontWeight: 600, color: "#d4604a", cursor: "pointer", fontFamily: F }}
-          >
-            + Add
-          </span>
-        </div>
-        {customTrackers.length === 0 ? (
-          <div style={{ fontSize: 11, color: "var(--mu)", fontFamily: F }}>Track anything — vitamins, medicine, etc.</div>
-        ) : (
-          customTrackers.map((t) => {
-            const logs = getLogsForTracker(t.id);
-            const lastLog = logs.length > 0 ? logs[0] : null;
-            const lastAgo = lastLog ? formatTimeAndAgo(lastLog.timestamp).ago : null;
-            return (
-              <div
-                key={t.id}
-                onClick={() => setCustomTrackerDrawerId(t.id)}
-                style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", cursor: "pointer" }}
-              >
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#d4604a", flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ fontSize: 11, fontWeight: 500, color: "#2c1f1f", fontFamily: F }} className="inline-flex items-center gap-1">{getIconDisplay(t.icon)} {t.name}</span>
-                  {lastAgo && <span style={{ fontSize: 10, color: "var(--mu)", fontFamily: F, marginLeft: 6 }}>{lastAgo}</span>}
-                </div>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); setCustomTrackerDrawerId(t.id); }}
-                  style={{ fontSize: 10, fontWeight: 600, color: "#d4604a", background: "none", border: "none", cursor: "pointer", fontFamily: F }}
-                >
-                  Log
-                </button>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      {/* 8. Cradl noticed */}
+      {/* 10. Daily sign-off (Prompt 9) */}
       <LocalErrorBoundary>
-      <CradlNoticedSection notices={notices} />
-      </LocalErrorBoundary>
-
-      {/* 8b. Pattern insights */}
-      <div style={{ ...CARD, ...(nightMode ? { background: "rgba(255,255,255,0.06)", borderColor: "rgba(255,255,255,0.1)" } : {}) }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: nightMode ? "rgba(255,255,255,0.85)" : "#2c1f1f", fontFamily: "Georgia, serif", marginBottom: 8 }}>
-          Patterns
-        </div>
-        {insights.length === 0 ? (
-          <div style={{ fontSize: 11, color: nightMode ? "rgba(255,255,255,0.4)" : "var(--mu)", fontFamily: F, lineHeight: 1.5 }}>
-            Keep logging for a few days and Cradl will spot patterns like
-            "longest sleeps follow 20+ min feeds" or "nap quality drops after short tummy time".
-            The more you log, the smarter this gets.
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {insights.map((ins) => (
-              <div key={ins.id} style={{
-                padding: "8px 10px", borderRadius: 10,
-                background: nightMode ? "rgba(255,255,255,0.04)" : "#faf7f4",
-                border: nightMode ? "1px solid rgba(255,255,255,0.06)" : "1px solid #f0ece4",
-              }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: nightMode ? "rgba(255,255,255,0.8)" : "#2c1f1f", fontFamily: F, marginBottom: 2 }}>
-                  {ins.message}
-                </div>
-                {ins.detail && (
-                  <div style={{ fontSize: 10, color: nightMode ? "rgba(255,255,255,0.4)" : "var(--mu)", fontFamily: F, lineHeight: 1.4 }}>
-                    {ins.detail}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* 8c. Health history */}
-      <div style={{ margin: "0 12px" }}>
-        <LocalErrorBoundary>
-          <HealthHistorySection />
-        </LocalErrorBoundary>
-      </div>
-
-      {/* 9. Contextual articles */}
-      {triggeredArticles.length > 0 && (
-        <LocalErrorBoundary>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, margin: "0 12px 8px" }}>
-            {triggeredArticles.slice(0, 2).map((article) => (
-              <ContextualArticleCard
-                key={article.id}
-                article={article}
-                onDismiss={handleDismissArticle}
-                onTap={() => navigate(`/library`)}
-              />
-            ))}
-          </div>
-        </LocalErrorBoundary>
-      )}
-
-      {/* 9b. Breathing button (always available) */}
-      {!nightMode && (
-        <div style={{ margin: "4px 12px 8px" }}>
-          <button
-            type="button"
-            onClick={() => setShowBreathingModal(true)}
-            style={{
-              width: "100%", padding: "12px 16px", borderRadius: 14,
-              background: "linear-gradient(135deg, #f0eef4, #f4ecf8)",
-              border: "1px solid #e4d8ec", cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 10,
-              fontFamily: F,
-            }}
-          >
-            <div style={{
-              width: 32, height: 32, borderRadius: "50%",
-              background: "rgba(122,74,180,0.12)",
-              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-            }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7a4ab4" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 8v4M12 16h0" />
-              </svg>
-            </div>
-            <div style={{ textAlign: "left" }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#2c1f1f" }}>I need a moment</div>
-              <div style={{ fontSize: 10, color: "var(--mu)" }}>60-second breathing exercise</div>
-            </div>
-          </button>
-        </div>
-      )}
-
-      {/* 10. Calendar events */}
-      <LocalErrorBoundary>
-      <div style={SECTION_LABEL}>Today</div>
-      <div style={CARD}>
-        <AppointmentsSection />
-      </div>
-      </LocalErrorBoundary>
-
-      {/* 12. Pain relief */}
-      <LocalErrorBoundary>
-      <PainReliefCard hoursSinceLastDose={hoursSinceLastDose} onLog={logPainkiller} />
+      <DailySignOffCard
+        feedsToday={statsToday.feeds}
+        nappiesToday={statsToday.diapers}
+        tummyMinutesToday={statsToday.tummyM}
+        parentName={babyProfile?.parentName}
+      />
       </LocalErrorBoundary>
 
       {sharedModals}

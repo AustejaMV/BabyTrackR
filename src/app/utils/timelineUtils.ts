@@ -44,7 +44,7 @@ function feedDescription(r: FeedingRecord): string {
     return parts.join(" · ");
   }
   const dur = r.durationMs != null ? formatDurationMs(r.durationMs, true) : "";
-  return dur ? `Feed, ${dur}` : "Feed";
+  return dur ? `Nurse, ${dur}` : "Nurse";
 }
 
 function sleepDescription(r: SleepRecord): string {

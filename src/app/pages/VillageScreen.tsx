@@ -566,17 +566,19 @@ export function VillageScreen() {
           ))
         )}
 
-        <div style={{ textAlign: "center" as const, paddingTop: 6 }}>
-          <span
+        <div style={{ paddingTop: 8, width: "100%" }}>
+          <button
+            type="button"
             onClick={() => navigate("/village/qa")}
             style={{
-              fontSize: 11, fontWeight: 600, color: "#d4604a", cursor: "pointer",
-              padding: "6px 16px", borderRadius: 20, border: "1px solid #d4604a",
-              display: "inline-block",
+              width: "100%",
+              fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer",
+              padding: "12px 16px", borderRadius: 12, border: "none",
+              background: "#d4604a", fontFamily: F,
             }}
           >
             Ask a question
-          </span>
+          </button>
         </div>
       </div>
       </LocalErrorBoundary>

@@ -1,3 +1,6 @@
+import { useEffect, useRef, useState } from "react";
+import { HelpCircle } from "lucide-react";
+
 export interface UnsettledReason {
   likelihood: "likely" | "possible" | "unlikely";
   text: string;
@@ -20,12 +23,23 @@ export function IfUnsettledCard({
   compact?: boolean;
   nightMode?: boolean;
 }) {
+  const [helpOpen, setHelpOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
   const hasReasons = reasons?.length > 0;
   const bg = nightMode ? "rgba(255,255,255,0.06)" : "#fff";
   const bd = nightMode ? "rgba(255,255,255,0.1)" : "#ede0d4";
   const tx = nightMode ? "rgba(255,255,255,0.85)" : "#2c1f1f";
   const mu = nightMode ? "rgba(255,255,255,0.45)" : "var(--mu)";
   const sep = nightMode ? "rgba(255,255,255,0.08)" : "#f4ece4";
+
+  useEffect(() => {
+    if (!helpOpen) return;
+    const close = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setHelpOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [helpOpen]);
 
   return (
     <div
@@ -38,15 +52,52 @@ export function IfUnsettledCard({
       }}
     >
       <div
+        ref={wrapRef}
         style={{
           fontSize: 13,
           fontWeight: 700,
           color: tx,
           fontFamily: "Georgia, serif",
           marginBottom: hasReasons ? 8 : 4,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          position: "relative",
         }}
       >
-        Why is she crying?
+        <span>Why is she crying?</span>
+        <button
+          type="button"
+          aria-label="How are these reasons calculated?"
+          onClick={() => setHelpOpen((v) => !v)}
+          style={{ background: "none", border: "none", padding: 1, cursor: "pointer", color: mu, display: "flex" }}
+        >
+          <HelpCircle size={13} />
+        </button>
+        {helpOpen && (
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              top: "100%",
+              marginTop: 4,
+              maxWidth: 280,
+              padding: "10px 12px",
+              background: "var(--card)",
+              border: "1px solid var(--bd)",
+              borderRadius: 12,
+              fontSize: 12,
+              lineHeight: 1.5,
+              fontWeight: 400,
+              color: "var(--tx)",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+              zIndex: 120,
+              fontFamily: "system-ui, sans-serif",
+            }}
+          >
+            This is a best-guess from recent feed, sleep, nappy and developmental-pattern logs.
+          </div>
+        )}
       </div>
 
       {!hasReasons ? (

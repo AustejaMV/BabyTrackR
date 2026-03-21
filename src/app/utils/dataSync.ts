@@ -1,4 +1,6 @@
 import { serverUrl, supabaseAnonKey } from './supabase';
+import type { SleepRecord } from '../types';
+import { persistActiveBabyCopy, saveCurrentDataToBaby, getActiveBabyId } from '../data/babiesStorage';
 
 // ─── Sync throttler (load) ───────────────────────────────────────────────────
 /** Last time we successfully called loadAllDataFromServer. Skip load if within 60s. */
@@ -343,6 +345,7 @@ export function saveData(key: string, value: unknown, accessToken?: string) {
   }
   try {
     localStorage.setItem(key, JSON.stringify(value));
+    persistActiveBabyCopy(key);
   } catch (e) {
     // QuotaExceededError (disk full) or SecurityError (private browsing sandbox)
     console.warn(`[Cradl] localStorage.setItem("${key}") failed:`, e);
@@ -460,5 +463,94 @@ export function clearSyncedDataFromLocalStorage() {
     });
   } catch (e) {
     console.warn('[Cradl] clearSyncedDataFromLocalStorage failed', e);
+  }
+}
+
+/**
+ * Parse an in-progress sleep session from localStorage JSON (active = no endTime).
+ */
+export function parseActiveCurrentSleepRaw(raw: string | null): SleepRecord | null {
+  if (!raw || raw === 'null') return null;
+  try {
+    const p = JSON.parse(raw) as Partial<SleepRecord>;
+    if (p?.id && p.startTime != null && p.endTime == null) return p as SleepRecord;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function sleepHistoryHasEndedSessionForId(historyRaw: string | null, sessionId: string): boolean {
+  if (!historyRaw || historyRaw === 'null') return false;
+  try {
+    const arr = JSON.parse(historyRaw) as { id?: string; endTime?: number }[];
+    if (!Array.isArray(arr)) return false;
+    return arr.some((r) => r?.id === sessionId && r.endTime != null);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Replace local synced keys with a `/data/all` snapshot (same as Dashboard merge).
+ *
+ * If the user had an in-progress sleep locally but the server snapshot still shows
+ * `currentSleep: null` (e.g. batched save not flushed before refresh), we restore the
+ * local session **unless** merged `sleepHistory` already contains that session id with
+ * an `endTime` (ended on server / another device).
+ */
+export function applyServerSnapshotToLocalStorage(data: Record<string, unknown>): void {
+  const preservedActiveSleep = parseActiveCurrentSleepRaw(localStorage.getItem('currentSleep'));
+
+  clearSyncedDataFromLocalStorage();
+
+  Object.entries(data).forEach(([k, v]) => {
+    try {
+      localStorage.setItem(k, JSON.stringify(v));
+    } catch {
+      /* ignore */
+    }
+  });
+
+  for (const key of SYNCED_DATA_KEYS) {
+    if (!(key in data)) {
+      try {
+        localStorage.setItem(key, JSON.stringify(SYNCED_DATA_DEFAULTS[key]));
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  if (!preservedActiveSleep) return;
+
+  try {
+    const raw = localStorage.getItem('currentSleep');
+    let after: SleepRecord | null = null;
+    try {
+      after = raw && raw !== 'null' ? (JSON.parse(raw) as SleepRecord) : null;
+    } catch {
+      after = null;
+    }
+    const serverShowsInProgress =
+      after && after.id && after.startTime != null && after.endTime == null;
+
+    if (serverShowsInProgress) return;
+
+    const historyRaw = localStorage.getItem('sleepHistory');
+    if (sleepHistoryHasEndedSessionForId(historyRaw, preservedActiveSleep.id)) return;
+
+    localStorage.setItem('currentSleep', JSON.stringify(preservedActiveSleep));
+  } catch (e) {
+    console.warn('[Cradl] applyServerSnapshotToLocalStorage: restore currentSleep failed', e);
+  }
+
+  // Keep per-baby mirror in sync so loadBabyDataIntoCurrent on next reload doesn't overwrite
+  // freshly merged main keys with a stale baby_* slot.
+  try {
+    const bid = getActiveBabyId();
+    if (bid) saveCurrentDataToBaby(bid);
+  } catch {
+    /* ignore */
   }
 }

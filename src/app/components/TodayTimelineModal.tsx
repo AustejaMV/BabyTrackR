@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
+import { formatWeekdayMediumDate } from "../utils/dateUtils";
+import { getLanguage } from "../utils/languageStorage";
 import { getTimelineEventsForDay, getBorderColorForKind } from "../utils/timelineUtils";
 import { readStoredArray } from "../utils/warningUtils";
 import { getTemperatureHistory, getSymptomHistory, getMedicationHistory } from "../utils/healthStorage";
@@ -148,7 +150,8 @@ export function TodayTimelineModal({ open, onClose, filter = null, onEdit, refre
 
   if (!open) return null;
 
-  const dayLabel = format(selectedDate, "EEEE, d MMM yyyy");
+  const locale = getLanguage();
+  const dayLabel = formatWeekdayMediumDate(selectedDate, locale);
   const isToday = selectedDate === new Date().setHours(0, 0, 0, 0);
 
   return (

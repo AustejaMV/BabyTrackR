@@ -64,9 +64,9 @@ describe("MeScreen (Me tab)", () => {
     expect(screen.getByText("Log tonight →")).toBeDefined();
   });
 
-  it("renders Cradl noticed section with PANDAS helpline", () => {
+  it("renders Cradl noticed section with support guidance", () => {
     render(<MeScreen />);
-    expect(screen.getByText(/0808 1961 776/)).toBeDefined();
+    expect(screen.getByText(/local emergency or mental health crisis line/i)).toBeDefined();
   });
 
   it("renders Recovery section with 3 rows", () => {

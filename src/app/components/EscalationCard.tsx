@@ -36,7 +36,7 @@ const config: Record<
       </svg>
     ),
     heading: "Keep an eye on this",
-    body: "This may be worth monitoring over the next 24–48 hours. If things change or you feel worried, trust your instinct and call your GP or 111.",
+    body: "This may be worth monitoring over the next 24–48 hours. If things change or you feel worried, trust your instinct and call your doctor or local health advice line.",
   },
   urgent: {
     bg: "#fce8e8",
@@ -52,7 +52,7 @@ const config: Record<
     body: "Based on what you've described, we recommend contacting a healthcare professional right away.",
     action: (
       <a
-        href="tel:111"
+        href="tel:"
         style={{
           display: "inline-block",
           marginTop: 8,
@@ -65,7 +65,7 @@ const config: Record<
           textDecoration: "none",
         }}
       >
-        Call 111 now
+        Call your local health advice line
       </a>
     ),
   },

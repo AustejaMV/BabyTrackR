@@ -1,7 +1,6 @@
 /**
- * Premium context – supports RevenueCat subscription (native + web),
- * ad-reward unlock, and localStorage testing flag.
- * isPremium is true when ANY source is active.
+ * Premium context – server is source of truth when logged in (GET /premium, verified via RevenueCat).
+ * When not logged in: ad-reward and (dev-only) testing flag can still grant premium for UI; server-gated features require auth.
  */
 import {
   createContext,
@@ -13,6 +12,8 @@ import {
   useRef,
 } from "react";
 import { Capacitor } from "@capacitor/core";
+import { useAuth } from "./AuthContext";
+import { fetchPremiumStatus, syncPremiumFromRevenueCat } from "../utils/premiumApi";
 
 const STORAGE_KEY = "cradl-premium";
 const AD_REWARD_KEY = "cradl-ad-reward-expires";
@@ -52,11 +53,15 @@ interface PremiumContextValue {
   isPremium: boolean;
   purchaseSource: PurchaseSource;
   adRewardExpiresAt: number | null;
+  /** True while server premium status is loading (logged-in users only). */
+  premiumLoading: boolean;
   unlockViaAd: () => void;
   initRevenueCat: () => void;
   setPremiumForTesting: (value: boolean) => void;
   purchasePackage: (packageId: string) => Promise<boolean>;
   restorePurchases: () => Promise<boolean>;
+  /** Refetch premium from server (call after purchase/restore or when returning to app). */
+  refreshPremiumFromServer: () => Promise<void>;
   /** Present the RevenueCat-hosted paywall (web only). Returns true if purchase succeeded. */
   presentWebPaywall: (containerEl: HTMLElement | null) => Promise<boolean>;
 }
@@ -64,12 +69,21 @@ interface PremiumContextValue {
 const PremiumContext = createContext<PremiumContextValue | null>(null);
 
 export function PremiumProvider({ children }: { children: React.ReactNode }) {
+  const { session } = useAuth();
   const [testingFlag, setTestingFlag] = useState(readTestingFlag);
   const [adRewardExpiresAt, setAdRewardExpiresAt] = useState<number | null>(
     readAdRewardExpiry,
   );
-  const [revenueCatActive, setRevenueCatActive] = useState(false);
+  /** Server-verified premium (when logged in). null = not loaded yet. */
+  const [serverPremium, setServerPremium] = useState<boolean | null>(null);
   const webPurchasesRef = useRef<any>(null);
+
+  const accessToken = session?.access_token ?? null;
+  const userId = session?.user?.id ?? null;
+
+  useEffect(() => {
+    webPurchasesRef.current = null;
+  }, [userId]);
 
   useEffect(() => {
     const expires = readAdRewardExpiry();
@@ -82,15 +96,43 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
   const adRewardActive =
     adRewardExpiresAt != null && adRewardExpiresAt > Date.now();
 
-  const isPremium = revenueCatActive || adRewardActive || testingFlag;
+  const fetchServerPremium = useCallback(async () => {
+    if (!accessToken) {
+      setServerPremium(null);
+      return;
+    }
+    const premium = await fetchPremiumStatus(accessToken);
+    setServerPremium(premium);
+  }, [accessToken]);
 
-  const purchaseSource: PurchaseSource = revenueCatActive
-    ? "revenuecat"
-    : adRewardActive
-      ? "ad_reward"
-      : testingFlag
-        ? "testing"
-        : null;
+  useEffect(() => {
+    if (!accessToken) {
+      setServerPremium(null);
+      return;
+    }
+    fetchServerPremium();
+  }, [accessToken, fetchServerPremium]);
+
+  const refreshPremiumFromServer = useCallback(async () => {
+    if (!accessToken) return;
+    await fetchServerPremium();
+  }, [accessToken, fetchServerPremium]);
+
+  const premiumLoading = accessToken != null && serverPremium === null;
+
+  const isPremium =
+    accessToken != null
+      ? (serverPremium === true)
+      : (adRewardActive || (typeof import.meta.env.DEV !== "undefined" && import.meta.env.DEV && testingFlag));
+
+  const purchaseSource: PurchaseSource =
+    accessToken != null && serverPremium === true
+      ? "revenuecat"
+      : adRewardActive
+        ? "ad_reward"
+        : testingFlag
+          ? "testing"
+          : null;
 
   const unlockViaAd = useCallback(() => {
     const expires = Date.now() + AD_REWARD_DURATION;
@@ -106,14 +148,15 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
     if (!webKey) return null;
     try {
       const { Purchases } = await import("@revenuecat/purchases-js");
-      const instance = Purchases.configure(webKey, "anonymous");
+      const appUserId = userId ?? "anonymous";
+      const instance = Purchases.configure(webKey, appUserId);
       webPurchasesRef.current = instance;
       return instance;
     } catch (err) {
       console.warn("RevenueCat web SDK init failed:", err);
       return null;
     }
-  }, []);
+  }, [userId]);
 
   const initRevenueCat = useCallback(async () => {
     if (Capacitor.isNativePlatform()) {
@@ -126,32 +169,34 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
           console.warn("RevenueCat: no API key configured for", Capacitor.getPlatform());
           return;
         }
-        await Purchases.configure({ apiKey });
-        const { customerInfo } = await Purchases.getCustomerInfo();
-        const entitled = !!customerInfo.entitlements.active["premium"];
-        setRevenueCatActive(entitled);
-        Purchases.addCustomerInfoUpdateListener(({ customerInfo: info }) => {
-          setRevenueCatActive(!!info.entitlements.active["premium"]);
-        });
+        await Purchases.configure({ apiKey, appUserID: userId ?? undefined });
+        if (accessToken) {
+          await syncPremiumFromRevenueCat(accessToken);
+          setServerPremium(await fetchPremiumStatus(accessToken));
+          Purchases.addCustomerInfoUpdateListener(async () => {
+            const ok = await syncPremiumFromRevenueCat(accessToken);
+            setServerPremium(ok);
+          });
+        }
       } catch (err) {
         console.warn("RevenueCat native init failed:", err);
       }
     } else {
       const web = await getWebPurchases();
-      if (web) {
+      if (web && accessToken) {
         try {
-          const info = await web.getCustomerInfo();
-          setRevenueCatActive(!!info.entitlements.active["premium"]);
+          const ok = await syncPremiumFromRevenueCat(accessToken);
+          setServerPremium(ok);
         } catch (err) {
-          console.warn("RevenueCat web getCustomerInfo failed:", err);
+          console.warn("RevenueCat web sync failed:", err);
         }
       }
     }
-  }, [getWebPurchases]);
+  }, [getWebPurchases, userId, accessToken]);
 
   useEffect(() => {
-    initRevenueCat();
-  }, [initRevenueCat]);
+    if (accessToken) initRevenueCat();
+  }, [accessToken, initRevenueCat]);
 
   const setPremiumForTesting = useCallback((value: boolean) => {
     setTestingFlag(value);
@@ -159,6 +204,13 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem(STORAGE_KEY, String(value));
     } catch {}
   }, []);
+
+  const syncAfterPurchase = useCallback(async () => {
+    if (!accessToken) return false;
+    const ok = await syncPremiumFromRevenueCat(accessToken);
+    setServerPremium(ok);
+    return ok;
+  }, [accessToken]);
 
   const purchasePackage = useCallback(async (packageId: string): Promise<boolean> => {
     if (Capacitor.isNativePlatform()) {
@@ -172,10 +224,8 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
           console.warn("Package not found:", packageId);
           return false;
         }
-        const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
-        const entitled = !!customerInfo.entitlements.active["premium"];
-        setRevenueCatActive(entitled);
-        return entitled;
+        await Purchases.purchasePackage({ aPackage: pkg });
+        return syncAfterPurchase();
       } catch (err: any) {
         if (err?.userCancelled) return false;
         console.error("Purchase failed:", err);
@@ -197,25 +247,21 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
         console.warn("Web package not found:", packageId);
         return false;
       }
-      const result = await web.purchase({ rcPackage: pkg });
-      const entitled = !!result.customerInfo.entitlements.active["premium"];
-      setRevenueCatActive(entitled);
-      return entitled;
+      await web.purchase({ rcPackage: pkg });
+      return syncAfterPurchase();
     } catch (err: any) {
       if (err?.errorCode === "UserCancelledError") return false;
       console.error("Web purchase failed:", err);
       return false;
     }
-  }, [getWebPurchases]);
+  }, [getWebPurchases, syncAfterPurchase]);
 
   const restorePurchases = useCallback(async (): Promise<boolean> => {
     if (Capacitor.isNativePlatform()) {
       try {
         const { Purchases } = await import("@revenuecat/purchases-capacitor");
-        const { customerInfo } = await Purchases.restorePurchases();
-        const entitled = !!customerInfo.entitlements.active["premium"];
-        setRevenueCatActive(entitled);
-        return entitled;
+        await Purchases.restorePurchases();
+        return syncAfterPurchase();
       } catch (err) {
         console.error("Restore failed:", err);
         return false;
@@ -224,15 +270,13 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
     const web = await getWebPurchases();
     if (!web) return false;
     try {
-      const info = await web.getCustomerInfo();
-      const entitled = !!info.entitlements.active["premium"];
-      setRevenueCatActive(entitled);
-      return entitled;
+      await web.restorePurchases();
+      return syncAfterPurchase();
     } catch (err) {
       console.error("Web restore failed:", err);
       return false;
     }
-  }, [getWebPurchases]);
+  }, [getWebPurchases, syncAfterPurchase]);
 
   const presentWebPaywall = useCallback(async (containerEl: HTMLElement | null): Promise<boolean> => {
     const web = await getWebPurchases();
@@ -241,39 +285,41 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
     try {
-      const result = await web.presentPaywall({
+      await web.presentPaywall({
         htmlTarget: containerEl ?? undefined,
       });
-      const entitled = !!result.customerInfo.entitlements.active["premium"];
-      setRevenueCatActive(entitled);
-      return entitled;
+      return syncAfterPurchase();
     } catch (err) {
       console.error("Web paywall failed:", err);
       return false;
     }
-  }, [getWebPurchases]);
+  }, [getWebPurchases, syncAfterPurchase]);
 
   const value = useMemo<PremiumContextValue>(
     () => ({
       isPremium,
       purchaseSource,
       adRewardExpiresAt,
+      premiumLoading,
       unlockViaAd,
       initRevenueCat,
       setPremiumForTesting,
       purchasePackage,
       restorePurchases,
+      refreshPremiumFromServer,
       presentWebPaywall,
     }),
     [
       isPremium,
       purchaseSource,
       adRewardExpiresAt,
+      premiumLoading,
       unlockViaAd,
       initRevenueCat,
       setPremiumForTesting,
       purchasePackage,
       restorePurchases,
+      refreshPremiumFromServer,
       presentWebPaywall,
     ],
   );
@@ -290,11 +336,13 @@ export function usePremium(): PremiumContextValue {
       isPremium: false,
       purchaseSource: null,
       adRewardExpiresAt: null,
+      premiumLoading: false,
       unlockViaAd: () => {},
       initRevenueCat: () => {},
       setPremiumForTesting: () => {},
       purchasePackage: async () => false,
       restorePurchases: async () => false,
+      refreshPremiumFromServer: async () => {},
       presentWebPaywall: async () => false,
     };
   }

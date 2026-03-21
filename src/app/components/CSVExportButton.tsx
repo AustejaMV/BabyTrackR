@@ -3,6 +3,7 @@
  */
 
 import { useState } from "react";
+import { formatDate } from "../utils/dateUtils";
 import { generateAllCSVs, downloadBlob } from "../utils/csvExport";
 import { toast } from "sonner";
 import { FileDown } from "lucide-react";
@@ -53,7 +54,7 @@ export function CSVExportButton({ babyName }: { babyName?: string | null }) {
   };
 
   const last = getLastExport();
-  const lastStr = last ? new Date(last).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : null;
+  const lastStr = last ? formatDate(last) : null;
 
   return (
     <div className="flex flex-col gap-2">

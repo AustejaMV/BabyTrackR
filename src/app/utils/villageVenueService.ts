@@ -1,5 +1,19 @@
 import { serverUrl } from "./supabase";
 
+/**
+ * Build a Google Maps URL for a venue. Opens in browser (new tab) or in the Maps app on mobile if installed.
+ * Uses coordinates when available, otherwise search by address + name.
+ */
+export function getVenueMapsUrl(venue: { name: string; address: string; lat?: number | null; lng?: number | null }): string {
+  const lat = venue.lat != null && Number.isFinite(venue.lat) ? venue.lat : null;
+  const lng = venue.lng != null && Number.isFinite(venue.lng) ? venue.lng : null;
+  if (lat != null && lng != null) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
+  }
+  const query = [venue.name, venue.address].filter(Boolean).join(", ");
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
 export interface VillageVenue {
   id: string;
   name: string;

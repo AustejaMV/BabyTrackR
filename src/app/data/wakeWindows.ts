@@ -20,16 +20,18 @@ export const WAKE_WINDOWS: WakeWindowRow[] = [
   { minWeeks: 40, maxWeeks: 52, minMinutes: 150, maxMinutes: 210 },
   { minWeeks: 52, maxWeeks: 68, minMinutes: 210, maxMinutes: 270 },
   { minWeeks: 68, maxWeeks: 90, minMinutes: 240, maxMinutes: 300 },
-  { minWeeks: 90, maxWeeks: 201, minMinutes: 240, maxMinutes: 300 },
+  /** Older toddlers: reuse 90+ week window through schedule module max age */
+  { minWeeks: 90, maxWeeks: 1000, minMinutes: 240, maxMinutes: 300 },
 ];
 
 /**
  * Returns wake window for the given age in weeks.
- * Guard: returns null if ageInWeeks < 0 or > 200 or no matching row.
+ * Ages beyond tabulated ranges clamp to the last row (90+ weeks).
  */
 export function getWakeWindowForAge(ageInWeeks: number): { minMinutes: number; maxMinutes: number } | null {
-  if (ageInWeeks < 0 || ageInWeeks > 200) return null;
-  const row = WAKE_WINDOWS.find((r) => ageInWeeks >= r.minWeeks && ageInWeeks < r.maxWeeks);
+  if (ageInWeeks < 0 || !Number.isFinite(ageInWeeks)) return null;
+  const clamped = Math.min(ageInWeeks, 999);
+  const row = WAKE_WINDOWS.find((r) => clamped >= r.minWeeks && clamped < r.maxWeeks);
   if (!row) return null;
   return { minMinutes: row.minMinutes, maxMinutes: row.maxMinutes };
 }

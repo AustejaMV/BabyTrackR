@@ -14,6 +14,8 @@ import {
   saveData,
   loadAllDataFromServer,
   clearSyncedDataFromLocalStorage,
+  applyServerSnapshotToLocalStorage,
+  parseActiveCurrentSleepRaw,
 } from './dataSync';
 
 const RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 60_000] as const;
@@ -169,5 +171,53 @@ describe('saveData and loadAllDataFromServer guards', () => {
 
   it('clearSyncedDataFromLocalStorage does not throw', () => {
     expect(() => clearSyncedDataFromLocalStorage()).not.toThrow();
+  });
+});
+
+describe('applyServerSnapshotToLocalStorage (currentSleep)', () => {
+  const activeSleep = {
+    id: 'sleep-1',
+    position: 'Back',
+    startTime: Date.now() - 60_000,
+  };
+
+  afterEach(() => {
+    try {
+      localStorage.removeItem('currentSleep');
+      localStorage.removeItem('sleepHistory');
+      localStorage.removeItem('feedingHistory');
+    } catch {
+      /* ignore */
+    }
+  });
+
+  it('restores in-progress sleep when server snapshot still has currentSleep null', () => {
+    localStorage.setItem('currentSleep', JSON.stringify(activeSleep));
+    applyServerSnapshotToLocalStorage({
+      currentSleep: null,
+      sleepHistory: [],
+    });
+    const restored = parseActiveCurrentSleepRaw(localStorage.getItem('currentSleep'));
+    expect(restored?.id).toBe(activeSleep.id);
+  });
+
+  it('does not restore when sleepHistory on server already ended that session', () => {
+    localStorage.setItem('currentSleep', JSON.stringify(activeSleep));
+    applyServerSnapshotToLocalStorage({
+      currentSleep: null,
+      sleepHistory: [{ ...activeSleep, endTime: Date.now() }],
+    });
+    expect(localStorage.getItem('currentSleep')).toBe(JSON.stringify(null));
+  });
+
+  it('keeps server in-progress currentSleep when present', () => {
+    localStorage.setItem('currentSleep', JSON.stringify(activeSleep));
+    const other: typeof activeSleep = { id: 'sleep-2', position: 'Side', startTime: Date.now() - 120_000 };
+    applyServerSnapshotToLocalStorage({
+      currentSleep: other,
+      sleepHistory: [],
+    });
+    const raw = localStorage.getItem('currentSleep');
+    expect(raw).toBe(JSON.stringify(other));
   });
 });

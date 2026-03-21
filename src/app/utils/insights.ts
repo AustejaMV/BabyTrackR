@@ -3,6 +3,7 @@
  */
 
 import type { SleepRecord, FeedingRecord, DiaperRecord, TummyTimeRecord, BottleRecord, BabyProfile } from '../types';
+import { formatIntervalMinutesProse } from './dateUtils';
 
 export type InsightType = 'sleep' | 'feed' | 'diaper' | 'tummy' | 'growth' | 'pattern';
 
@@ -340,14 +341,12 @@ export function insightFeedingInterval(
   const increase = avgIntervalMins - prevAvgMins;
   if (increase < 15) return null;
   const name = babyName?.trim() || 'Baby';
-  const h = Math.floor(avgIntervalMins / 60);
-  const m = Math.round(avgIntervalMins % 60);
-  const ph = Math.floor(prevAvgMins / 60);
-  const pm = Math.round(prevAvgMins % 60);
+  const cur = formatIntervalMinutesProse(avgIntervalMins);
+  const prev = formatIntervalMinutesProse(prevAvgMins);
   return {
     id: 'feeding-interval',
     type: 'feed',
-    message: `${name}'s feeds are spacing out — average interval is now ${h}h ${m}m, up from ${ph}h ${pm}m last week. This is a sign of growing capacity.`,
+    message: `${name}'s feeds are spacing out — average interval is now ${cur}, up from ${prev} last week. This is a sign of growing capacity.`,
     detail: null,
     confidence: 'medium',
     actionable: false,

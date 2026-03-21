@@ -2,7 +2,7 @@
  * Time and duration display — what the user reads on screen.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { safeFormat, formatDurationMs, formatDurationShort, formatLiveDuration, getTimeSince } from './dateUtils';
+import { safeFormat, formatDurationMs, formatDurationShort, formatDurationMsProse, formatIntervalMinutesProse, formatLiveDuration, getTimeSince } from './dateUtils';
 
 // ─── Timestamps ───────────────────────────────────────────────────────────────
 
@@ -70,6 +70,27 @@ describe('Displaying a compact duration (no seconds, e.g. history list)', () => 
   it('shows "—" for corrupt data', () => {
     expect(formatDurationShort(NaN)).toBe('—');
     expect(formatDurationShort(-100)).toBe('—');
+  });
+});
+
+describe('Cradl notice copy (intervals / nap length)', () => {
+  it('uses "N minutes" under one hour', () => {
+    expect(formatIntervalMinutesProse(45)).toBe('45 minutes');
+    expect(formatIntervalMinutesProse(1)).toBe('1 minute');
+  });
+
+  it('uses whole hours when exact', () => {
+    expect(formatIntervalMinutesProse(120)).toBe('2 hours');
+    expect(formatIntervalMinutesProse(60)).toBe('1 hour');
+  });
+
+  it('uses compact hours+minutes instead of huge minute counts', () => {
+    expect(formatIntervalMinutesProse(176)).toBe('2h 56m');
+  });
+
+  it('formats ms durations for nap averages', () => {
+    expect(formatDurationMsProse(176 * 60_000)).toBe('2h 56m');
+    expect(formatDurationMsProse(35 * 60_000)).toBe('35 minutes');
   });
 });
 

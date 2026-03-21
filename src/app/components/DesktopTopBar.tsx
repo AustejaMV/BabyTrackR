@@ -1,5 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { usePremium } from "../contexts/PremiumContext";
+import { useLanguage } from "../contexts/LanguageContext";
+import { formatDayMonthShort } from "../utils/dateUtils";
+import type { SupportedLocale } from "../utils/languageStorage";
 import { IconSun, IconBook, IconVillage, IconHeart } from "./BrandIcons";
 
 const tabIcons: Record<string, (color: string) => React.ReactNode> = {
@@ -9,16 +12,16 @@ const tabIcons: Record<string, (color: string) => React.ReactNode> = {
   "/more": (c) => <IconHeart size={16} color={c} />,
 };
 
-const tabs = [
-  { key: "/", label: "Today" },
-  { key: "/journey", label: "Story" },
-  { key: "/village", label: "Village" },
-  { key: "/more", label: "Me" },
+const tabKeys = [
+  { key: "/", labelKey: "common.nav.today" },
+  { key: "/journey", labelKey: "common.nav.journey" },
+  { key: "/village", labelKey: "common.nav.village" },
+  { key: "/more", labelKey: "common.nav.me" },
 ] as const;
 
-const SEARCH_DATA_KEYS: { key: string; label: string; parseItem: (item: any) => { text: string; time: number } | null }[] = [
+const SEARCH_DATA_KEYS: { key: string; labelKey: string; parseItem: (item: any) => { text: string; time: number } | null }[] = [
   {
-    key: "feedingHistory", label: "Feeds",
+    key: "feedingHistory", labelKey: "today.statsRow.feeds",
     parseItem: (r: any) => {
       const t = r?.startTime ?? r?.timestamp;
       if (!t) return null;
@@ -34,11 +37,11 @@ const SEARCH_DATA_KEYS: { key: string; label: string; parseItem: (item: any) => 
     },
   },
   {
-    key: "diaperHistory", label: "Diapers",
+    key: "diaperHistory", labelKey: "today.nappy",
     parseItem: (r: any) => r?.timestamp ? { text: `Diaper – ${r.type ?? "wet"}`, time: r.timestamp } : null,
   },
   {
-    key: "tummyTimeHistory", label: "Tummy time",
+    key: "tummyTimeHistory", labelKey: "today.tummy",
     parseItem: (r: any) => {
       if (!r?.startTime) return null;
       const dur = r.endTime ? Math.round((r.endTime - r.startTime - (r.excludedMs ?? 0)) / 60000) : 0;
@@ -46,7 +49,7 @@ const SEARCH_DATA_KEYS: { key: string; label: string; parseItem: (item: any) => 
     },
   },
   {
-    key: "pumpHistory", label: "Pump",
+    key: "pumpHistory", labelKey: "today.pump",
     parseItem: (r: any) => {
       if (!r?.timestamp) return null;
       const ml = (r.volumeLeftMl ?? 0) + (r.volumeRightMl ?? 0);
@@ -54,16 +57,19 @@ const SEARCH_DATA_KEYS: { key: string; label: string; parseItem: (item: any) => 
     },
   },
   {
-    key: "cradl-notes", label: "Notes",
+    key: "cradl-notes", labelKey: "common.notes",
     parseItem: (r: any) => r?.text ? { text: `Note – ${r.text.slice(0, 60)}`, time: r.ts ?? r.createdAt ?? Date.now() } : null,
   },
 ];
 
-function searchLogs(query: string): { text: string; time: number; category: string }[] {
+function searchLogs(
+  query: string,
+  t: (key: string) => string
+): { text: string; time: number; category: string }[] {
   const q = query.toLowerCase().trim();
   if (!q) return [];
   const results: { text: string; time: number; category: string }[] = [];
-  for (const { key, label, parseItem } of SEARCH_DATA_KEYS) {
+  for (const { key, labelKey, parseItem } of SEARCH_DATA_KEYS) {
     try {
       const raw = localStorage.getItem(key);
       if (!raw) continue;
@@ -72,7 +78,7 @@ function searchLogs(query: string): { text: string; time: number; category: stri
       for (const item of arr) {
         const parsed = parseItem(item);
         if (parsed && parsed.text.toLowerCase().includes(q)) {
-          results.push({ ...parsed, category: label });
+          results.push({ ...parsed, category: t(labelKey) });
         }
       }
     } catch { /* skip */ }
@@ -81,14 +87,14 @@ function searchLogs(query: string): { text: string; time: number; category: stri
   return results.slice(0, 30);
 }
 
-function formatSearchTime(ts: number): string {
+function formatSearchTime(ts: number, locale: SupportedLocale): string {
   try {
     const d = new Date(ts);
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
     if (diffMs < 3600000) return `${Math.max(1, Math.round(diffMs / 60000))}m ago`;
     if (diffMs < 86400000) return `${Math.round(diffMs / 3600000)}h ago`;
-    return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    return formatDayMonthShort(ts, locale);
   } catch { return ""; }
 }
 
@@ -96,14 +102,16 @@ interface DesktopTopBarProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   babyName?: string;
+  onAskCradlClick?: () => void;
 }
 
-export function DesktopTopBar({ activeTab, onTabChange, babyName }: DesktopTopBarProps) {
+export function DesktopTopBar({ activeTab, onTabChange, babyName, onAskCradlClick }: DesktopTopBarProps) {
+  const { t, language } = useLanguage();
   const { isPremium } = usePremium();
   const [hoveredTab, setHoveredTab] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<ReturnType<typeof searchLogs>>([]);
+  const [searchResults, setSearchResults] = useState<{ text: string; time: number; category: string }[]>([]);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchBoxRef = useRef<HTMLDivElement>(null);
 
@@ -129,10 +137,10 @@ export function DesktopTopBar({ activeTab, onTabChange, babyName }: DesktopTopBa
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setSearchResults(searchLogs(searchQuery));
+      setSearchResults(searchLogs(searchQuery, t));
     }, 150);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, t]);
 
   return (
     <header
@@ -159,7 +167,8 @@ export function DesktopTopBar({ activeTab, onTabChange, babyName }: DesktopTopBa
       />
 
       <nav role="navigation" aria-label="Main navigation" style={{ display: "flex", gap: 4, flex: 1 }}>
-        {tabs.map(({ key, label }) => {
+        {tabKeys.map(({ key, labelKey }) => {
+          const label = t(labelKey);
           const isActive = key === "/" ? activeTab === "/" || activeTab === "" : activeTab.startsWith(key);
           const isHovered = hoveredTab === key;
 
@@ -199,6 +208,33 @@ export function DesktopTopBar({ activeTab, onTabChange, babyName }: DesktopTopBa
       </nav>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto", flexShrink: 0 }}>
+        {onAskCradlClick && (
+          <button
+            type="button"
+            onClick={onAskCradlClick}
+            aria-label={t("desktop.askCradlAria")}
+            style={{
+              padding: "8px 14px",
+              borderRadius: 10,
+              border: "none",
+              cursor: "pointer",
+              fontSize: 14,
+              fontWeight: 500,
+              fontFamily: "system-ui, sans-serif",
+              color: "#c04030",
+              background: "transparent",
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#feeae4";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            Ask Cradl
+          </button>
+        )}
         {/* Search */}
         <div style={{ position: "relative" }} ref={searchBoxRef}>
           <div
@@ -213,7 +249,7 @@ export function DesktopTopBar({ activeTab, onTabChange, babyName }: DesktopTopBa
               cursor: "pointer",
               background: searchOpen ? "#feeae4" : "#f8f0e8",
             }}
-            aria-label="Search logs"
+            aria-label={t("desktop.searchAria")}
           >
             <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
               <circle cx="5.5" cy="5.5" r="4" stroke={searchOpen ? "#c04030" : "#9a8080"} strokeWidth="1.2" />
@@ -260,7 +296,7 @@ export function DesktopTopBar({ activeTab, onTabChange, babyName }: DesktopTopBa
               <div style={{ maxHeight: 340, overflowY: "auto", padding: "0 8px 8px" }}>
                 {searchQuery.trim() && searchResults.length === 0 && (
                   <div style={{ padding: "20px 14px", textAlign: "center", color: "#9a8080", fontSize: 13 }}>
-                    No results for "{searchQuery}"
+                    {t("desktop.noResults", { query: searchQuery })}
                   </div>
                 )}
                 {searchResults.map((r, i) => (
@@ -287,12 +323,12 @@ export function DesktopTopBar({ activeTab, onTabChange, babyName }: DesktopTopBa
                       <div style={{ fontSize: 13, color: "#2c1f1f", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.text}</div>
                       <div style={{ fontSize: 11, color: "#9a8080" }}>{r.category}</div>
                     </div>
-                    <div style={{ fontSize: 11, color: "#9a8080", whiteSpace: "nowrap", flexShrink: 0 }}>{formatSearchTime(r.time)}</div>
+                    <div style={{ fontSize: 11, color: "#9a8080", whiteSpace: "nowrap", flexShrink: 0 }}>{formatSearchTime(r.time, language)}</div>
                   </div>
                 ))}
                 {!searchQuery.trim() && (
                   <div style={{ padding: "20px 14px", textAlign: "center", color: "#9a8080", fontSize: 13 }}>
-                    Type to search your logs
+                    {t("desktop.typeToSearch")}
                   </div>
                 )}
               </div>
@@ -312,7 +348,7 @@ export function DesktopTopBar({ activeTab, onTabChange, babyName }: DesktopTopBa
             cursor: "pointer",
           }}
         >
-          {isPremium ? "PRO" : "Upgrade"}
+          {isPremium ? t("desktop.pro") : t("desktop.upgrade")}
         </span>
 
         {/* Settings gear */}
@@ -328,7 +364,7 @@ export function DesktopTopBar({ activeTab, onTabChange, babyName }: DesktopTopBa
             cursor: "pointer",
             background: "#f8f0e8",
           }}
-          aria-label="Settings"
+          aria-label={t("desktop.settings")}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9a8080" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3" />
@@ -348,7 +384,7 @@ export function DesktopTopBar({ activeTab, onTabChange, babyName }: DesktopTopBa
             justifyContent: "center",
             cursor: "pointer",
           }}
-          aria-label="Profile settings"
+          aria-label={t("desktop.profileSettings")}
         >
           <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
             <circle cx="7" cy="5" r="2.5" fill="#c4a0a0" />
@@ -356,7 +392,7 @@ export function DesktopTopBar({ activeTab, onTabChange, babyName }: DesktopTopBa
           </svg>
         </div>
 
-        <span style={{ fontSize: 14, fontWeight: 500, color: "#2c1f1f" }}>{babyName || "Baby"}</span>
+        <span style={{ fontSize: 14, fontWeight: 500, color: "#2c1f1f" }}>{babyName || t("common.baby")}</span>
       </div>
     </header>
   );

@@ -99,7 +99,7 @@ export const NAPPY_GUIDE: NappyEntry[] = [
     ageContext: "Any age",
     meaning: "Pale or chalky white stools can indicate a liver or bile duct issue. This needs prompt medical attention.",
     isNormal: "call_gp",
-    whenToCallGP: "Contact your GP today — do not wait.",
+    whenToCallGP: "Contact your doctor today — do not wait.",
     whenToCall999: null,
   },
   {
@@ -111,7 +111,7 @@ export const NAPPY_GUIDE: NappyEntry[] = [
     ageContext: "Any age",
     meaning: "Red in the nappy could be blood. Small streaks may be from a small anal tear (common and harmless) but should be checked.",
     isNormal: "call_gp",
-    whenToCallGP: "Contact your GP or health visitor today to describe what you saw.",
+    whenToCallGP: "Contact your doctor or health visitor today to describe what you saw.",
     whenToCall999: "If there is significant blood or baby appears unwell.",
   },
   {
@@ -123,7 +123,7 @@ export const NAPPY_GUIDE: NappyEntry[] = [
     ageContext: "After week 1",
     meaning: "Black stools in a baby past the first week of life can indicate bleeding in the upper digestive tract.",
     isNormal: "call_gp",
-    whenToCallGP: "Contact your GP today.",
+    whenToCallGP: "Contact your doctor today.",
     whenToCall999: "If baby seems unwell or there is a large amount.",
   },
   {

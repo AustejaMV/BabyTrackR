@@ -4,7 +4,11 @@
 
 import { getWakeWindowForAge } from './wakeWindows';
 
+/** Stable key for persisted “last seen” stage (survives locale changes). */
+export type NapStageKey = 'newborn' | 'threeNap' | 'twoNap' | 'twoToOne' | 'oneNap' | 'dropping';
+
 export interface NapScheduleStage {
+  stageKey: NapStageKey;
   minWeeks: number;
   maxWeeks: number;
   naps: number;
@@ -13,13 +17,31 @@ export interface NapScheduleStage {
 }
 
 export const NAP_SCHEDULE_STAGES: NapScheduleStage[] = [
-  { minWeeks: 0, maxWeeks: 16, naps: 4, label: 'Newborn schedule', description: '4–5 naps' },
-  { minWeeks: 16, maxWeeks: 28, naps: 3, label: '3-nap stage', description: '3 naps' },
-  { minWeeks: 28, maxWeeks: 40, naps: 2, label: '2-nap stage — most common', description: '2 naps' },
-  { minWeeks: 40, maxWeeks: 60, naps: 2, label: '2-to-1 nap transition', description: '2 naps transitioning to 1' },
-  { minWeeks: 60, maxWeeks: 90, naps: 1, label: '1-nap stage', description: '1 nap' },
-  { minWeeks: 90, maxWeeks: 999, naps: 1, label: 'Dropping naps', description: '0–1 naps' },
+  { stageKey: 'newborn', minWeeks: 0, maxWeeks: 16, naps: 4, label: 'Newborn schedule', description: '4–5 naps' },
+  { stageKey: 'threeNap', minWeeks: 16, maxWeeks: 28, naps: 3, label: '3-nap stage', description: '3 naps' },
+  { stageKey: 'twoNap', minWeeks: 28, maxWeeks: 40, naps: 2, label: '2-nap stage — most common', description: '2 naps' },
+  { stageKey: 'twoToOne', minWeeks: 40, maxWeeks: 60, naps: 2, label: '2-to-1 nap transition', description: '2 naps transitioning to 1' },
+  { stageKey: 'oneNap', minWeeks: 60, maxWeeks: 90, naps: 1, label: '1-nap stage', description: '1 nap' },
+  { stageKey: 'dropping', minWeeks: 90, maxWeeks: 999, naps: 1, label: 'Dropping naps', description: '0–1 naps' },
 ];
+
+/** Map legacy stored labels (pre–stageKey) to NapStageKey. */
+const LEGACY_LABEL_TO_KEY: Record<string, NapStageKey> = {
+  'Newborn schedule': 'newborn',
+  '3-nap stage': 'threeNap',
+  '2-nap stage — most common': 'twoNap',
+  '2-to-1 nap transition': 'twoToOne',
+  '1-nap stage': 'oneNap',
+  'Dropping naps': 'dropping',
+};
+
+/** Normalize value read from localStorage to a NapStageKey (or null). */
+export function normalizeStoredNapStageKey(raw: string | null): NapStageKey | null {
+  if (!raw) return null;
+  const keys = NAP_SCHEDULE_STAGES.map((s) => s.stageKey);
+  if (keys.includes(raw as NapStageKey)) return raw as NapStageKey;
+  return LEGACY_LABEL_TO_KEY[raw] ?? null;
+}
 
 export interface ScheduleEvent {
   label: string;
@@ -89,7 +111,9 @@ export function buildDailySchedule(
   ageInWeeks: number,
 ): ScheduleEvent[] {
   if (ageInWeeks < 0 || !Number.isFinite(ageInWeeks)) return [];
-  const wakeWindow = getWakeWindowForAge(ageInWeeks);
+  /** Align with nap stage table (0–999 weeks). */
+  const ageClamped = Math.min(Math.max(0, ageInWeeks), 999);
+  const wakeWindow = getWakeWindowForAge(ageClamped);
   if (!wakeWindow) return [];
 
   const today = new Date();
@@ -105,7 +129,7 @@ export function buildDailySchedule(
     bedDate = new Date(bedDate.getTime() + 24 * 60 * 60 * 1000);
   }
 
-  const stage = getNapStage(ageInWeeks);
+  const stage = getNapStage(ageClamped);
   const napCount = stage ? stage.naps : 0;
 
   const events: ScheduleEvent[] = [];
@@ -134,6 +158,7 @@ export function buildDailySchedule(
       const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
       events.push({
         label: `Nap ${i + 1}`,
+        napIndex: i + 1,
         time: timeStr,
         type: 'nap',
       });

@@ -13,6 +13,17 @@ interface LeapsCardProps {
   birthDateMs: number | null;
 }
 
+const LEAP_SOURCE_LINKS = [
+  {
+    label: "Wonder Weeks — mental leaps overview",
+    url: "https://www.thewonderweeks.com/mental-leaps-and-wonder-weeks/",
+  },
+  {
+    label: "NHS — baby development",
+    url: "https://www.nhs.uk/baby/babys-development/",
+  },
+];
+
 export function LeapsCard({ birthDateMs }: LeapsCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
@@ -88,6 +99,22 @@ export function LeapsCard({ birthDateMs }: LeapsCardProps) {
             </button>
           </>
         )}
+        <div className="mt-2 text-[10px]" style={{ color: "var(--mu)", lineHeight: 1.45 }}>
+          <span style={{ fontWeight: 600 }}>Sources: </span>
+          {LEAP_SOURCE_LINKS.map((src, idx) => (
+            <span key={src.url}>
+              {idx > 0 ? <span> · </span> : null}
+              <a
+                href={src.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "var(--blue)", textDecoration: "underline", textUnderlineOffset: 2 }}
+              >
+                {src.label}
+              </a>
+            </span>
+          ))}
+        </div>
       </div>
     );
   }
@@ -117,6 +144,22 @@ export function LeapsCard({ birthDateMs }: LeapsCardProps) {
             See more
           </button>
         )}
+        <div className="mt-2 text-[10px]" style={{ color: "var(--mu)", lineHeight: 1.45 }}>
+          <span style={{ fontWeight: 600 }}>Sources: </span>
+          {LEAP_SOURCE_LINKS.map((src, idx) => (
+            <span key={src.url}>
+              {idx > 0 ? <span> · </span> : null}
+              <a
+                href={src.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "var(--blue)", textDecoration: "underline", textUnderlineOffset: 2 }}
+              >
+                {src.label}
+              </a>
+            </span>
+          ))}
+        </div>
       </div>
     );
   }

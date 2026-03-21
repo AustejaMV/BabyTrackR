@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import { PremiumProvider, usePremium, daysLeftOnAdReward } from "./PremiumContext";
 
+vi.mock("./AuthContext", () => ({ useAuth: () => ({ session: null }) }));
+
 function TestConsumer() {
   const { isPremium, purchaseSource, unlockViaAd } = usePremium();
   return (

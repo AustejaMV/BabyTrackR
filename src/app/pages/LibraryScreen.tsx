@@ -1,10 +1,20 @@
 import { useState, useMemo } from "react";
-import { Search, BookOpen, ChevronRight, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Search, BookOpen, ChevronRight, ThumbsUp, ThumbsDown, ExternalLink } from "lucide-react";
 import { getAllArticles } from "../data/articles";
 import type { ArticleContent } from "../types/article";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const CATEGORIES = ["All", "Sleep", "Feeding", "Nappies", "Development", "Mum's health"] as const;
 type Category = (typeof CATEGORIES)[number];
+
+const CATEGORY_LABEL_KEYS: Record<Category, string> = {
+  All: "library.categoryAll",
+  Sleep: "library.categorySleep",
+  Feeding: "library.categoryFeeding",
+  Nappies: "library.categoryNappies",
+  Development: "library.categoryDevelopment",
+  "Mum's health": "library.categoryMumsHealth",
+};
 
 const TAG_TO_CATEGORY: Record<string, Category> = {
   sleep: "Sleep",
@@ -13,13 +23,20 @@ const TAG_TO_CATEGORY: Record<string, Category> = {
   SIDS: "Sleep",
   safety: "Sleep",
   feeding: "Feeding",
+  breast: "Feeding",
+  bottle: "Feeding",
+  weaning: "Feeding",
+  solids: "Feeding",
   nappy: "Nappies",
+  nappies: "Nappies",
   poo: "Nappies",
   constipation: "Nappies",
   development: "Development",
   crying: "Development",
+  milestones: "Development",
   mum: "Mum's health",
   wellbeing: "Mum's health",
+  "mental health": "Mum's health",
 };
 
 function categoryFor(article: ArticleContent): Category {
@@ -30,14 +47,14 @@ function categoryFor(article: ArticleContent): Category {
   return "Development";
 }
 
-const GP_MARKER = "When to call your GP or 111";
+const HEALTH_MARKER = "When to call your doctor or local health advice line";
 
-function splitGPSection(body: string): { main: string; gp: string | null } {
-  const idx = body.indexOf(GP_MARKER);
-  if (idx === -1) return { main: body, gp: null };
+function splitHealthSection(body: string): { main: string; health: string | null } {
+  const idx = body.indexOf(HEALTH_MARKER);
+  if (idx === -1) return { main: body, health: null };
   return {
     main: body.slice(0, idx).trimEnd(),
-    gp: body.slice(idx + GP_MARKER.length).trim(),
+    health: body.slice(idx + HEALTH_MARKER.length).trim(),
   };
 }
 
@@ -52,7 +69,16 @@ function renderParagraphs(text: string) {
     ));
 }
 
+/** Build Google Translate URL to translate English text into the given locale. Opens in new tab. */
+function getGoogleTranslateUrl(text: string, targetLocale: string): string {
+  if (targetLocale === "en") return "#";
+  const tl = targetLocale;
+  const encoded = encodeURIComponent(text.slice(0, 5000));
+  return `https://translate.google.com/?sl=en&tl=${tl}&text=${encoded}`;
+}
+
 export function LibraryScreen() {
+  const { t, language } = useLanguage();
   const articles = useMemo(() => getAllArticles(), []);
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<Category>("All");
@@ -70,9 +96,9 @@ export function LibraryScreen() {
 
   return (
     <div style={{ padding: "16px 16px 100px", fontFamily: "system-ui, sans-serif", color: "var(--tx)" }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 4px" }}>Knowledge Library</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 4px" }}>{t("library.title")}</h1>
       <p style={{ color: "var(--mu)", fontSize: 14, margin: "0 0 16px" }}>
-        NHS-aligned articles reviewed by health professionals
+        {t("library.subtitle")}
       </p>
 
       {/* Search bar */}
@@ -91,7 +117,7 @@ export function LibraryScreen() {
         <Search size={18} color="var(--mu)" />
         <input
           type="text"
-          placeholder="Search articles…"
+          placeholder={t("library.searchPlaceholder")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           style={{
@@ -135,7 +161,7 @@ export function LibraryScreen() {
                 fontFamily: "inherit",
               }}
             >
-              {cat}
+              {t(CATEGORY_LABEL_KEYS[cat])}
             </button>
           );
         })}
@@ -145,7 +171,7 @@ export function LibraryScreen() {
       {filtered.length === 0 && (
         <div style={{ textAlign: "center", padding: "40px 0", color: "var(--mu)" }}>
           <BookOpen size={32} style={{ marginBottom: 8, opacity: 0.5 }} />
-          <p style={{ margin: 0 }}>No articles match your search.</p>
+          <p style={{ margin: 0 }}>{t("library.noMatch")}</p>
         </div>
       )}
 
@@ -153,7 +179,7 @@ export function LibraryScreen() {
         {filtered.map((article) => {
           const expanded = expandedId === article.id;
           const cat = categoryFor(article);
-          const { main, gp } = splitGPSection(article.body);
+          const { main, health } = splitHealthSection(article.body);
 
           return (
             <div
@@ -193,7 +219,7 @@ export function LibraryScreen() {
                         color: "var(--coral)",
                       }}
                     >
-                      {cat}
+                      {t(CATEGORY_LABEL_KEYS[cat])}
                     </span>
                   </div>
                   <div style={{ fontSize: 15, fontWeight: 600, color: "var(--tx)", marginBottom: 2 }}>
@@ -235,7 +261,7 @@ export function LibraryScreen() {
                     {renderParagraphs(main)}
                   </div>
 
-                  {gp && (
+                  {health && (
                     <div
                       style={{
                         background: "var(--ro)",
@@ -245,9 +271,33 @@ export function LibraryScreen() {
                       }}
                     >
                       <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, color: "var(--tx)" }}>
-                        {GP_MARKER}
+                        {HEALTH_MARKER}
                       </div>
-                      <div style={{ fontSize: 14, color: "var(--tx)" }}>{renderParagraphs(gp)}</div>
+                      <div style={{ fontSize: 14, color: "var(--tx)" }}>{renderParagraphs(health)}</div>
+                    </div>
+                  )}
+
+                  {/* Translate with Google — when app language is not English */}
+                  {language !== "en" && (
+                    <div style={{ marginBottom: 12 }}>
+                      <a
+                        href={getGoogleTranslateUrl(`${article.title}\n\n${article.body}`, language)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          fontSize: 13,
+                          color: "var(--coral)",
+                          fontWeight: 500,
+                          textDecoration: "none",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ExternalLink size={14} />
+                        {t("library.translateWithGoogle")}
+                      </a>
                     </div>
                   )}
 
@@ -263,11 +313,11 @@ export function LibraryScreen() {
                     }}
                   >
                     <span style={{ fontSize: 12, color: "var(--mu)" }}>
-                      Last reviewed {article.lastReviewed}
+                      {t("library.lastReviewed", { date: article.lastReviewed })}
                     </span>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 12, color: "var(--mu)" }}>Helpful?</span>
+                      <span style={{ fontSize: 12, color: "var(--mu)" }}>{t("library.helpful")}</span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -282,7 +332,7 @@ export function LibraryScreen() {
                           display: "flex",
                           alignItems: "center",
                         }}
-                        aria-label="Yes, helpful"
+                        aria-label={t("common.yes")}
                       >
                         <ThumbsUp size={14} color={helpful[article.id] === "yes" ? "var(--coral)" : "var(--mu)"} />
                       </button>
@@ -300,7 +350,7 @@ export function LibraryScreen() {
                           display: "flex",
                           alignItems: "center",
                         }}
-                        aria-label="No, not helpful"
+                        aria-label={t("common.no")}
                       >
                         <ThumbsDown size={14} color={helpful[article.id] === "no" ? "var(--coral)" : "var(--mu)"} />
                       </button>

@@ -292,21 +292,13 @@ export function SafetyScreen() {
               marginBottom: 2,
             }}
           >
-            National Domestic Abuse Helpline
+            Domestic abuse helpline
           </div>
-          <a
-            href="tel:08082000247"
-            style={{
-              fontSize: 18,
-              fontWeight: 700,
-              color: "var(--coral)",
-              textDecoration: "none",
-            }}
-          >
-            0808 2000 247
-          </a>
+          <span style={{ fontSize: 14, color: "var(--tx)" }}>
+            Your local domestic abuse / crisis service — look up the number for your area. UK: 0808 2000 247 (24h, free).
+          </span>
           <div style={{ fontSize: 11, color: "var(--mu)", marginTop: 2 }}>
-            Free, 24 hours, confidential
+            Free, 24 hours, confidential where available
           </div>
         </div>
 
@@ -319,21 +311,13 @@ export function SafetyScreen() {
               marginBottom: 2,
             }}
           >
-            PANDAS — Postnatal Mental Health
+            Postnatal mental health support
           </div>
-          <a
-            href="tel:08081961776"
-            style={{
-              fontSize: 18,
-              fontWeight: 700,
-              color: "var(--coral)",
-              textDecoration: "none",
-            }}
-          >
-            0808 1961 776
-          </a>
+          <span style={{ fontSize: 14, color: "var(--tx)" }}>
+            Look up your local perinatal mental health or crisis line. UK: PANDAS 0808 1961 776 (Mon–Sun 9am–8pm).
+          </span>
           <div style={{ fontSize: 11, color: "var(--mu)", marginTop: 2 }}>
-            Free helpline, Mon–Sun 9am–8pm
+            Free helpline where available
           </div>
         </div>
 
@@ -346,21 +330,19 @@ export function SafetyScreen() {
               marginBottom: 2,
             }}
           >
-            NHS 111
+            Local health advice line
           </div>
-          <a
-            href="tel:111"
+          <span
             style={{
               fontSize: 18,
               fontWeight: 700,
               color: "var(--coral)",
-              textDecoration: "none",
             }}
           >
-            111
-          </a>
-          <div style={{ fontSize: 11, color: "var(--mu)", marginTop: 2 }}>
             Non-emergency medical advice, 24 hours
+          </span>
+          <div style={{ fontSize: 11, color: "var(--mu)", marginTop: 2 }}>
+            Call your local non-emergency number for health advice (e.g. 111 in UK, 116 117 in some EU countries)
           </div>
         </div>
       </div>

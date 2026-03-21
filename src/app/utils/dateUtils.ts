@@ -1,4 +1,4 @@
-import { format, type Locale } from 'date-fns';
+import { format, parse, type Locale } from 'date-fns';
 import { enGB } from 'date-fns/locale/en-GB';
 import { lt } from 'date-fns/locale/lt';
 import { de } from 'date-fns/locale/de';
@@ -12,21 +12,28 @@ import {
   userShortDatePattern,
   userShortDateTimePattern,
   userDayDateTimePattern,
+  userLongDatePattern,
+  userDayMonthShortPattern,
+  userMediumDatePattern,
+  userWeekdayMediumDatePattern,
+  userWeekdayLongDatePattern,
 } from './formatPreferencesStorage';
 
 /** User-facing short date — respects user preference (dd/MM/yyyy or MM/dd/yyyy). */
 export function DATE_DISPLAY(): string { return userDatePattern(); }
-/** User-facing long date: e.g. 8 March 2025 — locale-dependent for month names */
-export const DATE_DISPLAY_LONG = 'd MMMM yyyy';
+/** User-facing long date pattern (named month, order from date preference). */
+export function DATE_DISPLAY_LONG(): string {
+  return userLongDatePattern();
+}
 /** User-facing time pattern — respects user preference (HH:mm or h:mm a). */
 export function TIME_DISPLAY(): string { return userTimePattern(); }
 /** Combined date + time pattern. */
 export function DATETIME_DISPLAY(): string { return userDateTimePattern(); }
 /** Short date without year (dd/MM or MM/dd). */
 export function SHORT_DATE_DISPLAY(): string { return userShortDatePattern(); }
-/** "d MMM HH:mm" / "d MMM h:mm a" */
+/** Short date + time — day/month order and 12h/24h from settings */
 export function SHORT_DATETIME_DISPLAY(): string { return userShortDateTimePattern(); }
-/** "EEE d MMM · HH:mm" / "EEE d MMM · h:mm a" */
+/** Weekday + short date + time — all from settings */
 export function DAY_DATETIME_DISPLAY(): string { return userDayDateTimePattern(); }
 
 const dateFnsLocales: Record<SupportedLocale, Locale> = {
@@ -69,11 +76,47 @@ export function formatDate(ts: number | null | undefined, fallback = '—'): str
 }
 
 /**
+ * Parse a date string in the user's chosen format (dd/MM/yyyy or MM/dd/yyyy).
+ * Returns the Date or null if invalid.
+ */
+export function parseUserDateString(str: string): Date | null {
+  const trimmed = str.trim();
+  if (!trimmed) return null;
+  try {
+    const pattern = userDatePattern();
+    const d = parse(trimmed, pattern, new Date());
+    return Number.isFinite(d.getTime()) ? d : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Convenience: format a timestamp as a long date with locale-aware month name.
  * e.g. "8 March 2025" (en) or "8 kovo 2025" (lt).
  */
 export function formatDateLong(ts: number | null | undefined, locale: SupportedLocale = 'en', fallback = '—'): string {
-  return safeFormat(ts, DATE_DISPLAY_LONG, fallback, locale);
+  return safeFormat(ts, userLongDatePattern(), fallback, locale);
+}
+
+/** e.g. "8 Mar 2025" / "Mar 8, 2025" — respects date order preference */
+export function formatMediumDate(ts: number | null | undefined, locale: SupportedLocale = 'en', fallback = '—'): string {
+  return safeFormat(ts, userMediumDatePattern(), fallback, locale);
+}
+
+/** Weekday + medium date for modal headings */
+export function formatWeekdayMediumDate(ts: number | null | undefined, locale: SupportedLocale = 'en', fallback = '—'): string {
+  return safeFormat(ts, userWeekdayMediumDatePattern(), fallback, locale);
+}
+
+/** Memory book / long headings: weekday + long month */
+export function formatWeekdayLongDate(ts: number | null | undefined, locale: SupportedLocale = 'en', fallback = '—'): string {
+  return safeFormat(ts, userWeekdayLongDatePattern(), fallback, locale);
+}
+
+/** Short "8 Mar" / "Mar 8" */
+export function formatDayMonthShort(ts: number | null | undefined, locale: SupportedLocale = 'en', fallback = '—'): string {
+  return safeFormat(ts, userDayMonthShortPattern(), fallback, locale);
 }
 
 /**
@@ -108,6 +151,28 @@ export function formatDurationMs(ms: number, showSeconds = true): string {
  */
 export function formatDurationShort(ms: number): string {
   return formatDurationMs(ms, false);
+}
+
+/**
+ * Human-readable intervals for Cradl notices / insights.
+ * Avoids mixing large minute counts with decimal hours (e.g. "176 minutes (2.9 hours)").
+ * Under 1h: "N minutes"; whole hours: "2 hours"; otherwise compact "2h 56m".
+ */
+export function formatIntervalMinutesProse(totalMinutes: number): string {
+  if (!Number.isFinite(totalMinutes) || totalMinutes < 0) return "—";
+  const m = Math.round(totalMinutes);
+  if (m < 60) return `${m} minute${m === 1 ? "" : "s"}`;
+  if (m % 60 === 0) {
+    const h = m / 60;
+    return `${h} hour${h === 1 ? "" : "s"}`;
+  }
+  return formatDurationShort(m * 60_000);
+}
+
+/** Same idea for millisecond durations (nap length, etc.). */
+export function formatDurationMsProse(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return "—";
+  return formatIntervalMinutesProse(ms / 60_000);
 }
 
 /**

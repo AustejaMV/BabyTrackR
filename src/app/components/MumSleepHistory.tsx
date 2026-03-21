@@ -4,6 +4,8 @@
 
 import { useState } from "react";
 import { getMumSleepHistory } from "../utils/mumSleepStorage";
+import { formatDayMonthShort } from "../utils/dateUtils";
+import { getLanguage } from "../utils/languageStorage";
 import { analyseMumSleep, wasSupportCardShownRecently, markSupportCardShown } from "../utils/mumSleepAnalysis";
 
 const RANGE_HEIGHTS: Record<string, number> = {
@@ -48,7 +50,7 @@ export function MumSleepHistory({ babyName }: { babyName?: string | null }) {
               }}
             />
             <span className="text-[10px]" style={{ color: "var(--mu)" }}>
-              {new Date(e.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+              {formatDayMonthShort(new Date(e.date).getTime(), locale)}
             </span>
           </div>
         ))}

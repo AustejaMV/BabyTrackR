@@ -1,6 +1,6 @@
 /**
  * Add a jaundice skin check: light checklist, colour selection, feeds count.
- * On save shows assessment alert; urgent/call_midwife: 111 CTA, min 3s before dismiss.
+ * On save shows assessment alert; urgent/call_midwife: local health advice line CTA, min 3s before dismiss.
  */
 
 import { useState, useEffect } from "react";
@@ -97,7 +97,7 @@ export function AddJaundiceCheckSheet({
               style={{ background: "var(--ro)" }}
             >
               <Phone className="w-5 h-5" aria-hidden />
-              Call 111
+              Call your local health advice line
             </a>
           )}
         </div>

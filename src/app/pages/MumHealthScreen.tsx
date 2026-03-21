@@ -576,8 +576,8 @@ function PostnatalCheckTab() {
             <div style={{ fontSize: 12, color: "#5a2a1a", lineHeight: 1.5, fontFamily: font, textAlign: "left" as const }}>
               Your score suggests you may be experiencing significant difficulties. This is
               not a diagnosis — but it is a signal worth acting on. Please speak with your GP
-              or health visitor. You can also call the PANDAS Foundation helpline:{" "}
-              <strong>0808 1961 776</strong>.
+              or health visitor. If you're in crisis or worried about your safety, contact your
+              local emergency or mental health crisis line right away.
             </div>
           ) : (
             <div style={{ fontSize: 12, color: "#2a6a2a", lineHeight: 1.5, fontFamily: font }}>

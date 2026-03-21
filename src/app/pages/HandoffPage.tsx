@@ -253,7 +253,7 @@ export function HandoffPage() {
         </div>
 
         {/* Info cards */}
-        <InfoCard title="Feed" accent={ACCENT_COLORS.feed}>
+        <InfoCard title="Nurse" accent={ACCENT_COLORS.feed}>
           {formatFeedInfo(session)}
         </InfoCard>
 

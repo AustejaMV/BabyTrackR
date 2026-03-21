@@ -26,7 +26,8 @@
     "thisWeek": "Cette semaine",
     "nav": {
       "today": "Aujourd'hui",
-      "journey": "Parcours",
+      "journey": "Histoire",
+      "health": "Santé",
       "village": "Village",
       "me": "Moi"
     },

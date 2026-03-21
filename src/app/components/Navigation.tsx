@@ -1,13 +1,17 @@
 import React from "react";
+import { hasCustomTrackerReminderDue } from "../utils/customTrackerStorage";
+import { useLanguage } from "../contexts/LanguageContext";
 
-const navItems = [
-  { path: "/", label: "Today" },
-  { path: "/journey", label: "Story" },
-  { path: "/village", label: "Village" },
-  { path: "/more", label: "Me" },
+const navConfig = [
+  { path: "/", labelKey: "common.nav.today" },
+  { path: "/journey", labelKey: "common.nav.journey" },
+  { path: "/health", labelKey: "common.nav.health" },
+  { path: "/village", labelKey: "common.nav.village" },
+  { path: "/more", labelKey: "common.nav.me" },
 ] as const;
 
 export function Navigation() {
+  const { t } = useLanguage();
   const pathname =
     typeof window !== "undefined" ? window.location.pathname : "/";
 
@@ -30,7 +34,8 @@ export function Navigation() {
         height: 68,
       }}
     >
-      {navItems.map((item) => {
+      {navConfig.map((item) => {
+        const label = t(item.labelKey);
         const isActive =
           item.path === "/"
             ? pathname === "/" || pathname === ""
@@ -42,7 +47,7 @@ export function Navigation() {
           <a
             key={item.path}
             href={item.path}
-            aria-label={`Navigate to ${item.label} tab`}
+            aria-label={`Navigate to ${label} tab`}
             aria-current={isActive ? "page" : undefined}
             style={{
               flex: 1,
@@ -100,6 +105,29 @@ export function Navigation() {
                   />
                 </svg>
               )}
+              {item.path === "/health" && (
+                <span style={{ position: "relative", display: "inline-flex" }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 6.7l-1.1-1.1a5.5 5.5 0 00-7.8 7.8L12 21.2l8.8-8.8a5.5 5.5 0 000-7.8z" />
+                    <path d="M2 12h2l2-3 2 6 2-4 2 1" />
+                  </svg>
+                  {hasCustomTrackerReminderDue() && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: -2,
+                        right: -2,
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: "#d4604a",
+                        border: "1.5px solid #fff",
+                      }}
+                      aria-hidden
+                    />
+                  )}
+                </span>
+              )}
               {item.path === "/village" && (
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                   <circle cx="7" cy="8" r="3" stroke={color} strokeWidth="1.5" />
@@ -151,7 +179,7 @@ export function Navigation() {
                 fontFamily: "system-ui, sans-serif",
               }}
             >
-              {item.label}
+              {label}
             </span>
           </a>
         );

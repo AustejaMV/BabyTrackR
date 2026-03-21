@@ -1,8 +1,7 @@
 /**
  * Colic section for the Dashboard — shows pattern heatmap, insights,
  * progress comparison, and action buttons (log + soothe).
- *
- * Always renders (with empty state when no data).
+ * Prompt 5: On Today, show as collapsed single row when hasData; hide when never logged.
  */
 
 import { useState, useMemo } from "react";
@@ -36,12 +35,53 @@ function HourLabel({ hour }: { hour: number }) {
 interface Props {
   ageInWeeks: number;
   compact?: boolean;
+  /** Prompt 5: collapsed single row on Today; only show when hasData */
+  collapsedRow?: boolean;
 }
 
-export function ColicSection({ ageInWeeks, compact }: Props) {
+const CRY_ICON = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d4604a" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <path d="M8 15s1.5-2 4-2 4 2 4 2" />
+    <path d="M9 9.5v.5M15 9.5v.5" />
+    <path d="M8 10c-.5 1-1.5 2-1.5 2M16 10c.5 1 1.5 2 1.5 2" />
+  </svg>
+);
+
+/** YouTube links for colic / sleep soothing — tap ? for a one-line explainer */
+const SOOTHING_SOUND_ITEMS: { id: string; label: string; href: string; help: string }[] = [
+  {
+    id: "white",
+    label: "White noise",
+    href: "https://www.youtube.com/watch?v=oewj_XEM1js",
+    help: "Sound with equal energy across frequencies — like a fan or steady static. It masks sudden noises (door slams, voices) and can feel similar to the constant whoosh babies heard in the womb, which helps some settle.",
+  },
+  {
+    id: "pink",
+    label: "Pink noise",
+    href: "https://www.youtube.com/watch?v=WsZ5gWX4YM0",
+    help: "Lower frequencies are louder than high ones — think steady rain or wind. It’s often gentler on the ears than white noise but still covers sharp sounds, which can reduce startles and support calmer sleep.",
+  },
+  {
+    id: "brown",
+    label: "Brown noise",
+    href: "https://www.youtube.com/watch?v=WsZ5gWX4YM0",
+    help: "Even more emphasis on deep lows than pink noise — a rumbling, thunder-like texture. The heavy low tones can feel grounding and are another way to mask noise; try volume low and see if your baby prefers it to brighter hiss.",
+  },
+  {
+    id: "flute",
+    label: "Native American flute",
+    href: "https://www.youtube.com/watch?v=QCT3WcUPPmI",
+    help: "Soft, breathy flute melodies instead of electronic static. Slow, repeating phrases can hold attention gently and encourage relaxation when harsh noise doesn’t feel right for your baby.",
+  },
+];
+
+export function ColicSection({ ageInWeeks, compact, collapsedRow }: Props) {
   const [logOpen, setLogOpen] = useState(false);
   const [soothingOpen, setSoothingOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+  const [noiseHelpId, setNoiseHelpId] = useState<string | null>(null);
 
   const episodes = useMemo(() => getColicEpisodes(), [refreshKey]);
   const heatmap = useMemo(() => buildHourlyHeatmap(episodes), [episodes]);
@@ -50,6 +90,10 @@ export function ColicSection({ ageInWeeks, compact }: Props) {
   const patterns = useMemo(() => detectColicPatterns(episodes), [episodes]);
 
   const hasData = episodes.length > 0;
+  const sevenDaysAgo = Date.now() - 7 * 86400000;
+  const thisWeekCount = comparison?.thisWeek?.count ?? episodes.filter((e) => (e.startTime ?? e.timestamp) >= sevenDaysAgo).length;
+
+  if (collapsedRow && !hasData) return null;
 
   const pad = compact ? 0 : 12;
   const cardStyle: React.CSSProperties = {
@@ -60,21 +104,60 @@ export function ColicSection({ ageInWeeks, compact }: Props) {
     padding: 14,
   };
 
+  if (collapsedRow && hasData && !expanded) {
+    return (
+      <>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setExpanded(true)}
+          onKeyDown={(e) => e.key === "Enter" && setExpanded(true)}
+          style={{
+            ...cardStyle,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            cursor: "pointer",
+          }}
+        >
+          <div style={{ flexShrink: 0 }}>{CRY_ICON}</div>
+          <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: "#2c1f1f", fontFamily: F }}>
+            Colic · {thisWeekCount} episode{thisWeekCount !== 1 ? "s" : ""} this week
+          </div>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setLogOpen(true); }}
+            style={{
+              background: "#d4604a", color: "#fff", border: "none", borderRadius: 20,
+              padding: "5px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: F,
+            }}
+          >
+            Log episode
+          </button>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9a8080" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </div>
+        <ColicLogSheet open={logOpen} onClose={() => setLogOpen(false)} onSaved={() => setRefreshKey((k) => k + 1)} ageInWeeks={ageInWeeks} />
+      </>
+    );
+  }
+
   return (
     <>
       <div style={cardStyle}>
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: hasData ? 12 : 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d4604a" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M8 15s1.5-2 4-2 4 2 4 2" />
-              <path d="M9 9.5v.5M15 9.5v.5" />
-              <path d="M8 10c-.5 1-1.5 2-1.5 2M16 10c.5 1 1.5 2 1.5 2" />
-            </svg>
+            {CRY_ICON}
             <span style={{ fontSize: 13, fontWeight: 700, color: "#2c1f1f", fontFamily: "Georgia, serif" }}>
               Colic tracker
             </span>
+            {collapsedRow && expanded && (
+              <button type="button" onClick={() => setExpanded(false)} aria-label="Collapse" style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9a8080" strokeWidth="2"><path d="M18 15l-6-6-6 6" /></svg>
+              </button>
+            )}
           </div>
           <button
             type="button"
@@ -203,6 +286,102 @@ export function ColicSection({ ageInWeeks, compact }: Props) {
           </span>
           <span style={{ fontSize: 10, color: "#9a8080" }}>one-tap timer</span>
         </button>
+        <a
+          href="https://www.youtube.com/watch?v=c4e-og7wj_U"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "block",
+            marginTop: 8,
+            fontSize: 11,
+            fontWeight: 600,
+            fontFamily: F,
+            color: "#7a4ab4",
+            textDecoration: "underline",
+            textUnderlineOffset: 2,
+          }}
+        >
+          Video: 5 S's guide (YouTube)
+        </a>
+
+        {/* Soothing sounds — links + ? explainer */}
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #f0ece4" }}>
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              color: "#9a8080",
+              fontFamily: F,
+              marginBottom: 8,
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+            }}
+          >
+            Soothing sounds
+          </div>
+          {SOOTHING_SOUND_ITEMS.map((s) => (
+            <div key={s.id} style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <a
+                  href={s.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    fontFamily: F,
+                    color: "#7a4ab4",
+                    textDecoration: "underline",
+                    textUnderlineOffset: 2,
+                  }}
+                >
+                  {s.label}
+                </a>
+                <button
+                  type="button"
+                  aria-label={`What is ${s.label}?`}
+                  aria-expanded={noiseHelpId === s.id}
+                  title={s.help}
+                  onClick={() => setNoiseHelpId((prev) => (prev === s.id ? null : s.id))}
+                  style={{
+                    width: 20,
+                    height: 20,
+                    padding: 0,
+                    borderRadius: "50%",
+                    border: "1px solid #d4cce8",
+                    background: "#faf7fc",
+                    color: "#7a4ab4",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    lineHeight: 1,
+                    cursor: "pointer",
+                    fontFamily: F,
+                    flexShrink: 0,
+                  }}
+                >
+                  ?
+                </button>
+              </div>
+              {noiseHelpId === s.id && (
+                <p
+                  style={{
+                    margin: "6px 0 0",
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    background: "#faf7f4",
+                    border: "1px solid #f0ece4",
+                    fontSize: 10,
+                    lineHeight: 1.55,
+                    color: "#5c5048",
+                    fontFamily: F,
+                  }}
+                >
+                  {s.help}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       <ColicLogSheet

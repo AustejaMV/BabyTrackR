@@ -2,7 +2,8 @@
  * Memory book: single day entry card (photo + note).
  */
 
-import { format } from "date-fns";
+import { formatWeekdayLongDate } from "../utils/dateUtils";
+import { getLanguage } from "../utils/languageStorage";
 import type { MemoryDayEntry } from "../types/memory";
 
 export interface DayCardProps {
@@ -12,7 +13,7 @@ export interface DayCardProps {
 }
 
 export function DayCard({ entry, onEdit, onDelete }: DayCardProps) {
-  const dateLabel = format(new Date(entry.date + "T12:00:00"), "EEEE, d MMMM yyyy");
+  const dateLabel = formatWeekdayLongDate(new Date(entry.date + "T12:00:00").getTime(), getLanguage());
 
   return (
     <article

@@ -23,7 +23,7 @@ export interface AskCradlResponse {
 }
 
 const DISCLAIMER =
-  "This is general information, not medical advice. Always trust your instincts — if you're worried, call your GP or 111.";
+  "This is general information, not medical advice. Always trust your instincts — if you're worried, call your doctor or local health advice line.";
 
 /**
  * Calls the Edge Function. Returns fallback when not authenticated, not premium, or endpoint missing.
@@ -96,14 +96,14 @@ export async function askCradl(
     return {
       answer: data.answer ?? "I couldn't get an answer right now. Try again or contact your health visitor.",
       escalationLevel: (data.escalationLevel as AskCradlEscalation) ?? "routine",
-      escalationMessage: data.escalationMessage ?? "If you're worried, call your GP or 111.",
+      escalationMessage: data.escalationMessage ?? "If you're worried, call your doctor or local health advice line.",
       disclaimer: data.disclaimer ?? DISCLAIMER,
     };
   } catch {
     return {
       answer: "Ask Cradl is temporarily unavailable. Check your connection and try again.",
       escalationLevel: "routine",
-      escalationMessage: "If it's urgent, call 111 or your GP.",
+      escalationMessage: "If it's urgent, call your local health advice line or your doctor.",
       disclaimer: DISCLAIMER,
     };
   }

@@ -1,4 +1,5 @@
 import type { SleepRecord } from '../types';
+import { persistActiveBabyCopy } from '../data/babiesStorage';
 
 /**
  * Adjust displayed duration by changing "excluded" (paused) time.
@@ -75,6 +76,8 @@ export function endCurrentSleepIfActive(
     sleepHistory.push(completed);
     localStorage.setItem('sleepHistory', JSON.stringify(sleepHistory));
     localStorage.removeItem('currentSleep');
+    persistActiveBabyCopy('sleepHistory');
+    persistActiveBabyCopy('currentSleep');
 
     onSaved?.(sleepHistory);
     return true;

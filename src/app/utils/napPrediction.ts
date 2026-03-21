@@ -120,6 +120,9 @@ export function getSweetSpotPrediction(
   if (ageInWeeks > 156) return null;
   const lastWake = getLastWakeTime(sleepHistory);
   if (!lastWake) return null;
+  /** If the anchor wake is very old, the nap window is meaningless (usually missing sleep logs). */
+  const MS_STALE_LAST_WAKE = 20 * 60 * 60 * 1000; // 20h
+  if (now - lastWake.getTime() > MS_STALE_LAST_WAKE) return null;
   const napWindow = computeNapWindow(lastWake, ageInWeeks, now);
   if (!napWindow) return null;
   const offsetMinutes = computePersonalisedOffset(sleepHistory, ageInWeeks, now);

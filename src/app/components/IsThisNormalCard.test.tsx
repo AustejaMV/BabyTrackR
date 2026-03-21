@@ -1,12 +1,54 @@
+import type { ReactElement } from "react";
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { IsThisNormalCard, type NormalMetric } from "./IsThisNormalCard";
+import { LanguageProvider } from "../contexts/LanguageContext";
+
+function renderWithLang(ui: ReactElement) {
+  return render(<LanguageProvider>{ui}</LanguageProvider>);
+}
 
 const METRIC_TEMPLATES: Record<string, Omit<NormalMetric, "tag" | "suggestion">> = {
-  Feeds: { name: "Feeds", value: 7, min: 0, max: 14, typicalMin: 5, typicalMax: 8, description: "7 feeds today" },
-  Sleep: { name: "Sleep", value: 4, min: 0, max: 8, typicalMin: 3, typicalMax: 5, description: "4 naps today" },
-  Nappies: { name: "Nappies", value: 6, min: 0, max: 12, typicalMin: 4, typicalMax: 8, description: "6 nappy changes" },
-  "Tummy time": { name: "Tummy time", value: 10, min: 0, max: 30, typicalMin: 5, typicalMax: 15, description: "10 min tummy time" },
+  Feeds: {
+    name: "Feeds",
+    value: 7,
+    min: 0,
+    max: 14,
+    typicalMin: 5,
+    typicalMax: 8,
+    description: "7 feeds today",
+    metricKey: "feedsPerDay",
+  },
+  Sleep: {
+    name: "Sleep",
+    value: 4,
+    min: 0,
+    max: 8,
+    typicalMin: 3,
+    typicalMax: 5,
+    description: "4 naps today",
+    metricKey: "sleepHoursPerDay",
+  },
+  Nappies: {
+    name: "Nappies",
+    value: 6,
+    min: 0,
+    max: 12,
+    typicalMin: 4,
+    typicalMax: 8,
+    description: "6 nappy changes",
+    metricKey: "diaperChangesPerDay",
+  },
+  "Tummy time": {
+    name: "Tummy time",
+    value: 10,
+    min: 0,
+    max: 30,
+    typicalMin: 5,
+    typicalMax: 15,
+    description: "10 min tummy time",
+    metricKey: "tummyTimeMinPerDay",
+  },
 };
 
 function normalMetric(name: string): NormalMetric {
@@ -19,7 +61,7 @@ function lowMetric(name: string, suggestion: string): NormalMetric {
 
 describe("IsThisNormalCard", () => {
   it("returns null when metrics array is empty", () => {
-    const { container } = render(
+    const { container } = renderWithLang(
       <IsThisNormalCard ageLabel="0–3 months" metrics={[]} />,
     );
     expect(container.innerHTML).toBe("");
@@ -27,7 +69,7 @@ describe("IsThisNormalCard", () => {
 
   it("renders all 4 metric types", () => {
     const metrics = Object.keys(METRIC_TEMPLATES).map(normalMetric);
-    render(<IsThisNormalCard ageLabel="0–3 months" metrics={metrics} />);
+    renderWithLang(<IsThisNormalCard ageLabel="0–3 months" metrics={metrics} />);
 
     expect(screen.getByText("Feeds")).toBeDefined();
     expect(screen.getByText("Sleep")).toBeDefined();
@@ -36,7 +78,7 @@ describe("IsThisNormalCard", () => {
   });
 
   it('renders "Normal" tag with green styling', () => {
-    render(
+    renderWithLang(
       <IsThisNormalCard ageLabel="0–3 months" metrics={[normalMetric("Feeds")]} />,
     );
 
@@ -47,7 +89,7 @@ describe("IsThisNormalCard", () => {
   });
 
   it('renders "A little low" tag with amber styling', () => {
-    render(
+    renderWithLang(
       <IsThisNormalCard
         ageLabel="0–3 months"
         metrics={[lowMetric("Feeds", "Try offering more feeds")]}
@@ -62,7 +104,7 @@ describe("IsThisNormalCard", () => {
 
   it("shows suggestion box for non-normal metrics", () => {
     const suggestion = "Try offering more feeds during the day";
-    render(
+    renderWithLang(
       <IsThisNormalCard
         ageLabel="0–3 months"
         metrics={[lowMetric("Feeds", suggestion)]}
@@ -77,21 +119,23 @@ describe("IsThisNormalCard", () => {
       ...normalMetric("Feeds"),
       suggestion: "This should not appear",
     };
-    render(
-      <IsThisNormalCard ageLabel="0–3 months" metrics={[metric]} />,
-    );
+    renderWithLang(<IsThisNormalCard ageLabel="0–3 months" metrics={[metric]} />);
 
     expect(screen.queryByText("This should not appear")).toBeNull();
   });
 
-  it("shows WHO age label intro text", () => {
-    render(
+  it("shows intro for age band and per-metric source links", () => {
+    renderWithLang(
       <IsThisNormalCard
-        ageLabel="3–6 months"
+        ageLabel="12-week-olds"
         metrics={[normalMetric("Feeds")]}
       />,
     );
 
-    expect(screen.getByText("Based on WHO data for 3–6 months")).toBeDefined();
+    expect(screen.getByText("Typical daily ranges for 12-week-olds")).toBeDefined();
+    expect(screen.getByRole("link", { name: /WHO — Infant and young child feeding/i })).toBeDefined();
+    const whoLink = screen.getByRole("link", { name: /WHO — Infant and young child feeding/i });
+    expect(whoLink.getAttribute("href")).toContain("who.int");
+    expect(whoLink.getAttribute("target")).toBe("_blank");
   });
 });

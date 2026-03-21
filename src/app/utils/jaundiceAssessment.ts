@@ -51,7 +51,7 @@ export function assessJaundice(check: JaundiceSkinCheck, babyAgeHours: number): 
     }
     return {
       level: "monitor",
-      message: "Some yellowing noted. Keep feeding well and check again in natural daylight. If it spreads to arms and legs or baby is sleepy or not feeding well, contact your midwife or 111.",
+      message: "Some yellowing noted. Keep feeding well and check again in natural daylight. If it spreads to arms and legs or baby is sleepy or not feeding well, contact your midwife or your local health advice line.",
       showDialler: false,
       daylightWarning: true,
     };
@@ -60,7 +60,7 @@ export function assessJaundice(check: JaundiceSkinCheck, babyAgeHours: number): 
   if (check.colour === "yellow_arms_legs") {
     return {
       level: "call_midwife",
-      message: "Yellowing has reached the arms and legs. Contact your midwife or call 111 today for advice.",
+      message: "Yellowing has reached the arms and legs. Contact your midwife or call your local health advice line today for advice.",
       showDialler: true,
       daylightWarning: true,
     };
@@ -69,7 +69,7 @@ export function assessJaundice(check: JaundiceSkinCheck, babyAgeHours: number): 
   if (check.colour === "yellow_palms_soles") {
     return {
       level: "urgent",
-      message: "Yellowing on palms or soles needs assessment. Call 111 or contact your midwife/GP today.",
+      message: "Yellowing on palms or soles needs assessment. Call your local health advice line or contact your midwife or doctor today.",
       showDialler: true,
       daylightWarning: true,
     };
@@ -77,7 +77,7 @@ export function assessJaundice(check: JaundiceSkinCheck, babyAgeHours: number): 
 
   return {
     level: "monitor",
-    message: "Keep feeding well and check again in good natural light. If you're worried, contact your midwife or 111.",
+    message: "Keep feeding well and check again in good natural light. If you're worried, contact your midwife or your local health advice line.",
     showDialler: false,
     daylightWarning: true,
   };

@@ -2,8 +2,6 @@
  * Multi-baby: list of babies, active baby id, per-baby data (stored under baby_${id}_key).
  */
 
-import { SYNCED_DATA_KEYS } from "../utils/dataSync";
-
 export interface Baby {
   id: string;
   name: string;
@@ -35,6 +33,36 @@ const PER_BABY_KEYS: string[] = [
 
 function storageKey(babyId: string, key: string): string {
   return `baby_${babyId}_${key}`;
+}
+
+/** True if JSON looks like an in-progress sleep (id + start, no end). */
+function isActiveCurrentSleepJson(raw: string | null): boolean {
+  if (!raw || raw === "null") return false;
+  try {
+    const p = JSON.parse(raw) as { id?: string; startTime?: unknown; endTime?: unknown };
+    if (!p?.id || p.startTime == null) return false;
+    if (p.endTime != null && Number.isFinite(Number(p.endTime))) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Mirror a main localStorage key into the active baby's slot (so reload doesn't wipe it).
+ * Call after writes to PER_BABY_KEYS — e.g. from saveData().
+ */
+export function persistActiveBabyCopy(mainKey: string): void {
+  if (!PER_BABY_KEYS.includes(mainKey)) return;
+  const babyId = getActiveBabyId();
+  if (!babyId) return;
+  try {
+    const val = localStorage.getItem(mainKey);
+    if (val != null) localStorage.setItem(storageKey(babyId, mainKey), val);
+    else localStorage.removeItem(storageKey(babyId, mainKey));
+  } catch {
+    /* ignore */
+  }
 }
 
 function readJson<T>(key: string, fallback: T): T {
@@ -118,8 +146,20 @@ export function saveCurrentDataToBaby(babyId: string): void {
 export function loadBabyDataIntoCurrent(babyId: string): void {
   for (const key of PER_BABY_KEYS) {
     const val = localStorage.getItem(storageKey(babyId, key));
-    if (val != null) localStorage.setItem(key, val);
-    else localStorage.removeItem(key);
+    if (val != null) {
+      localStorage.setItem(key, val);
+    } else {
+      // Per-baby slot empty: do not wipe in-progress sleep/tummy/session that only lived in
+      // main keys (never copied to baby slot). Otherwise reload clears active timers.
+      if (key === "currentSleep") {
+        const mainVal = localStorage.getItem(key);
+        if (isActiveCurrentSleepJson(mainVal)) {
+          localStorage.setItem(storageKey(babyId, key), mainVal!);
+          continue;
+        }
+      }
+      localStorage.removeItem(key);
+    }
   }
   const babies = getBabies();
   const baby = babies.find((b) => b.id === babyId);

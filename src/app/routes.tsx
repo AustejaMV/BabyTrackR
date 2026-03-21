@@ -28,6 +28,7 @@ import { ShoppingListScreen } from "./pages/ShoppingListScreen";
 import { NotesScreen } from "./pages/NotesScreen";
 import { JoinFamilyPage } from "./pages/JoinFamilyPage";
 import { PremiumScreen } from "./pages/PremiumScreen";
+import { HealthScreen } from "./pages/HealthScreen";
 
 export const router = createBrowserRouter([
   {
@@ -42,6 +43,7 @@ export const router = createBrowserRouter([
       { path: "handoff/:sessionId", Component: HandoffPage },
       { path: "", Component: HomeSwitch },
       { path: "journey", Component: JourneyScreen },
+      { path: "health", Component: HealthScreen },
       { path: "more", Component: MeScreen },
       { path: "gp-summary", Component: GPSummaryScreen },
       { path: "skin", Component: SkinTrackerScreen },

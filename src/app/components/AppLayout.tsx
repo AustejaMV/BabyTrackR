@@ -4,7 +4,6 @@ import { OfflineIndicator } from "./OfflineIndicator";
 import { Navigation } from "./Navigation";
 import { DesktopTopBar } from "./DesktopTopBar";
 import { AskCradlFloatingButton } from "./AskCradlFloatingButton";
-import { VoiceCommandButton } from "./VoiceCommandButton";
 import { useNetworkStatus } from "../utils/networkStatus";
 import { useAuth } from "../contexts/AuthContext";
 import { useBaby } from "../contexts/BabyContext";
@@ -64,7 +63,6 @@ export function AppLayout() {
 
       <Outlet />
 
-      <VoiceCommandButton />
       <AskCradlFloatingButton />
 
       {!isDesktop && <Navigation />}

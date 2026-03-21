@@ -7,7 +7,7 @@ import { ArrowLeft, UserPlus, LogOut, Users, Trash2, Mail, X, AlertTriangle, Clo
 import { Link, useNavigate } from 'react-router';
 import { serverUrl, supabaseAnonKey } from '../utils/supabase';
 import { toast } from 'sonner';
-import { saveData, saveManyToServer, SYNCED_DATA_KEYS, SYNCED_DATA_DEFAULTS, loadAllDataFromServer, clearSyncedDataFromLocalStorage } from '../utils/dataSync';
+import { saveData, saveManyToServer, SYNCED_DATA_KEYS, SYNCED_DATA_DEFAULTS, loadAllDataFromServer, clearSyncedDataFromLocalStorage, applyServerSnapshotToLocalStorage } from '../utils/dataSync';
 import { seedAllData, clearSeedData } from '../utils/seedData';
 import type { BabyProfile } from '../types';
 import { getAgeInDays } from '../utils/babyUtils';
@@ -17,6 +17,13 @@ import { OnboardingNavigator } from '../components/OnboardingNavigator';
 import { readAlertThresholds, saveAlertThresholds, type AlertThresholds } from '../utils/alertThresholdsStorage';
 import { useIsDesktop } from '../hooks/useIsDesktop';
 import { usePremium } from '../contexts/PremiumContext';
+import {
+  NOTIFICATION_SETTINGS_KEY,
+  NOTIFICATION_ROWS,
+  readNotificationSettings,
+  type NotificationSettings,
+} from '../utils/notificationSettingsStorage';
+import { dispatchCareNotificationsReschedule } from '../utils/careNotificationEvents';
 
 const VOICE_COMMAND_EXAMPLES: { cmd: string; desc: string }[] = [
   { cmd: "Log a feed", desc: "Start a new feed log" },
@@ -48,27 +55,8 @@ import {
 
 const REDUCE_MOTION_KEY = 'cradl-reduce-motion';
 const HIGH_CONTRAST_KEY = 'cradl-high-contrast';
-const NOTIFICATION_SETTINGS_KEY = 'cradl-notification-settings';
 
 const BLOOD_TYPE_OPTIONS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', "Don't know"] as const;
-
-const NOTIFICATION_ROWS = [
-  { key: 'feedReminder', label: 'Feed reminder' },
-  { key: 'napWindowOpening', label: 'Nap window opening' },
-  { key: 'painReliefSafe', label: 'Pain relief safe' },
-  { key: 'vaccinationDue', label: 'Vaccination due' },
-  { key: 'napStageTransition', label: 'Nap stage transition' },
-  { key: 'dailyTummyReminder', label: 'Daily tummy reminder' },
-] as const;
-
-type NotificationSettings = Record<string, boolean>;
-
-function readNotificationSettings(): NotificationSettings {
-  try {
-    const raw = localStorage.getItem(NOTIFICATION_SETTINGS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
-}
 
 function formatBabyAge(birthDateMs: number): string {
   const days = getAgeInDays(birthDateMs);
@@ -164,6 +152,28 @@ export function Settings() {
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
+    const scrollToHashSection = () => {
+      const hash = window.location.hash || '';
+      if (!hash.startsWith('#section-')) return;
+      const id = hash.slice(1);
+      const el = document.getElementById(id);
+      if (!el) return;
+
+      const sectionId = id.replace('section-', '');
+      if (sectionId) setDesktopSection(sectionId);
+
+      // Defer to ensure layout is painted before scrolling.
+      window.setTimeout(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 0);
+    };
+
+    scrollToHashSection();
+    window.addEventListener('hashchange', scrollToHashSection);
+    return () => window.removeEventListener('hashchange', scrollToHashSection);
+  }, []);
+
+  useEffect(() => {
     if (session?.access_token && familyId) {
       loadFamily();
     }
@@ -249,14 +259,7 @@ export function Settings() {
         // Load family data into localStorage and go to Dashboard so invitee sees shared stats immediately
         const { ok, data: serverData } = await loadAllDataFromServer(session.access_token);
         if (ok) {
-          clearSyncedDataFromLocalStorage();
-          Object.entries(serverData).forEach(([key, value]) => {
-            try {
-              localStorage.setItem(key, JSON.stringify(value));
-            } catch {
-              // ignore
-            }
-          });
+          applyServerSnapshotToLocalStorage(serverData);
           console.log('[Cradl] Settings (after accept): applied server data', { keys: Object.keys(serverData) });
         } else {
           console.warn('[Cradl] Settings (after accept): GET /data/all failed, going to Dashboard anyway');
@@ -745,6 +748,7 @@ export function Settings() {
                     const next = { ...notifSettings, [key]: !notifSettings[key] };
                     setNotifSettings(next);
                     try { localStorage.setItem(NOTIFICATION_SETTINGS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+                    dispatchCareNotificationsReschedule();
                   }}
                   className="relative w-11 h-6 rounded-full border-2 transition-colors flex-shrink-0 min-w-[44px] min-h-[44px] flex items-center"
                   style={{

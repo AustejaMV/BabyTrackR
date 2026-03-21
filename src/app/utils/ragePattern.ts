@@ -17,7 +17,7 @@ export interface OverwhelmedPattern {
 }
 
 const SUPPORT_MESSAGE =
-  "You've been feeling overwhelmed a few times this week. That's a signal worth paying attention to — not because something is wrong with you, but because you might need more support than you're getting. Your GP or health visitor can help, and so can the PANDAS Foundation (0808 1961 776).";
+  "You've been feeling overwhelmed a few times this week. That's a signal worth paying attention to — not because something is wrong with you, but because you might need more support than you're getting. Your doctor, midwife, or health visitor can help. If you're in crisis or worried about your safety, contact your local emergency or mental health crisis line right away.";
 
 export function detectOverwhelmedPattern(moodHistory: MoodEntry[]): OverwhelmedPattern | null {
   if (!Array.isArray(moodHistory) || moodHistory.length < 3) return null;

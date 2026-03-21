@@ -1,5 +1,7 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { getLanguage, setLanguage as persistLanguage, type SupportedLocale } from "../utils/languageStorage";
+
+const LANGUAGE_STORAGE_KEY = "cradl-language";
 
 import enLocale from "../data/locales/en.json";
 import ltLocale from "../data/locales/lt.json";
@@ -121,8 +123,49 @@ type LanguageContextValue = {
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
+const LANG_ATTR_MAP: Record<SupportedLocale, string> = {
+  en: "en",
+  lt: "lt",
+  de: "de",
+  fr: "fr",
+  es: "es",
+};
+
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<SupportedLocale>(() => getLanguage());
+  /** Bumps when date/time format prefs change so the tree re-renders and picks up new patterns from localStorage */
+  const [, setFormatPrefsBump] = useState(0);
+
+  // Always sync from storage on mount so picked language is applied (e.g. after onboarding or reload)
+  useEffect(() => {
+    setLanguageState(getLanguage());
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onFmt = () => setFormatPrefsBump((n) => n + 1);
+    window.addEventListener("cradl-format-prefs", onFmt);
+    return () => window.removeEventListener("cradl-format-prefs", onFmt);
+  }, []);
+
+  // Sync when language changes in another tab (storage event) or when user picks in Settings
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === LANGUAGE_STORAGE_KEY && e.newValue != null) {
+        const next = e.newValue as SupportedLocale;
+        if (["en", "lt", "de", "fr", "es"].includes(next)) setLanguageState(next);
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  // Keep document language in sync for accessibility and browser/assistive tech
+  useEffect(() => {
+    try {
+      document.documentElement.lang = LANG_ATTR_MAP[language] ?? "en";
+    } catch {}
+  }, [language]);
 
   const setLanguage = useCallback((locale: SupportedLocale) => {
     persistLanguage(locale);
@@ -141,10 +184,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 export function useLanguage(): LanguageContextValue {
   const ctx = useContext(LanguageContext);
   if (!ctx) {
+    const lang = getLanguage();
     return {
-      language: getLanguage(),
+      language: lang,
       setLanguage: persistLanguage,
-      t: (key, params) => translate("en", key, params),
+      t: (key, params) => translate(lang, key, params),
     };
   }
   return ctx;

@@ -3,13 +3,16 @@
  */
 import { useMemo } from "react";
 import { format } from "date-fns";
-import { SHORT_DATE_DISPLAY, TIME_DISPLAY } from "../utils/dateUtils";
+import { SHORT_DATE_DISPLAY, TIME_DISPLAY, formatDayMonthShort, getDateLocale } from "../utils/dateUtils";
+import { getLanguage } from "../utils/languageStorage";
+import { userDayMonthShortPattern } from "../utils/formatPreferencesStorage";
 import { getTemperatureHistory, getSymptomHistory, getMedicationHistory } from "../utils/healthStorage";
 import type { TemperatureEntry, SymptomEntry, MedicationEntry } from "../types/health";
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function HealthHistorySection() {
+  const locale = getLanguage();
   const temps = useMemo(() => getTemperatureHistory(), []);
   const symptoms = useMemo(() => getSymptomHistory(), []);
   const meds = useMemo(() => getMedicationHistory(), []);
@@ -79,7 +82,7 @@ export function HealthHistorySection() {
                 className="rounded-full px-2.5 py-1 text-[12px]"
                 style={{ background: "var(--bg2)", color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}
               >
-                {format(new Date(s.timestamp), "dd MMM")} — {s.symptoms.slice(0, 2).join(", ")}{s.symptoms.length > 2 ? "…" : ""}
+                {formatDayMonthShort(new Date(s.timestamp).getTime(), locale)} — {s.symptoms.slice(0, 2).join(", ")}{s.symptoms.length > 2 ? "…" : ""}
               </span>
             ))}
           </div>
@@ -94,7 +97,12 @@ export function HealthHistorySection() {
           <ul className="space-y-1 list-none p-0 m-0">
             {last7Meds.slice(0, 10).map((m) => (
               <li key={m.id} className="text-[13px]" style={{ color: "var(--tx)", fontFamily: "system-ui, sans-serif" }}>
-                {format(new Date(m.timestamp), `dd MMM ${TIME_DISPLAY()}`)} — {m.medication}
+                {format(
+                  new Date(m.timestamp),
+                  `${userDayMonthShortPattern()} ${TIME_DISPLAY()}`,
+                  { locale: getDateLocale(locale) },
+                )}{" "}
+                — {m.medication}
                 {m.doseML != null ? ` ${m.doseML}ml` : ""}
               </li>
             ))}

@@ -1,9 +1,19 @@
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
+import { formatDate } from "../utils/dateUtils";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceArea, ResponsiveContainer } from "recharts";
 import type { GrowthMeasurement } from "../types";
 import { getWhoWeight, getWeightPercentile, type Sex } from "../data/whoGrowth";
 import { getAgeInDays } from "../utils/babyUtils";
+
+/** Local noon so formatDate matches the picked calendar day. */
+function yyyyMmDdToLocalMs(s: string): number | null {
+  const parts = s.trim().split("-").map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return null;
+  const [y, m, d] = parts;
+  const t = new Date(y, m - 1, d, 12, 0, 0, 0).getTime();
+  return Number.isFinite(t) ? t : null;
+}
 
 /** Parse yyyy-MM-dd (date picker) to epoch ms (start of day). */
 function parseDatePicker(s: string): number | null {
@@ -38,6 +48,17 @@ interface GrowthChartSectionProps {
   sex?: Sex;
   onSaveToServer?: (data: GrowthMeasurement[]) => void;
 }
+
+const GROWTH_SOURCE_LINKS = [
+  {
+    label: "WHO Child Growth Standards",
+    url: "https://www.who.int/tools/child-growth-standards",
+  },
+  {
+    label: "WHO standards methodology",
+    url: "https://www.who.int/tools/child-growth-standards/standards",
+  },
+];
 
 export function GrowthChartSection({ birthDateMs, sex = "girls", onSaveToServer }: GrowthChartSectionProps) {
   const [measurements, setMeasurements] = useState<GrowthMeasurement[]>([]);
@@ -143,6 +164,22 @@ export function GrowthChartSection({ birthDateMs, sex = "girls", onSaveToServer 
       <p className="text-[8px] mt-1" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
         X: age (months). Bands: WHO 5th–95th. Pink: your measurements.
       </p>
+      <p className="text-[8px] mt-1" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif", lineHeight: 1.45 }}>
+        <span style={{ fontWeight: 600 }}>Sources: </span>
+        {GROWTH_SOURCE_LINKS.map((src, idx) => (
+          <span key={src.url}>
+            {idx > 0 ? <span> · </span> : null}
+            <a
+              href={src.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "var(--blue)", textDecoration: "underline", textUnderlineOffset: 2 }}
+            >
+              {src.label}
+            </a>
+          </span>
+        ))}
+      </p>
 
       {showAdd && (
         <div className="mt-3 pt-3 border-t border-[var(--bd)] space-y-2">
@@ -153,6 +190,14 @@ export function GrowthChartSection({ birthDateMs, sex = "girls", onSaveToServer 
             className="w-full rounded-lg border px-2 py-1.5 text-[11px] min-h-[36px]"
             style={{ borderColor: "var(--bd)", background: "var(--bg2)", color: "var(--tx)" }}
           />
+          {(() => {
+            const ms = yyyyMmDdToLocalMs(newDate);
+            return ms != null ? (
+              <p className="text-[10px]" style={{ color: "var(--mu)", fontFamily: "system-ui, sans-serif" }}>
+                In your date format: <strong style={{ color: "var(--tx)" }}>{formatDate(ms)}</strong>
+              </p>
+            ) : null;
+          })()}
           <div className="flex gap-2">
             <input
               type="number"

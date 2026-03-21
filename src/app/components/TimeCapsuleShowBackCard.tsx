@@ -3,7 +3,8 @@
  */
 
 import { useState } from "react";
-import { format } from "date-fns";
+import { formatMediumDate } from "../utils/dateUtils";
+import { getLanguage } from "../utils/languageStorage";
 import type { TimeCapsuleEntry } from "../types/timeCapsule";
 import { markShownBack } from "../utils/timeCapsuleStorage";
 
@@ -45,7 +46,7 @@ export function TimeCapsuleShowBackCard({
         {entry.body}
       </p>
       <p className="text-[11px] mt-2" style={{ color: "var(--mu)" }}>
-        Written {format(new Date(entry.writtenAt), "dd MMM yyyy")}
+        Written {formatMediumDate(entry.writtenAt, locale)}
       </p>
       <button
         type="button"

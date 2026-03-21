@@ -1,4 +1,11 @@
+import type { CSSProperties } from "react";
+import { getNormalRangeReferenceLinks } from "../data/normalRanges";
+import { useLanguage } from "../contexts/LanguageContext";
+
 const F = "system-ui, sans-serif";
+
+/** P18: "Within range" = muted; "A little low/high" = amber; "Speak to your GP" = red */
+export type NormalMetricTag = "Within range" | "Normal" | "A little low" | "A little high" | "Speak to your GP";
 
 export interface NormalMetric {
   name: string;
@@ -8,14 +15,18 @@ export interface NormalMetric {
   typicalMin: number;
   typicalMax: number;
   description: string;
-  tag: "Normal" | "A little low" | "A little high";
+  tag: NormalMetricTag;
   suggestion?: string;
+  /** Key into NORMAL_RANGE_REFERENCE_LINKS (e.g. feedsPerDay) for source links */
+  metricKey?: string;
 }
 
 const TAG_STYLE: Record<string, { bg: string; color: string }> = {
+  "Within range": { bg: "#f0ece8", color: "#9a8080" },
   Normal: { bg: "#e4f4e4", color: "#2a6a2a" },
   "A little low": { bg: "#fef4e4", color: "#8a5a00" },
   "A little high": { bg: "#fef4e4", color: "#8a5a00" },
+  "Speak to your GP": { bg: "#fce8e8", color: "#a02020" },
 };
 
 function RangeBar({ value, min, max, typicalMin, typicalMax }: { value: number; min: number; max: number; typicalMin: number; typicalMax: number }) {
@@ -48,7 +59,15 @@ function RangeBar({ value, min, max, typicalMin, typicalMax }: { value: number; 
 }
 
 export function IsThisNormalCard({ ageLabel, metrics, compact }: { ageLabel: string; metrics: NormalMetric[]; compact?: boolean }) {
+  const { t } = useLanguage();
   if (!metrics?.length) return null;
+
+  const linkStyle: CSSProperties = {
+    fontSize: compact ? 8 : 9,
+    color: "var(--blue, #4080a0)",
+    textDecoration: "underline",
+    textUnderlineOffset: 2,
+  };
 
   return (
     <div
@@ -59,12 +78,16 @@ export function IsThisNormalCard({ ageLabel, metrics, compact }: { ageLabel: str
         padding: compact ? "12px 14px" : 14, fontFamily: F,
       }}
     >
-      <div style={{ fontSize: 11, color: "#9a8080", marginBottom: 10 }}>
-        Based on WHO data for {ageLabel}
+      <div style={{ fontSize: 11, color: "#9a8080", marginBottom: 4, lineHeight: 1.35 }}>
+        {t("isThisNormalCard.intro", { age: ageLabel })}
+      </div>
+      <div style={{ fontSize: compact ? 9 : 10, color: "#b09080", marginBottom: 10, lineHeight: 1.4 }}>
+        {t("isThisNormalCard.subintro")}
       </div>
 
       {metrics.map((m, i) => {
         const tagStyle = TAG_STYLE[m.tag] ?? TAG_STYLE.Normal;
+        const refs = m.metricKey ? getNormalRangeReferenceLinks(m.metricKey) : [];
         return (
           <div key={m.name} style={{ marginBottom: i < metrics.length - 1 ? 14 : 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -87,7 +110,7 @@ export function IsThisNormalCard({ ageLabel, metrics, compact }: { ageLabel: str
               <span style={{ fontSize: 8, color: "var(--mu)" }}>typical: {m.typicalMin}–{m.typicalMax}</span>
               <span style={{ fontSize: 8, color: "var(--mu)" }}>{m.max}</span>
             </div>
-            {m.tag !== "Normal" && m.suggestion && (
+            {(m.tag !== "Normal" && m.tag !== "Within range") && m.suggestion && (
               <div
                 style={{
                   background: "#fef4e4", borderRadius: 8, padding: "6px 8px",
@@ -98,9 +121,32 @@ export function IsThisNormalCard({ ageLabel, metrics, compact }: { ageLabel: str
                 {m.suggestion}
               </div>
             )}
+            {refs.length > 0 && (
+              <div style={{ marginTop: 6, lineHeight: 1.5 }}>
+                <span style={{ fontSize: compact ? 8 : 9, color: "var(--mu)", fontWeight: 600 }}>
+                  {t("isThisNormalCard.sourcesLabel")}{" "}
+                </span>
+                {refs.map((ref, j) => (
+                  <span key={ref.url} style={{ fontSize: compact ? 8 : 9 }}>
+                    {j > 0 ? <span style={{ color: "var(--mu)" }}> · </span> : null}
+                    <a
+                      href={ref.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={linkStyle}
+                    >
+                      {ref.label}
+                    </a>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}
+      <p style={{ fontSize: compact ? 8 : 9, color: "var(--mu)", marginTop: 10, marginBottom: 0, lineHeight: 1.45 }}>
+        {t("isThisNormalCard.footnote")}
+      </p>
     </div>
   );
 }

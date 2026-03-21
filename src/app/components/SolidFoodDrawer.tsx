@@ -212,7 +212,7 @@ export function SolidFoodDrawer({ onClose, onSaved }: SolidFoodDrawerProps) {
 
       {showAllergyNote && (
         <p className="text-[13px] p-2 rounded-lg mb-4" style={{ background: "color-mix(in srgb, var(--coral) 15%, var(--card))", color: "var(--tx)" }}>
-          If you suspect an allergic reaction, stop feeding and contact your GP or 111 if symptoms are severe.
+          If you suspect an allergic reaction, stop feeding and contact your doctor or local health advice line if symptoms are severe.
         </p>
       )}
 

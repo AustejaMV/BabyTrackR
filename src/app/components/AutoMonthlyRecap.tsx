@@ -1,5 +1,7 @@
 import { useMemo, type ReactNode } from "react";
 import { format } from "date-fns";
+import { formatDayMonthShort } from "../utils/dateUtils";
+import { getLanguage } from "../utils/languageStorage";
 
 interface AutoRecapProps {
   yearMonth: string;
@@ -77,7 +79,7 @@ function generateHighlights(ym: string, babyDob: number | null): RecapHighlight[
     const best = Object.entries(byDay).sort((a, b) => b[1] - a[1])[0];
     if (best) {
       const hrs = (best[1] / 3600000).toFixed(1);
-      highlights.push({ icon: "sleep", text: `Best sleep day: ${format(new Date(best[0] + "T12:00:00"), "d MMM")} (${hrs}h)` });
+      highlights.push({ icon: "sleep", text: `Best sleep day: ${formatDayMonthShort(new Date(best[0] + "T12:00:00").getTime(), locale)} (${hrs}h)` });
     }
   }
 
@@ -100,7 +102,7 @@ function generateHighlights(ym: string, babyDob: number | null): RecapHighlight[
     }
     const most = Object.entries(byDay).sort((a, b) => b[1] - a[1])[0];
     if (most && most[1] > 1) {
-      highlights.push({ icon: "bottle", text: `Most feeds in a day: ${most[1]} on ${format(new Date(most[0] + "T12:00:00"), "d MMM")}` });
+      highlights.push({ icon: "bottle", text: `Most feeds in a day: ${most[1]} on ${formatDayMonthShort(new Date(most[0] + "T12:00:00").getTime(), locale)}` });
     }
   }
 

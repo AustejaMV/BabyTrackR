@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cradl — The baby app that thinks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream: #FAF7F2;
+    --warm-white: #FFFDF9;
+    --ink: #1C1915;
+    --muted: #6B6560;
+    --soft: #B8AFA8;
+    --accent: #C17D5E;
+    --accent-light: #F2E4DC;
+    --accent-dark: #8A5240;
+    --sage: #7A9080;
+    --sage-light: #E4EDEA;
+    --border: rgba(28,25,21,0.1);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--cream);
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    line-height: 1.7;
+    font-size: 16px;
+    min-height: 100vh;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 2.5rem;
+    background: rgba(250,247,242,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 0.5px solid var(--border);
+  }
+
+  .nav-logo {
+    font-family: 'Lora', serif;
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+
+  .nav-cta {
+    background: var(--ink);
+    color: var(--cream);
+    border: none;
+    padding: 0.5rem 1.25rem;
+    border-radius: 100px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.875rem;
+    font-weight: 400;
+    cursor: pointer;
+    transition: background 0.2s;
+    text-decoration: none;
+  }
+  .nav-cta:hover { background: var(--accent-dark); }
+
+  /* HERO */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 8rem 1.5rem 5rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -10%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 700px;
+    height: 700px;
+    background: radial-gradient(ellipse, rgba(193,125,94,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--accent-light);
+    color: var(--accent-dark);
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.35rem 1rem;
+    border-radius: 100px;
+    margin-bottom: 2rem;
+  }
+
+  .hero-eyebrow::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  h1 {
+    font-family: 'Lora', serif;
+    font-size: clamp(2.4rem, 6vw, 4.2rem);
+    font-weight: 600;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    max-width: 780px;
+    margin-bottom: 1.5rem;
+    color: var(--ink);
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--accent);
+  }
+
+  .hero-sub {
+    font-size: 1.1rem;
+    color: var(--muted);
+    max-width: 520px;
+    margin: 0 auto 2.5rem;
+    font-weight: 300;
+    line-height: 1.7;
+  }
+
+  /* WAITLIST FORM */
+  .waitlist-form {
+    display: flex;
+    gap: 0.5rem;
+    max-width: 440px;
+    width: 100%;
+    margin: 0 auto 1rem;
+  }
+
+  .waitlist-form input {
+    flex: 1;
+    padding: 0.75rem 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    background: var(--warm-white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .waitlist-form input::placeholder { color: var(--soft); }
+  .waitlist-form input:focus { border-color: var(--accent); }
+
+  .waitlist-form button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 100px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s, transform 0.1s;
+  }
+  .waitlist-form button:hover { background: var(--accent-dark); }
+  .waitlist-form button:active { transform: scale(0.98); }
+
+  .form-note {
+    font-size: 0.8rem;
+    color: var(--soft);
+  }
+
+  .success-msg {
+    display: none;
+    background: var(--sage-light);
+    color: var(--sage);
+    padding: 0.75rem 1.5rem;
+    border-radius: 100px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    max-width: 440px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  /* SOCIAL PROOF */
+  .social-proof {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 2.5rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .avatars {
+    display: flex;
+  }
+
+  .avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 2px solid var(--cream);
+    background: var(--accent-light);
+    margin-left: -8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--accent-dark);
+  }
+  .avatar:first-child { margin-left: 0; }
+
+  /* THE 3AM MOMENT */
+  .scene {
+    background: var(--ink);
+    color: var(--cream);
+    padding: 6rem 1.5rem;
+    text-align: center;
+  }
+
+  .scene-label {
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--soft);
+    margin-bottom: 1.5rem;
+  }
+
+  .scene h2 {
+    font-family: 'Lora', serif;
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    font-weight: 400;
+    font-style: italic;
+    max-width: 640px;
+    margin: 0 auto 2rem;
+    line-height: 1.4;
+  }
+
+  .scene-body {
+    max-width: 580px;
+    margin: 0 auto;
+    color: rgba(250,247,242,0.65);
+    font-size: 1rem;
+    line-height: 1.8;
+  }
+
+  /* CARD PREVIEW */
+  .preview-section {
+    padding: 6rem 1.5rem;
+    text-align: center;
+    background: var(--warm-white);
+  }
+
+  .section-label {
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--soft);
+    margin-bottom: 1rem;
+  }
+
+  .preview-section h2 {
+    font-family: 'Lora', serif;
+    font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+    font-weight: 600;
+    max-width: 560px;
+    margin: 0 auto 1rem;
+    line-height: 1.3;
+  }
+
+  .preview-section p {
+    color: var(--muted);
+    max-width: 480px;
+    margin: 0 auto 3rem;
+  }
+
+  /* THE APP CARD */
+  .app-card {
+    max-width: 360px;
+    margin: 0 auto;
+    background: var(--ink);
+    border-radius: 24px;
+    padding: 1.5rem;
+    text-align: left;
+    color: var(--cream);
+    box-shadow: 0 32px 80px rgba(28,25,21,0.18);
+    position: relative;
+  }
+
+  .card-time {
+    font-size: 0.75rem;
+    color: rgba(250,247,242,0.4);
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .card-time::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .card-name {
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin-bottom: 1rem;
+  }
+
+  .card-rows { display: flex; flex-direction: column; gap: 0.75rem; }
+
+  .card-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    background: rgba(255,255,255,0.06);
+    border-radius: 12px;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .card-icon {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 13px;
+  }
+
+  .icon-amber { background: rgba(239,159,39,0.2); }
+  .icon-sage  { background: rgba(122,144,128,0.25); }
+  .icon-coral { background: rgba(193,125,94,0.25); }
+  .icon-blue  { background: rgba(55,138,221,0.2); }
+
+  .card-row-text { color: rgba(250,247,242,0.85); }
+  .card-row-text strong { color: var(--cream); font-weight: 500; }
+
+  .card-calm {
+    margin-top: 1rem;
+    padding: 0.85rem 1rem;
+    background: rgba(122,144,128,0.15);
+    border-radius: 12px;
+    font-size: 0.8rem;
+    color: rgba(250,247,242,0.6);
+    text-align: center;
+    font-style: italic;
+    line-height: 1.6;
+  }
+
+  /* FEATURES */
+  .features {
+    padding: 6rem 1.5rem;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+
+  .features-header {
+    text-align: center;
+    margin-bottom: 4rem;
+  }
+
+  .features-header h2 {
+    font-family: 'Lora', serif;
+    font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+  }
+
+  .features-header p {
+    color: var(--muted);
+    max-width: 440px;
+    margin: 0 auto;
+  }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .feature-card {
+    background: var(--warm-white);
+    border: 0.5px solid var(--border);
+    border-radius: 20px;
+    padding: 1.75rem;
+  }
+
+  .feature-icon {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    margin-bottom: 1rem;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  .feature-card h3 {
+    font-family: 'Lora', serif;
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .feature-card p {
+    font-size: 0.875rem;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  /* MUM SECTION */
+  .mum-section {
+    background: var(--accent-light);
+    padding: 6rem 1.5rem;
+    text-align: center;
+  }
+
+  .mum-section h2 {
+    font-family: 'Lora', serif;
+    font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+    font-weight: 600;
+    max-width: 560px;
+    margin: 0 auto 1rem;
+    color: var(--ink);
+  }
+
+  .mum-section p {
+    color: var(--accent-dark);
+    max-width: 480px;
+    margin: 0 auto 2rem;
+    font-size: 1rem;
+  }
+
+  .daily-summary {
+    max-width: 480px;
+    margin: 0 auto;
+    background: var(--warm-white);
+    border-radius: 20px;
+    padding: 1.75rem;
+    text-align: left;
+    border: 0.5px solid rgba(193,125,94,0.2);
+  }
+
+  .summary-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--soft);
+    margin-bottom: 1rem;
+  }
+
+  .summary-stats {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+
+  .stat-pill {
+    background: var(--cream);
+    border-radius: 100px;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.82rem;
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  .summary-message {
+    font-family: 'Lora', serif;
+    font-size: 1rem;
+    font-style: italic;
+    color: var(--accent-dark);
+    line-height: 1.6;
+    border-top: 0.5px solid var(--border);
+    padding-top: 1rem;
+  }
+
+  /* FINAL CTA */
+  .final-cta {
+    padding: 7rem 1.5rem;
+    text-align: center;
+  }
+
+  .final-cta h2 {
+    font-family: 'Lora', serif;
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    font-weight: 600;
+    max-width: 580px;
+    margin: 0 auto 1rem;
+    line-height: 1.25;
+  }
+
+  .final-cta p {
+    color: var(--muted);
+    max-width: 420px;
+    margin: 0 auto 2.5rem;
+  }
+
+  /* FOOTER */
+  footer {
+    border-top: 0.5px solid var(--border);
+    padding: 2rem 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: var(--soft);
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .footer-logo {
+    font-family: 'Lora', serif;
+    font-weight: 600;
+    color: var(--ink);
+    font-size: 1rem;
+  }
+
+  @media (max-width: 600px) {
+    nav { padding: 1rem 1.25rem; }
+    .waitlist-form { flex-direction: column; }
+    .waitlist-form button { border-radius: 100px; }
+    footer { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-logo">cradl</span>
+  <a href="#waitlist" class="nav-cta">Join the waitlist</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-eyebrow">Coming soon</div>
+  <h1>The baby app that tells you <em>what to do</em>, not just what happened</h1>
+  <p class="hero-sub">Every other app shows you data. Cradl tells you what it means — so you can stop Googling at 3am and just be with your baby.</p>
+
+  <div id="waitlist">
+    <form class="waitlist-form" onsubmit="handleSubmit(event)">
+      <input type="email" placeholder="your@email.com" required id="email-input">
+      <button type="submit">Join waitlist</button>
+    </form>
+    <div class="success-msg" id="success-msg">You're on the list. We'll be in touch soon.</div>
+    <p class="form-note">No spam. We'll email you when Cradl launches.</p>
+  </div>
+
+  <div class="social-proof">
+    <div class="avatars">
+      <div class="avatar">S</div>
+      <div class="avatar">M</div>
+      <div class="avatar">A</div>
+      <div class="avatar">L</div>
+    </div>
+    <span>Join parents already on the waitlist</span>
+  </div>
+</section>
+
+<!-- THE 3AM MOMENT -->
+<section class="scene">
+  <p class="scene-label">The problem</p>
+  <h2>"Is it normal for a 14-week-old to..."</h2>
+  <p class="scene-body">Every new parent does the same thing at 3am. Baby is crying. They don't know why. They open four different apps, Google the symptoms, read three contradictory forum posts, and spiral into anxiety. Meanwhile the baby is still crying.<br><br>Baby tracking apps exist. They record what happened. None of them tell you what to do next.</p>
+</section>
+
+<!-- APP CARD PREVIEW -->
+<section class="preview-section">
+  <p class="section-label">What Cradl does instead</p>
+  <h2>Open the app with a crying baby. See this.</h2>
+  <p>Not a dashboard full of charts. A card that actually answers the question you're asking.</p>
+
+  <div class="app-card">
+    <div class="card-time">3:14 AM · Mia, 14 weeks</div>
+    <div class="card-name">Why might she be crying?</div>
+    <div class="card-rows">
+      <div class="card-row">
+        <div class="card-icon icon-amber">🍼</div>
+        <div class="card-row-text"><strong>Probably not hunger.</strong> Last fed 2h 40m ago — her usual interval is 3h.</div>
+      </div>
+      <div class="card-row">
+        <div class="card-icon icon-sage">💤</div>
+        <div class="card-row-text"><strong>Likely tired.</strong> She's been awake 1h 45m. Her nap window opens in 20 minutes.</div>
+      </div>
+      <div class="card-row">
+        <div class="card-icon icon-coral">🌀</div>
+        <div class="card-row-text"><strong>Developmental leap.</strong> She's 3 days from Leap 4 — extra fussiness is completely normal right now.</div>
+      </div>
+      <div class="card-row">
+        <div class="card-icon icon-blue">🧷</div>
+        <div class="card-row-text"><strong>Nappy: unlikely.</strong> Changed 45 minutes ago.</div>
+      </div>
+    </div>
+    <div class="card-calm">Right now, thousands of other parents are doing exactly this. You are not alone in it.</div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features">
+  <div class="features-header">
+    <p class="section-label">What's inside</p>
+    <h2>Everything you need. Nothing you don't.</h2>
+    <p>Built by parents, for the reality of parenting a tiny human who can't talk yet.</p>
+  </div>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon" style="background: var(--accent-light);">🕐</div>
+      <h3>Nap window predictor</h3>
+      <p>A live arc shows when your baby's nap window opens and closes, personalised to her actual patterns after just a week of data.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background: var(--sage-light);">💡</div>
+      <h3>Insights engine</h3>
+      <p>"Her longest sleeps follow feeds of 20+ minutes on the left." Things you'd never notice but that change how you parent.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background: #EEF0FA;">📋</div>
+      <h3>GP prep tool</h3>
+      <p>Generates a clean one-pager for your 10-minute appointment. No more trying to remember feeds from four days ago.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background: var(--accent-light);">🔗</div>
+      <h3>Handoff card</h3>
+      <p>Share with grandma or a childminder via a link. No account needed. Logs sync back automatically.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background: var(--sage-light);">📈</div>
+      <h3>Regression detector</h3>
+      <p>Watches for the 4, 6, 8, 12 and 18-month regressions. Tells you when one is happening, so you know you haven't broken anything.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background: #EEF0FA;">🏘️</div>
+      <h3>The Village</h3>
+      <p>An anonymous night-feed counter. Baby-friendly venue reviews. Private family groups. Age-matched Q&A with parents of same-age babies.</p>
+    </div>
+  </div>
+</section>
+
+<!-- MUM SECTION -->
+<section class="mum-section">
+  <p class="section-label" style="color: var(--accent);">Something no other app does</p>
+  <h2>Cradl treats the mother as a human being, not a data input device</h2>
+  <p>Every competitor calls you "Mum." Cradl asks your name. And at the end of a hard day, it actually says something worth hearing.</p>
+
+  <div class="daily-summary">
+    <div class="summary-label">Today's summary</div>
+    <div class="summary-stats">
+      <span class="stat-pill">6 feeds</span>
+      <span class="stat-pill">4 nappy changes</span>
+      <span class="stat-pill">15 min tummy time</span>
+      <span class="stat-pill">2h 40m sleep total</span>
+    </div>
+    <div class="summary-message">"You fed her 6 times, changed 4 nappies, and did 15 minutes of tummy time. You are doing an extraordinary job, Sarah."</div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="final-cta">
+  <h2>Be the first to know when Cradl launches</h2>
+  <p>We're in development and looking for parents to shape the product. Join the waitlist and we'll reach out personally.</p>
+
+  <form class="waitlist-form" style="justify-content: center;" onsubmit="handleSubmit(event)">
+    <input type="email" placeholder="your@email.com" required>
+    <button type="submit">Join waitlist</button>
+  </form>
+  <p class="form-note" style="margin-top: 0.75rem;">Free to join. Free to use at launch.</p>
+</section>
+
+<footer>
+  <span class="footer-logo">cradl</span>
+  <span>© 2025 Cradl · Made for parents, by a parent</span>
+</footer>
+
+<script>
+  function handleSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const successMsg = document.getElementById('success-msg');
+    form.style.display = 'none';
+    if (successMsg) successMsg.style.display = 'block';
+    document.querySelectorAll('.form-note').forEach(n => n.style.display = 'none');
+    // In production: POST email to your backend/Supabase here
+  }
+</script>
+</body>
+</html>

@@ -17,10 +17,13 @@ import {
   setDateFormatPref,
   getTimeFormatPref,
   setTimeFormatPref,
+  userDatePattern,
   type DateFormatPref,
   type TimeFormatPref,
 } from "../utils/formatPreferencesStorage";
 import { useLanguage } from "../contexts/LanguageContext";
+import { format } from "date-fns";
+import { parseUserDateString, formatDate } from "../utils/dateUtils";
 import { LOCALE_LABELS, type SupportedLocale } from "../utils/languageStorage";
 
 interface OnboardingNavigatorProps {
@@ -181,15 +184,24 @@ export function OnboardingNavigator({ onComplete }: OnboardingNavigatorProps) {
   const [parentName, setParentName] = useState("");
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [dateFmt, setDateFmt] = useState<DateFormatPref>(getDateFormatPref);
-  const [timeFmt, setTimeFmt] = useState<TimeFormatPref>(getTimeFormatPref);
-  const [localeLang, setLocaleLang] = useState<SupportedLocale>(language);
+  const [dateFmt, setDateFmt] = useState<DateFormatPref>(() => getDateFormatPref());
+  const [timeFmt, setTimeFmt] = useState<TimeFormatPref>(() => getTimeFormatPref());
+  const [localeLang, setLocaleLang] = useState<SupportedLocale>(() => language);
   const [addedBabies, setAddedBabies] = useState<AddedBaby[]>([]);
   const [isExpecting, setIsExpecting] = useState(false);
 
   useEffect(() => {
     saveOnboardingStep(step);
   }, [step]);
+
+  // Keep preference step UI in sync with stored/context values (e.g. after picking or when returning to step 2)
+  useEffect(() => {
+    if (step === 2) {
+      setDateFmt(getDateFormatPref());
+      setTimeFmt(getTimeFormatPref());
+      setLocaleLang(language);
+    }
+  }, [step, language]);
 
   const go = (next: number) => {
     setFade("out");
@@ -201,7 +213,8 @@ export function OnboardingNavigator({ onComplete }: OnboardingNavigatorProps) {
 
   const handleAddBaby = () => {
     const name = babyName.trim() || "Baby";
-    const birthMs = birthDate ? new Date(birthDate).getTime() : Date.now();
+    const parsed = birthDate ? parseUserDateString(birthDate) : null;
+    const birthMs = parsed ? parsed.getTime() : Date.now();
     const baby = addBaby({
       name,
       birthDate: birthMs,
@@ -224,6 +237,14 @@ export function OnboardingNavigator({ onComplete }: OnboardingNavigatorProps) {
       setActiveBabyId(baby.id);
     }
     go(4);
+  };
+
+  /** Persist current preference selections and move to next step. Ensures locales are applied on the next step. */
+  const handlePreferencesContinue = () => {
+    setDateFormatPref(dateFmt);
+    setTimeFormatPref(timeFmt);
+    setAppLanguage(localeLang);
+    go(3);
   };
 
   const handleParentNameContinue = () => {
@@ -544,10 +565,10 @@ export function OnboardingNavigator({ onComplete }: OnboardingNavigatorProps) {
               </div>
             </div>
 
-            <button type="button" onClick={() => go(3)} style={coralBtn}>
+            <button type="button" onClick={handlePreferencesContinue} style={coralBtn}>
               Continue
             </button>
-            <button type="button" onClick={() => go(3)} style={ghostLnk}>
+            <button type="button" onClick={handlePreferencesContinue} style={ghostLnk}>
               Skip
             </button>
           </div>
@@ -615,7 +636,7 @@ export function OnboardingNavigator({ onComplete }: OnboardingNavigatorProps) {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: "#2c1f1f" }}>{b.name}</div>
                       <div style={{ fontSize: 10, color: "#9a8080" }}>
-                        {b.birthDate > Date.now() ? `Due ${new Date(b.birthDate).toLocaleDateString()}` : b.birthDate > Date.now() - 86400000 ? "Date not set" : `Born ${new Date(b.birthDate).toLocaleDateString()}`}
+                        {b.birthDate > Date.now() ? `Due ${formatDate(b.birthDate)}` : b.birthDate > Date.now() - 86400000 ? "Date not set" : `Born ${formatDate(b.birthDate)}`}
                       </div>
                     </div>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4a8a4a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -701,13 +722,22 @@ export function OnboardingNavigator({ onComplete }: OnboardingNavigatorProps) {
             </div>
 
             <input
-              type="date"
+              type="text"
               value={birthDate}
               onChange={(e) => setBirthDate(e.target.value)}
-              style={{ ...inputField, marginBottom: 8 }}
+              placeholder={format(new Date(2025, 2, 15), userDatePattern())}
+              style={{ ...inputField, marginBottom: 4 }}
               aria-label={isExpecting ? "Due date" : "Birth date"}
             />
-
+            <p
+              style={{
+                fontSize: 10,
+                color: "#9a8080",
+                margin: "0 0 12px",
+              }}
+            >
+              Format: {userDatePattern()}
+            </p>
             <p
               style={{
                 fontSize: 10,
@@ -784,7 +814,7 @@ export function OnboardingNavigator({ onComplete }: OnboardingNavigatorProps) {
                 margin: "0 0 16px",
               }}
             >
-              And what's your name?
+              What's your name?
             </h2>
             <input
               type="text"

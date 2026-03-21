@@ -1,13 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Utensils, ChevronRight, Moon, Baby, Activity, Milk, Droplets } from "lucide-react";
 import { NappyGuideSheet } from "./NappyGuideSheet";
 import { DurationPicker, MAX_DURATION_HISTORY_MS } from "./DurationPicker";
 import { saveData } from "../utils/dataSync";
 import { endCurrentSleepIfActive } from "../utils/sleepUtils";
+import { endActiveSleepAndSync, quickEndFeed } from "../utils/quickLog";
 import { getLastFeedSide, saveLastFeedSide } from "../utils/lastFeedSideStorage";
 import { format } from "date-fns";
 import { formatTimeAndAgo } from "../utils/dateUtils";
 import { useFeedTimer } from "../contexts/FeedTimerContext";
+import { useLanguage } from "../contexts/LanguageContext";
+import { LOG_DRAWER_DURATION_SOURCES, type LogDrawerTimerKind } from "../data/logDrawerDurationSources";
 import { toast } from "sonner";
 import { timerToA11yLabel } from "../utils/a11y";
 import type { FeedingRecord, SleepRecord, DiaperRecord, TummyTimeRecord, BottleRecord, PumpRecord } from "../types";
@@ -29,11 +32,13 @@ interface LogDrawerProps {
   type: DrawerType | null;
   onClose: () => void;
   onSaved: () => void;
+  /** Called when in-progress sleep/tummy session changes in storage (start/stop/picker adjust) so parent can refresh UI while drawer stays open */
+  onSessionChange?: () => void;
   onSwitchType?: (newType: DrawerType) => void;
   session: Session | null;
 }
 
-const BOTTLE_PRESETS = [60, 90, 120, 150, 180];
+const BOTTLE_PRESETS = [30, 60, 90, 120, 150, 180];
 
 /** Shared drawer header: icon + title + optional subtitle */
 function DrawerHeader({ icon: Icon, title, subtitle, accentVar = "var(--coral)" }: { icon: React.ElementType; title: string; subtitle?: string | null; accentVar?: string }) {
@@ -78,18 +83,54 @@ const saveBtnClass = "w-full py-3.5 rounded-[14px] text-[15px] font-medium text-
 const saveBtnStyle: React.CSSProperties = { fontFamily: "system-ui, sans-serif" };
 const stickyFooterStyle: React.CSSProperties = { position: "sticky", bottom: 0, paddingTop: 8, paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px))", background: "var(--card)", zIndex: 2 };
 
-export function LogDrawer({ type, onClose, onSaved, onSwitchType, session }: LogDrawerProps) {
+function LogDrawerTimerSourceLinks({ kind, accentVar }: { kind: LogDrawerTimerKind; accentVar: string }) {
+  const { t } = useLanguage();
+  const links = LOG_DRAWER_DURATION_SOURCES[kind];
+  return (
+    <div className="mb-3">
+      <p className={sectionLabelClass} style={sectionLabelStyle}>{t("logDrawer.durationSources.heading")}</p>
+      <ul className="list-none m-0 p-0 flex flex-col gap-1.5">
+        {links.map((l) => (
+          <li key={l.url}>
+            <a
+              href={l.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[12px] underline underline-offset-2"
+              style={{ color: accentVar, fontFamily: "system-ui, sans-serif" }}
+            >
+              {t(l.labelKey)}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function LogDrawer({ type, onClose, onSaved, onSessionChange, onSwitchType, session }: LogDrawerProps) {
   const feedTimer = useFeedTimer();
+  const onSessionChangeRef = useRef(onSessionChange);
+  onSessionChangeRef.current = onSessionChange;
+  const notifySessionChange = useCallback(() => {
+    try {
+      onSessionChangeRef.current?.();
+    } catch {
+      /* ignore */
+    }
+  }, []);
   const [sleepPosition, setSleepPosition] = useState("Left side");
   const [diaperType, setDiaperType] = useState<"pee" | "poop" | "both">("pee");
   const [showNappyGuide, setShowNappyGuide] = useState(false);
   const [durationMs, setDurationMs] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
-  /** Sleep timer runs in background (keeps counting when drawer closed) until stopped by feed/tummy/diaper/bottle */
+  /** Sleep timer: persisted in currentSleep so it keeps running when drawer is closed */
   const [sleepTimerRunning, setSleepTimerRunning] = useState(false);
   const [sleepElapsedMs, setSleepElapsedMs] = useState(0);
   const [sleepDurationMs, setSleepDurationMs] = useState(0);
+  /** Id of in-progress tummy record (so we update it on Save instead of creating a new one) */
+  const [activeTummyId, setActiveTummyId] = useState<string | null>(null);
   const [pastChecked, setPastChecked] = useState(false);
   const [pastDate, setPastDate] = useState("");
   const [pastTime, setPastTime] = useState("");
@@ -120,19 +161,61 @@ export function LogDrawer({ type, onClose, onSaved, onSwitchType, session }: Log
     return () => clearInterval(id);
   }, [pumpTimerRunning]);
 
-  /** Sleep timer: keep counting when drawer is closed */
+  /** Sleep timer: keep counting when drawer is closed (state restored from currentSleep on mount) */
   useEffect(() => {
     if (!sleepTimerRunning) return;
     const id = setInterval(() => setSleepElapsedMs((e) => e + 1000), 1000);
     return () => clearInterval(id);
   }, [sleepTimerRunning]);
 
-  /** Tummy timer: tick when running (only while drawer open or component mounted) */
+  /** Tummy timer: tick when running (state restored from tummyTimeHistory on mount) */
   useEffect(() => {
     if (!timerRunning) return;
     const id = setInterval(() => setElapsedMs((e) => e + 1000), 1000);
     return () => clearInterval(id);
   }, [timerRunning]);
+
+  /** Restore sleep timer from currentSleep when drawer opens (so closing doesn't stop it) */
+  useEffect(() => {
+    if (type !== "sleep") return;
+    try {
+      const raw = localStorage.getItem("currentSleep");
+      if (!raw) return;
+      const current = JSON.parse(raw) as { id?: string; startTime?: number; endTime?: number };
+      if (!current?.startTime || current.endTime != null) return;
+      setSleepTimerRunning(true);
+      setSleepElapsedMs(Math.max(0, Date.now() - current.startTime));
+    } catch {}
+  }, [type]);
+
+  /** Restore tummy timer from last record without endTime (so closing doesn't stop it) */
+  useEffect(() => {
+    if (type !== "tummy") return;
+    try {
+      const raw = localStorage.getItem("tummyTimeHistory");
+      if (!raw) return;
+      const history: TummyTimeRecord[] = JSON.parse(raw);
+      const active = history.filter((r) => r.endTime == null).pop();
+      if (!active?.startTime) return;
+      setActiveTummyId(active.id);
+      setTimerRunning(true);
+      setElapsedMs(Math.max(0, Date.now() - active.startTime));
+    } catch {}
+  }, [type]);
+
+  const CURRENT_PUMP_KEY = "cradl-current-pump-session";
+  /** Restore pump timer from currentPumpSession (so closing doesn't stop it) */
+  useEffect(() => {
+    if (type !== "pump") return;
+    try {
+      const raw = localStorage.getItem(CURRENT_PUMP_KEY);
+      if (!raw) return;
+      const session = JSON.parse(raw) as { startTime?: number };
+      if (!session?.startTime || typeof session.startTime !== "number") return;
+      setPumpTimerRunning(true);
+      setPumpElapsedMs(Math.max(0, Date.now() - session.startTime));
+    } catch {}
+  }, [type]);
 
   const [lastFeedLabel, setLastFeedLabel] = useState<string | null>(null);
   useEffect(() => {
@@ -159,6 +242,41 @@ export function LogDrawer({ type, onClose, onSaved, onSwitchType, session }: Log
       setLastFeedLabel(null);
     }
   }, [type, feedTimer]);
+
+  const syncActiveSleepElapsed = useCallback((ms: number) => {
+    setSleepElapsedMs(ms);
+    // Persist from storage, not sleepTimerRunning — React state can lag one frame after
+    // opening the drawer; skipping here dropped hour/minute adjustments on reload.
+    try {
+      const raw = localStorage.getItem("currentSleep");
+      if (!raw) return;
+      const current = JSON.parse(raw) as SleepRecord;
+      if (!current?.id || current.endTime != null) return;
+      const next: SleepRecord = { ...current, startTime: Date.now() - ms };
+      localStorage.setItem("currentSleep", JSON.stringify(next));
+      if (session?.access_token) saveData("currentSleep", next, session.access_token);
+      notifySessionChange();
+    } catch {
+      /* ignore */
+    }
+  }, [session?.access_token, notifySessionChange]);
+
+  const syncActiveTummyElapsed = useCallback((ms: number) => {
+    setElapsedMs(ms);
+    if (!timerRunning || !activeTummyId) return;
+    try {
+      let history: TummyTimeRecord[] = [];
+      try { history = JSON.parse(localStorage.getItem("tummyTimeHistory") || "[]"); } catch {}
+      const idx = history.findIndex((r) => r.id === activeTummyId);
+      if (idx === -1) return;
+      history[idx] = { ...history[idx], startTime: Date.now() - ms };
+      localStorage.setItem("tummyTimeHistory", JSON.stringify(history));
+      if (session?.access_token) saveData("tummyTimeHistory", history, session.access_token);
+      notifySessionChange();
+    } catch {
+      /* ignore */
+    }
+  }, [timerRunning, activeTummyId, session?.access_token, notifySessionChange]);
 
   /** Feed timer state from context (persists when drawer is closed) */
   const f = feedTimer;
@@ -264,6 +382,11 @@ export function LogDrawer({ type, onClose, onSaved, onSwitchType, session }: Log
         startTime = endTime - duration;
       }
       setSleepTimerRunning(false);
+      try {
+        saveData("currentSleep", null, session?.access_token);
+      } catch {
+        /* ignore */
+      }
       const record: SleepRecord = {
         id: Date.now().toString(),
         position: sleepPosition,
@@ -286,6 +409,7 @@ export function LogDrawer({ type, onClose, onSaved, onSwitchType, session }: Log
       history.push(record);
       try {
         localStorage.setItem("sleepHistory", JSON.stringify(history));
+        saveData("sleepHistory", history, session?.access_token);
       } catch (e) {
         console.warn("[LogDrawer] sleepHistory setItem failed", e);
       }
@@ -347,14 +471,23 @@ export function LogDrawer({ type, onClose, onSaved, onSwitchType, session }: Log
       const endTime = pastChecked && pastDate.trim() ? parsePastDatetimeFromPickers(pastDate, pastTime) ?? Date.now() : Date.now();
       const duration = pastChecked ? durationMs : (timerRunning ? elapsedMs : durationMs);
       const startTime = endTime - duration;
-      const record: TummyTimeRecord = { id: Date.now().toString(), startTime, endTime };
       let history: TummyTimeRecord[] = [];
       try {
         history = JSON.parse(localStorage.getItem("tummyTimeHistory") || "[]");
       } catch {
         history = [];
       }
-      history.push(record);
+      if (activeTummyId) {
+        const idx = history.findIndex((r) => r.id === activeTummyId);
+        if (idx !== -1) {
+          history[idx] = { ...history[idx], endTime };
+        } else {
+          history.push({ id: activeTummyId, startTime, endTime });
+        }
+        setActiveTummyId(null);
+      } else {
+        history.push({ id: Date.now().toString(), startTime, endTime });
+      }
       try {
         localStorage.setItem("tummyTimeHistory", JSON.stringify(history));
       } catch (e) {
@@ -430,6 +563,7 @@ export function LogDrawer({ type, onClose, onSaved, onSwitchType, session }: Log
       history.push(record);
       try {
         localStorage.setItem("pumpHistory", JSON.stringify(history));
+        localStorage.removeItem(CURRENT_PUMP_KEY);
       } catch (e) {
         console.warn("[LogDrawer] pumpHistory setItem failed", e);
       }
@@ -538,8 +672,14 @@ export function LogDrawer({ type, onClose, onSaved, onSwitchType, session }: Log
                 <button
                   type="button"
                   onClick={() => {
-                    if (!f.timerRunning) { setSleepTimerRunning(false); setTimerRunning(false); f.setElapsedMs(feedValueMs); f.setTimerRunning(true); f.setTimerPaused(false); }
-                    else if (f.timerPaused) f.setTimerPaused(false);
+                    if (!f.timerRunning) {
+                      endActiveSleepAndSync(saveData, session?.access_token);
+                      setSleepTimerRunning(false);
+                      setTimerRunning(false);
+                      f.setElapsedMs(feedValueMs);
+                      f.setTimerRunning(true);
+                      f.setTimerPaused(false);
+                    } else if (f.timerPaused) f.setTimerPaused(false);
                     else f.setTimerPaused(true);
                   }}
                   className="py-3.5 px-6 rounded-[14px] text-[15px] font-medium text-white border-none cursor-pointer min-h-[48px] flex-shrink-0"
@@ -617,15 +757,35 @@ export function LogDrawer({ type, onClose, onSaved, onSwitchType, session }: Log
           <p className={sectionLabelClass} style={sectionLabelStyle}>Duration</p>
           {pastChecked && <p className="text-[12px] mb-2" style={sectionLabelStyle}>How long did the sleep last?</p>}
           <div className="mb-3 flex justify-center" aria-live="polite" aria-label={`Sleep timer: ${timerToA11yLabel(pastChecked ? sleepDurationMs : (sleepTimerRunning ? sleepElapsedMs : sleepDurationMs))}`}>
-            <DurationPicker valueMs={pastChecked ? sleepDurationMs : (sleepTimerRunning ? sleepElapsedMs : sleepDurationMs)} maxMs={MAX_DURATION_HISTORY_MS} showSeconds onChange={(ms) => { if (!pastChecked && sleepTimerRunning) setSleepElapsedMs(ms); else setSleepDurationMs(ms); }} liveSync={!pastChecked && sleepTimerRunning} className="min-h-[120px] max-w-[220px]" />
+            <DurationPicker valueMs={pastChecked ? sleepDurationMs : (sleepTimerRunning ? sleepElapsedMs : sleepDurationMs)} maxMs={MAX_DURATION_HISTORY_MS} showSeconds onChange={(ms) => { if (!pastChecked && sleepTimerRunning) syncActiveSleepElapsed(ms); else setSleepDurationMs(ms); }} liveSync={!pastChecked && sleepTimerRunning} className="min-h-[120px] max-w-[220px]" />
           </div>
           {!pastChecked && (
             <div className="flex justify-center mb-3">
               <button
                 type="button"
                 onClick={() => {
-                  if (!sleepTimerRunning) { if (f) f.resetFeedTimer(); setTimerRunning(false); setSleepElapsedMs(sleepDurationMs); setSleepTimerRunning(true); }
-                  else setSleepTimerRunning(false);
+                  if (!sleepTimerRunning) {
+                    if (f && (f.timerRunning || f.timerPaused)) {
+                      quickEndFeed(f.elapsedMs, f.feedSegments, f.feedSide, saveData, session?.access_token);
+                      f.resetFeedTimer();
+                    }
+                    setTimerRunning(false);
+                    setSleepElapsedMs(sleepDurationMs);
+                    setSleepTimerRunning(true);
+                    const now = Date.now();
+                    const currentSleepRecord: SleepRecord = { id: now.toString(), position: sleepPosition, startTime: now - sleepDurationMs };
+                    try {
+                      saveData("currentSleep", currentSleepRecord, session?.access_token);
+                    } catch {}
+                    notifySessionChange();
+                  } else {
+                    setSleepTimerRunning(false);
+                    setSleepDurationMs(sleepElapsedMs);
+                    try {
+                      saveData("currentSleep", null, session?.access_token);
+                    } catch {}
+                    notifySessionChange();
+                  }
                 }}
                 className="py-3.5 px-8 rounded-[14px] text-[15px] font-medium text-white border-none cursor-pointer min-h-[48px]"
                 style={{ background: "var(--blue)", ...saveBtnStyle }}
@@ -694,6 +854,7 @@ export function LogDrawer({ type, onClose, onSaved, onSwitchType, session }: Log
             <p className="text-[12px] mb-1" style={sectionLabelStyle}>Use the duration picker above to set how long the sleep lasted</p>
             {sleepDurationWarning && <p className="text-[12px] mb-2 px-1" style={{ color: "var(--coral)" }}>{sleepDurationWarning}</p>}
           </PastPanel>
+          <LogDrawerTimerSourceLinks kind="sleep" accentVar="var(--blue)" />
           <div style={stickyFooterStyle}>
             <button type="button" onClick={handleSaveSleep} className={saveBtnClass} style={{ ...saveBtnStyle, background: "var(--blue)" }}>Save sleep</button>
           </div>
@@ -777,15 +938,44 @@ export function LogDrawer({ type, onClose, onSaved, onSwitchType, session }: Log
           <p className={sectionLabelClass} style={sectionLabelStyle}>Duration</p>
           {pastChecked && <p className="text-[12px] mb-2" style={sectionLabelStyle}>How long was the session?</p>}
           <div className="mb-3 flex justify-center" aria-live="polite" aria-label={`Tummy time timer: ${timerToA11yLabel(pastChecked ? durationMs : (timerRunning ? elapsedMs : durationMs))}`}>
-            <DurationPicker valueMs={pastChecked ? durationMs : (timerRunning ? elapsedMs : durationMs)} maxMs={60 * 60 * 1000} showSeconds onChange={(ms) => { if (!pastChecked && timerRunning) setElapsedMs(ms); else setDurationMs(ms); }} liveSync={!pastChecked && timerRunning} className="min-h-[120px] max-w-[220px]" />
+            <DurationPicker valueMs={pastChecked ? durationMs : (timerRunning ? elapsedMs : durationMs)} maxMs={60 * 60 * 1000} showSeconds onChange={(ms) => { if (!pastChecked && timerRunning) syncActiveTummyElapsed(ms); else setDurationMs(ms); }} liveSync={!pastChecked && timerRunning} className="min-h-[120px] max-w-[220px]" />
           </div>
           {!pastChecked && (
             <div className="flex justify-center mb-3">
               <button
                 type="button"
                 onClick={() => {
-                  if (!timerRunning) { if (f) f.resetFeedTimer(); setSleepTimerRunning(false); setElapsedMs(durationMs); setTimerRunning(true); }
-                  else setTimerRunning(false);
+                  if (!timerRunning) {
+                    if (f) f.resetFeedTimer();
+                    setSleepTimerRunning(false);
+                    const now = Date.now();
+                    setElapsedMs(durationMs);
+                    setTimerRunning(true);
+                    const newId = now.toString();
+                    setActiveTummyId(newId);
+                    try {
+                      let history: TummyTimeRecord[] = [];
+                      try { history = JSON.parse(localStorage.getItem("tummyTimeHistory") || "[]"); } catch {}
+                      history.push({ id: newId, startTime: now - durationMs });
+                      localStorage.setItem("tummyTimeHistory", JSON.stringify(history));
+                      if (session?.access_token) saveData("tummyTimeHistory", history, session.access_token);
+                    } catch {}
+                    notifySessionChange();
+                  } else {
+                    setTimerRunning(false);
+                    if (activeTummyId) {
+                      try {
+                        let history: TummyTimeRecord[] = [];
+                        try { history = JSON.parse(localStorage.getItem("tummyTimeHistory") || "[]"); } catch {}
+                        const idx = history.findIndex((r) => r.id === activeTummyId);
+                        if (idx !== -1) history[idx] = { ...history[idx], endTime: Date.now() };
+                        localStorage.setItem("tummyTimeHistory", JSON.stringify(history));
+                        if (session?.access_token) saveData("tummyTimeHistory", history, session.access_token);
+                      } catch {}
+                    }
+                    setActiveTummyId(null);
+                    notifySessionChange();
+                  }
                 }}
                 className="py-3.5 px-8 rounded-[14px] text-[15px] font-medium text-white border-none cursor-pointer min-h-[48px]"
                 style={{ background: "var(--purp)", ...saveBtnStyle }}
@@ -800,6 +990,7 @@ export function LogDrawer({ type, onClose, onSaved, onSwitchType, session }: Log
               <input type="time" value={pastTime} onChange={(e) => setPastTime(e.target.value)} className={inputStyle} style={inputStyleObj} />
             </div>
           </PastPanel>
+          <LogDrawerTimerSourceLinks kind="tummy" accentVar="var(--purp)" />
           <div style={stickyFooterStyle}>
             <button type="button" onClick={handleSaveTummy} className={saveBtnClass} style={{ ...saveBtnStyle, background: "var(--purp)" }}>Save session</button>
           </div>
@@ -938,7 +1129,24 @@ export function LogDrawer({ type, onClose, onSaved, onSwitchType, session }: Log
           </div>
           {!pastChecked && (
             <div className="flex justify-center mb-3">
-              <button type="button" onClick={() => { if (!pumpTimerRunning) setPumpElapsedMs(pumpDurationMs); setPumpTimerRunning(!pumpTimerRunning); }} className="py-3.5 px-8 rounded-[14px] text-[15px] font-medium text-white border-none cursor-pointer min-h-[48px]" style={{ background: "var(--pink)", ...saveBtnStyle }}>{pumpTimerRunning ? "Stop" : "Start"} timer</button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!pumpTimerRunning) {
+                    const now = Date.now();
+                    setPumpElapsedMs(pumpDurationMs);
+                    setPumpTimerRunning(true);
+                    try { localStorage.setItem(CURRENT_PUMP_KEY, JSON.stringify({ startTime: now })); } catch {}
+                  } else {
+                    setPumpTimerRunning(false);
+                    try { localStorage.removeItem(CURRENT_PUMP_KEY); } catch {}
+                  }
+                }}
+                className="py-3.5 px-8 rounded-[14px] text-[15px] font-medium text-white border-none cursor-pointer min-h-[48px]"
+                style={{ background: "var(--pink)", ...saveBtnStyle }}
+              >
+                {pumpTimerRunning ? "Stop" : "Start"} timer
+              </button>
             </div>
           )}
           <PastPanel label="Log a past session" expanded={pastChecked} onToggle={() => setPastChecked((c) => !c)}>
@@ -947,6 +1155,7 @@ export function LogDrawer({ type, onClose, onSaved, onSwitchType, session }: Log
               <input type="time" value={pastTime} onChange={(e) => setPastTime(e.target.value)} className={inputStyle} style={inputStyleObj} />
             </div>
           </PastPanel>
+          <LogDrawerTimerSourceLinks kind="pump" accentVar="var(--pink)" />
           <div style={stickyFooterStyle}>
             <button type="button" onClick={handleSavePump} className={saveBtnClass} style={{ ...saveBtnStyle, background: "var(--pink)" }}>Save pump</button>
           </div>

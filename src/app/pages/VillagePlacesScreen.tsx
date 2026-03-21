@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
-import { MapPin, Plus, ChevronDown, ChevronUp, Star } from "lucide-react";
+import { MapPin, Plus, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
-import { fetchVenues, addVenue, fetchVenueReviews, addVenueReview, type VillageVenue, type VillageVenueReview } from "../utils/villageVenueService";
+import { fetchVenues, addVenue, fetchVenueReviews, addVenueReview, getVenueMapsUrl, type VillageVenue, type VillageVenueReview } from "../utils/villageVenueService";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { SHORT_DATETIME_DISPLAY } from "../utils/dateUtils";
@@ -190,24 +190,47 @@ export function VillagePlacesScreen() {
                   className="rounded-2xl border overflow-hidden"
                   style={{ borderColor: "var(--bd)", background: "var(--card)" }}
                 >
-                  <button
-                    type="button"
-                    onClick={() => toggleVenueDetail(v.id)}
-                    className="w-full text-left p-4 flex items-start justify-between"
-                    style={{ background: "none", border: "none" }}
-                  >
-                    <div>
-                      <div className="font-medium" style={{ color: "var(--tx)" }}>{v.name}</div>
-                      <div className="text-[13px] mt-0.5" style={{ color: "var(--mu)" }}>{v.address}</div>
-                      <span className="inline-block mt-1 text-[12px] px-2 py-0.5 rounded" style={{ background: "var(--pe)", color: "var(--pink)" }}>
-                        {v.venueType.replace("_", " ")}
-                      </span>
-                    </div>
-                    {isExpanded ? <ChevronUp className="w-4 h-4 shrink-0 mt-1" style={{ color: "var(--mu)" }} /> : <ChevronDown className="w-4 h-4 shrink-0 mt-1" style={{ color: "var(--mu)" }} />}
-                  </button>
+                  <div className="p-4">
+                    <button
+                      type="button"
+                      onClick={() => toggleVenueDetail(v.id)}
+                      className="w-full text-left flex items-start justify-between"
+                      style={{ background: "none", border: "none" }}
+                    >
+                      <div>
+                        <div className="font-medium" style={{ color: "var(--tx)" }}>{v.name}</div>
+                        <div className="text-[13px] mt-0.5" style={{ color: "var(--mu)" }}>{v.address}</div>
+                        <span className="inline-block mt-1 text-[12px] px-2 py-0.5 rounded" style={{ background: "var(--pe)", color: "var(--pink)" }}>
+                          {v.venueType.replace("_", " ")}
+                        </span>
+                      </div>
+                      {isExpanded ? <ChevronUp className="w-4 h-4 shrink-0 mt-1" style={{ color: "var(--mu)" }} /> : <ChevronDown className="w-4 h-4 shrink-0 mt-1" style={{ color: "var(--mu)" }} />}
+                    </button>
+                    <a
+                      href={getVenueMapsUrl(v)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 mt-2 text-[13px] font-medium"
+                      style={{ color: "var(--pink)" }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Open in Google Maps
+                    </a>
+                  </div>
 
                   {isExpanded && (
                     <div className="px-4 pb-4 pt-0" style={{ borderTop: "1px solid var(--bd)" }}>
+                      <a
+                        href={getVenueMapsUrl(v)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 py-2 px-3 rounded-xl text-[13px] font-medium mb-3"
+                        style={{ background: "var(--pe)", color: "var(--pink)" }}
+                      >
+                        <MapPin className="w-4 h-4" />
+                        Open in Google Maps
+                      </a>
                       <h3 className="text-[13px] font-medium mt-3 mb-2" style={{ color: "var(--tx)" }}>Reviews</h3>
                       {reviewsLoading ? (
                         <p className="text-[13px]" style={{ color: "var(--mu)" }}>Loading…</p>

@@ -1,60 +1,30 @@
-import { useState, type CSSProperties } from "react";
+import { useState, useCallback } from "react";
 import { usePremium } from "../contexts/PremiumContext";
 import { PremiumGate } from "./PremiumGate";
 import { AskCradlSheet } from "./AskCradlSheet";
+import { CradlPullTab } from "./CradlPullTab";
 
+/**
+ * Ask Cradl + voice: both collapse into a right-edge pull tab (CradlPullTab).
+ * Tap the collapsed tab, or swipe left, to reveal Ask Cradl and mic; keep swiping left to open Ask Cradl directly.
+ * Tab snaps back after 2s if released without tapping.
+ */
 export function AskCradlFloatingButton() {
   const { isPremium } = usePremium();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [gateOpen, setGateOpen] = useState(false);
 
-  const btn: CSSProperties = {
-    position: "fixed",
-    bottom: 80,
-    right: 16,
-    width: 56,
-    height: 56,
-    borderRadius: "50%",
-    background: "var(--coral)",
-    border: "none",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    zIndex: 1000,
-    padding: 0,
-  };
-
-  const handleTap = () => {
+  const handleAskCradlClick = useCallback(() => {
     if (isPremium) {
       setSheetOpen(true);
     } else {
       setGateOpen(true);
     }
-  };
+  }, [isPremium]);
 
   return (
     <>
-      <button
-        type="button"
-        style={btn}
-        onClick={handleTap}
-        aria-label="Ask Cradl a question about your baby"
-      >
-        <svg
-          width="22"
-          height="22"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#fff"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-      </button>
+      <CradlPullTab onAskCradlClick={handleAskCradlClick} />
 
       <AskCradlSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
 

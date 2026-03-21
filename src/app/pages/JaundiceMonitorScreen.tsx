@@ -9,7 +9,8 @@ import { getJaundiceChecks } from "../utils/jaundiceStorage";
 import { getJaundiceAgeDays } from "../utils/jaundiceAssessment";
 import { useBaby } from "../contexts/BabyContext";
 import { AddJaundiceCheckSheet } from "../components/AddJaundiceCheckSheet";
-import { format } from "date-fns";
+import { formatClockTime, formatMediumDate } from "../utils/dateUtils";
+import { getLanguage } from "../utils/languageStorage";
 
 export function JaundiceMonitorScreen() {
   const { babyProfile } = useBaby();
@@ -75,8 +76,8 @@ export function JaundiceMonitorScreen() {
                   style={{ background: "var(--card)", borderColor: "var(--bd)" }}
                 >
                   <span className="text-[13px] font-medium" style={{ color: "var(--tx)" }}>
-                    {format(new Date(c.date), "d MMM yyyy")}
-                    {c.time ? ` · ${c.time}` : ""}
+                    {formatMediumDate(new Date(c.date).getTime(), locale)}
+                    {c.time ? ` · ${formatStoredHmOnDate(c.date, c.time)}` : ""}
                   </span>
                   <span className="text-[12px] block mt-0.5" style={{ color: "var(--mu)" }}>
                     {c.colour.replace(/_/g, " ")} {c.feedsLast24h != null ? `· ${c.feedsLast24h} feeds in 24h` : ""}
@@ -88,7 +89,7 @@ export function JaundiceMonitorScreen() {
         </section>
 
         <p className="text-[12px]" style={{ color: "var(--mu)" }}>
-          This is not a substitute for professional assessment. If you&apos;re worried or baby is sleepy or not feeding well, contact your midwife or call 111.
+          This is not a substitute for professional assessment. If you&apos;re worried or baby is sleepy or not feeding well, contact your midwife or call your local health advice line.
         </p>
       </div>
 

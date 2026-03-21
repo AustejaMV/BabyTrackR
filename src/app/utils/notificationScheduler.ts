@@ -1,3 +1,7 @@
+/**
+ * Legacy in-app timers. Prefer `careNotifications.ts` + `careNotificationPlanner.ts`
+ * for feed / nap / nappy / pain / vaccination scheduling (web + native).
+ */
 import { sendNotification } from './notifications';
 
 export const CHANNELS = {

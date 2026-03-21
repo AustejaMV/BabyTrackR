@@ -17,6 +17,7 @@
     "error": "Something went wrong",
     "retry": "Retry",
     "search": "Search",
+    "notes": "Notes",
     "noData": "No data yet",
     "premium": "Premium",
     "upgradeToPremium": "Upgrade to Premium",
@@ -26,7 +27,8 @@
     "thisWeek": "This week",
     "nav": {
       "today": "Today",
-      "journey": "Journey",
+      "journey": "Story",
+      "health": "Health",
       "village": "Village",
       "me": "Me"
     },
@@ -80,7 +82,79 @@
     "logFeed": "Log feed",
     "logSleep": "Log sleep",
     "logNappy": "Log nappy",
-    "logTummyTime": "Log tummy time"
+    "logTummyTime": "Log tummy time",
+    "logSection": "Log",
+    "feed": "Nurse",
+    "sleep": "Sleep",
+    "nappy": "Nappy",
+    "tummy": "Tummy",
+    "bottle": "Bottle",
+    "health": "Health",
+    "pump": "Pump",
+    "solids": "Solids",
+    "activity": "Activity",
+    "spitup": "Spit-up",
+    "now": "Now",
+    "awake": "Awake",
+    "sleepingNow": "Sleeping now",
+    "noFeedYet": "No feed yet",
+    "noBottle": "No bottle",
+    "tapToEdit": "Tap to edit",
+    "holdToStop": "Hold to stop",
+    "napRunningLong": "Nap running long — hold to stop",
+    "feedRunningLong": "Nurse running long — hold to stop",
+    "tummyRunningLong": "Tummy time running long — hold to stop",
+    "runningVeryLong": "Running very long — hold to stop",
+    "timeline": "Today's timeline",
+    "noEventsToday": "No events logged today",
+    "desktopPatternsTitle": "Patterns & highlights",
+    "desktopPatternsEmpty": "When Cradl spots useful trends in your logs, a short note will appear in this column.",
+    "desktopQuickLinks": "Jump to",
+    "desktopLinkLibrary": "Library",
+    "desktopTimelineTitle": "Nothing on the timeline yet",
+    "desktopTimelineHint": "Log a feed, sleep, or nappy with the buttons above — entries show up here in order through the day.",
+    "thisWeek": "This week",
+    "side": "Side",
+    "addBirthDate": "add birth date",
+    "addBirthDateSettings": "add birth date in settings",
+    "youreNotAlone": "You're not alone in this.",
+    "needMoment": "I need a moment",
+    "breathingSubtitle": "60-second breathing exercise",
+    "moreLogTypes": "More log types",
+    "more": "More",
+    "pumpHealth": "pump · health",
+    "greetingHi": "Hi",
+    "greetingWithNameBaby": "{{timeOfDay}}, {{name}} — {{baby}} had a good night.",
+    "greetingWithBaby": "{{timeOfDay}} — {{baby}} had a good night.",
+    "greetingSolo": "{{timeOfDay}}.",
+    "logHelp": {
+      "areaTitle": "Log area",
+      "areaDesc": "Tap a button to open the form and add details (side, duration, notes).",
+      "holdTitle": "Hold down (1 sec)",
+      "holdDesc": "Quick-log without opening the form: start or stop a timer (feed, sleep, tummy) or add one entry (nappy)."
+    }
+  },
+
+  "logDrawer": {
+    "durationSources": {
+      "heading": "Duration — sources",
+      "feed": {
+        "nhsBreastfeeding": "NHS — Breastfeeding your baby",
+        "whoIycf": "WHO — Infant and young child feeding"
+      },
+      "sleep": {
+        "nhsBabySleep": "NHS — Helping your baby to sleep",
+        "whoIycf": "WHO — Infant and young child feeding"
+      },
+      "tummy": {
+        "nhsTummyTime": "NHS — Tummy time & keeping baby active",
+        "nhsActivityUnder5": "NHS — Physical activity (under 5s)"
+      },
+      "pump": {
+        "nhsExpressing": "NHS — Expressing breast milk",
+        "whoIycf": "WHO — Infant and young child feeding"
+      }
+    }
   },
 
   "story": {
@@ -187,5 +261,97 @@
     "feverInfo": "A temperature of 38°C or above is a fever. In babies under 3 months, always seek medical advice for any fever.",
     "emergencyNumbers": "Emergency numbers",
     "callEmergency": "Call {{number}}"
+  },
+
+  "desktop": {
+    "askCradl": "Ask Cradl",
+    "askCradlAria": "Ask Cradl a question about your baby",
+    "searchPlaceholder": "Search feeds, sleep, diapers, notes…",
+    "searchAria": "Search logs",
+    "noResults": "No results for \"{{query}}\"",
+    "typeToSearch": "Type to search your logs",
+    "upgrade": "Upgrade",
+    "pro": "PRO",
+    "settings": "Settings",
+    "profileSettings": "Profile settings"
+  },
+
+  "library": {
+    "title": "Knowledge Library",
+    "subtitle": "NHS-aligned articles reviewed by health professionals",
+    "searchPlaceholder": "Search articles…",
+    "categoryAll": "All",
+    "categorySleep": "Sleep",
+    "categoryFeeding": "Feeding",
+    "categoryNappies": "Nappies",
+    "categoryDevelopment": "Development",
+    "categoryMumsHealth": "Mum's health",
+    "helpful": "Was this helpful?",
+    "translateWithGoogle": "Translate with Google",
+    "noMatch": "No articles match your search.",
+    "lastReviewed": "Last reviewed {{date}}"
+  },
+
+  "statsRow": {
+    "lastSide": "Last side"
+  },
+
+  "isThisNormalCard": {
+    "intro": "Typical daily ranges for {{age}}",
+    "subintro": "Bands summarise common NHS and WHO public guidance. They are not a medical diagnosis.",
+    "sourcesLabel": "Sources:",
+    "footnote": "Growth percentile curves use WHO Child Growth Standards (weight-for-age charts). If you are worried about your baby, speak to your health visitor or GP."
+  },
+
+  "handoff": {
+    "leavingNow": "Leaving now — share a live summary with your carer",
+    "share": "Share →",
+    "linkCopied": "Link copied to clipboard",
+    "couldNotShare": "Could not share"
+  },
+
+  "journey": {
+    "schedule": {
+      "title": "Suggested schedule",
+      "needBirthDate": "Set birth date in Settings to see a suggested schedule.",
+      "yourBaby": "your baby",
+      "transition": "{{name}} may be ready to move to {{napPhrase}} — here's an updated suggested schedule.",
+      "oneNapPhrase": "1 nap",
+      "napsPhrase": "{{count}} naps",
+      "dismiss": "Dismiss",
+      "usualWake": "Usual wake time",
+      "targetBedtime": "Target bedtime",
+      "footer": "This schedule is a guide based on {{name}}'s age. Adjust based on their cues.",
+      "sourcesLabel": "Sources:",
+      "eventWake": "Wake",
+      "eventBedtime": "Bedtime",
+      "eventNap": "Nap {{n}}",
+      "stages": {
+        "newborn": {
+          "label": "Newborn schedule",
+          "description": "About 4–5 naps per day is typical at this age."
+        },
+        "threeNap": {
+          "label": "3-nap stage",
+          "description": "Usually three naps per day."
+        },
+        "twoNap": {
+          "label": "2-nap stage (most common)",
+          "description": "Usually two naps per day."
+        },
+        "twoToOne": {
+          "label": "2-to-1 nap transition",
+          "description": "Often still two naps, gradually moving toward one."
+        },
+        "oneNap": {
+          "label": "1-nap stage",
+          "description": "Usually one longer midday nap."
+        },
+        "dropping": {
+          "label": "Dropping naps",
+          "description": "Many toddlers move toward no nap or an occasional nap."
+        }
+      }
+    }
   }
 }

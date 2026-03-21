@@ -202,7 +202,7 @@ export function CradlNoticedSection({ notices, compact }: { notices: NoticeCard[
                 fontFamily: "system-ui, sans-serif",
               }}
             >
-              Not a concern · dismiss
+              I'm okay, thank you
             </div>
           )}
         </div>

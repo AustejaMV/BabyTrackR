@@ -1,5 +1,6 @@
 /**
- * Age-appropriate normal ranges (WHO and paediatric data) for "is this normal?" comparisons.
+ * Age-appropriate normal ranges (mixed NHS / WHO-aligned public guidance) for "is this normal?" comparisons.
+ * Band values are approximate summaries for the app, not raw WHO table downloads.
  */
 
 export interface AgeRangeRow {
@@ -114,4 +115,44 @@ export function assessMetric(
     status: 'high',
     message: 'Above typical range — normal for some babies at this age.',
   };
+}
+
+/** Official references for transparency (shown under each metric in the UI). */
+export interface NormalRangeReference {
+  label: string;
+  url: string;
+}
+
+const WHO_CGS = "https://www.who.int/tools/child-growth-standards";
+const WHO_IYCF =
+  "https://www.who.int/teams/nutrition-and-food-safety/food-and-nutrition-actions-in-health-systems/infant-and-young-child-feeding";
+const WHO_IYCN_FACTSHEET = "https://www.who.int/news-room/fact-sheets/detail/infant-and-young-child-feeding";
+
+/** Per-metric public sources similar to the bands we summarise (not 1:1 row-level WHO tables). */
+export const NORMAL_RANGE_REFERENCE_LINKS: Record<string, NormalRangeReference[]> = {
+  feedsPerDay: [
+    { label: "WHO — Infant and young child feeding", url: WHO_IYCF },
+    { label: "WHO — Infant and young child nutrition (fact sheet)", url: WHO_IYCN_FACTSHEET },
+    { label: "NHS — How often to feed your baby", url: "https://www.nhs.uk/conditions/baby/breastfeeding-and-bottle-feeding/how-often-feed-baby/" },
+  ],
+  sleepHoursPerDay: [
+    { label: "WHO — Child growth standards (context)", url: WHO_CGS },
+    { label: "NHS — Baby sleep and nighttime feeding", url: "https://www.nhs.uk/conditions/baby/sleep-and-nighttime-feeding/" },
+  ],
+  diaperChangesPerDay: [
+    { label: "NHS — Changing your baby’s nappy", url: "https://www.nhs.uk/conditions/baby/caring-for-a-newborn/how-to-change-your-babys-nappy/" },
+    { label: "WHO — Child growth standards", url: WHO_CGS },
+  ],
+  tummyTimeMinPerDay: [
+    { label: "NHS — Tummy time for babies", url: "https://www.nhs.uk/start-for-life/baby/babies-tummy-time/" },
+    { label: "WHO — Child growth standards", url: WHO_CGS },
+  ],
+  weightGainGPerWeek: [
+    { label: "WHO — Child growth standards", url: WHO_CGS },
+    { label: "WHO — Weight-for-age growth charts (0–2 years, methodology)", url: "https://www.who.int/tools/child-growth-standards/standards" },
+  ],
+};
+
+export function getNormalRangeReferenceLinks(metric: string): NormalRangeReference[] {
+  return NORMAL_RANGE_REFERENCE_LINKS[metric] ?? [];
 }

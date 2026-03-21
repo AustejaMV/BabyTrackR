@@ -223,12 +223,12 @@ export function HealthLogDrawer({ onClose, onSaved }: HealthLogDrawerProps) {
           </div>
           {showHighFeverAlert && (
             <p className="text-[13px] mb-2 p-2 rounded-lg" style={{ background: "color-mix(in srgb, #e87474 20%, var(--card))", color: "var(--tx)" }}>
-              High fever detected. Contact your GP or 111 immediately.
+              High fever detected. Contact your doctor or local health advice line immediately.
             </p>
           )}
           {showFeverAlert && !showHighFeverAlert && (
             <p className="text-[13px] mb-2 p-2 rounded-lg" style={{ background: "var(--bg2)", color: "var(--tx)" }}>
-              This temperature may indicate a fever. If baby is under 3 months, contact your GP or 111 now.
+              This temperature may indicate a fever. If baby is under 3 months, contact your doctor or local health advice line now.
             </p>
           )}
           <PastPanel label="Log a past reading" expanded={pastTemp} onToggle={() => setPastTemp((x) => !x)}>

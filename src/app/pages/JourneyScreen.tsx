@@ -19,6 +19,9 @@ import { DesktopLayout } from "../components/DesktopLayout";
 import { getGrowthHistory, saveGrowthEntry } from "../utils/growthStorage";
 import { toast } from "sonner";
 import { PregnancyJourneyView } from "../components/PregnancyJourneyView";
+import { ScheduleCreator } from "../components/ScheduleCreator";
+import { useLanguage } from "../contexts/LanguageContext";
+import { formatDurationMsProse, formatIntervalMinutesProse, formatDayMonthShort, formatDate } from "../utils/dateUtils";
 
 const F = "system-ui, sans-serif";
 const SECTION: React.CSSProperties = {
@@ -29,6 +32,17 @@ const CARD: React.CSSProperties = {
   background: "#fff", border: "1px solid #ede0d4", borderRadius: 14,
   margin: "0 12px 8px", padding: 14, fontFamily: F,
 };
+
+const LEAP_SOURCE_LINKS = [
+  {
+    label: "Wonder Weeks — mental leaps overview",
+    url: "https://www.thewonderweeks.com/mental-leaps-and-wonder-weeks/",
+  },
+  {
+    label: "NHS — baby development",
+    url: "https://www.nhs.uk/baby/babys-development/",
+  },
+];
 
 function readHistory<T>(key: string): T[] {
   try { return readStoredArray<T>(key); } catch { return []; }
@@ -53,6 +67,7 @@ function saveCustomMilestones(milestones: CustomMilestone[]) {
 }
 
 export function JourneyScreen() {
+  const { t, language } = useLanguage();
   const { activeBaby, updateActiveBaby } = useBaby();
   const navigate = useNavigate();
 
@@ -196,7 +211,7 @@ export function JourneyScreen() {
       const prevAvg = prevWeekSleeps.reduce((s, r) => s + ((r.endTime ?? 0) - (r.startTime ?? 0)), 0) / prevWeekSleeps.length;
       if (thisAvg > prevAvg * 1.15) {
         cards.push({ id: "sleep-improving", color: "blue", title: "Sleep is getting better this week",
-          body: `Average nap up to ${Math.round(thisAvg / 60000)}min from ${Math.round(prevAvg / 60000)}min last week.` });
+          body: `Average nap up to ${formatDurationMsProse(thisAvg)} from ${formatDurationMsProse(prevAvg)} last week.` });
       }
     }
 
@@ -210,12 +225,23 @@ export function JourneyScreen() {
       const avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length;
       if (avgGap > 120) {
         cards.push({ id: "feed-rhythm", color: "green", title: "Feeds spacing out — a good sign",
-          body: `${Math.round(avgGap)} minutes between feeds on average. She's settling into a rhythm.` });
+          body: `${formatIntervalMinutesProse(avgGap)} between feeds on average. She's settling into a rhythm.` });
       }
     }
 
     return cards;
   }, [sleepHistory, feedingHistory]);
+
+  /** P18: Tag by SD — within 1 SD = "Within range", 1–2 SD = "A little low/high", >2 SD = "Speak to your GP" */
+  function tagForValue(value: number, typicalMin: number, typicalMax: number): "Within range" | "A little low" | "A little high" | "Speak to your GP" {
+    const range = typicalMax - typicalMin || 1;
+    const sd = range / 4;
+    const mid = (typicalMin + typicalMax) / 2;
+    if (value >= mid - sd && value <= mid + sd) return "Within range";
+    if (value < typicalMin - 2 * sd) return "Speak to your GP";
+    if (value > typicalMax + 2 * sd) return "Speak to your GP";
+    return value < typicalMin ? "A little low" : "A little high";
+  }
 
   const normalMetrics = useMemo<NormalMetric[]>(() => {
     if (!ageInWeeks) return [];
@@ -241,41 +267,45 @@ export function JourneyScreen() {
     const metrics: NormalMetric[] = [];
     const feedRange = getNormalRange("feedsPerDay", wks);
     if (feedRange && todayFeeds > 0) {
-      const tag = todayFeeds >= feedRange.min && todayFeeds <= feedRange.max ? "Normal" as const : todayFeeds < feedRange.min ? "A little low" as const : "A little high" as const;
+      const tag = tagForValue(todayFeeds, feedRange.min, feedRange.max);
       metrics.push({
         name: "Feeds", value: todayFeeds, min: 0, max: feedRange.max + 4,
         typicalMin: feedRange.min, typicalMax: feedRange.max,
-        description: `${todayFeeds} feeds — ${tag === "Normal" ? "right in the middle of the typical range" : tag === "A little low" ? "fewer than most babies this age" : "more than most babies this age"}`,
-        tag, suggestion: tag !== "Normal" ? "Some babies just need more or fewer. Check with your health visitor if you're worried." : undefined,
+        metricKey: "feedsPerDay",
+        description: `${todayFeeds} feeds — ${tag === "Within range" ? "right in the middle of the typical range" : tag === "Speak to your GP" ? "worth checking with your health visitor" : tag === "A little low" ? "fewer than most babies this age" : "more than most babies this age"}`,
+        tag, suggestion: tag !== "Within range" ? "Some babies just need more or fewer. Check with your health visitor if you're worried." : undefined,
       });
     }
     const sleepRange = getNormalRange("sleepHoursPerDay", wks);
     if (sleepRange && todaySleepH > 0) {
-      const tag = todaySleepH >= sleepRange.min && todaySleepH <= sleepRange.max ? "Normal" as const : todaySleepH < sleepRange.min ? "A little low" as const : "A little high" as const;
+      const tag = tagForValue(todaySleepH, sleepRange.min, sleepRange.max);
       metrics.push({
         name: "Sleep", value: Math.round(todaySleepH * 10) / 10, min: 0, max: sleepRange.max + 4,
         typicalMin: sleepRange.min, typicalMax: sleepRange.max,
-        description: `${Math.round(todaySleepH * 10) / 10}h — ${tag === "Normal" ? "healthy amount for this age" : "a bit " + (tag === "A little low" ? "less" : "more") + " than typical"}`,
-        tag, suggestion: tag !== "Normal" ? "Every baby's sleep needs vary. Talk to your GP if sleep feels persistently off." : undefined,
+        metricKey: "sleepHoursPerDay",
+        description: `${Math.round(todaySleepH * 10) / 10}h — ${tag === "Within range" ? "healthy amount for this age" : tag === "Speak to your GP" ? "worth a chat with your GP if this continues" : "a bit " + (tag === "A little low" ? "less" : "more") + " than typical"}`,
+        tag, suggestion: tag !== "Within range" ? "Every baby's sleep needs vary. Talk to your GP if sleep feels persistently off." : undefined,
       });
     }
     const diapRange = getNormalRange("diaperChangesPerDay", wks);
     if (diapRange && todayDiapers > 0) {
-      const tag = todayDiapers >= diapRange.min && todayDiapers <= diapRange.max ? "Normal" as const : todayDiapers < diapRange.min ? "A little low" as const : "A little high" as const;
+      const tag = tagForValue(todayDiapers, diapRange.min, diapRange.max);
       metrics.push({
         name: "Nappies", value: todayDiapers, min: 0, max: diapRange.max + 4,
         typicalMin: diapRange.min, typicalMax: diapRange.max,
-        description: `${todayDiapers} changes — ${tag === "Normal" ? "normal for this age" : tag === "A little low" ? "on the low side" : "quite a few changes"}`,
+        metricKey: "diaperChangesPerDay",
+        description: `${todayDiapers} changes — ${tag === "Within range" ? "normal for this age" : tag === "A little low" ? "on the low side" : "quite a few changes"}`,
         tag,
       });
     }
     const tumRange = getNormalRange("tummyTimeMinPerDay", wks);
     if (tumRange && todayTummy > 0) {
-      const tag = todayTummy >= tumRange.min && todayTummy <= tumRange.max ? "Normal" as const : todayTummy < tumRange.min ? "A little low" as const : "A little high" as const;
+      const tag = tagForValue(todayTummy, tumRange.min, tumRange.max);
       metrics.push({
         name: "Tummy time", value: todayTummy, min: 0, max: tumRange.max + 20,
         typicalMin: tumRange.min, typicalMax: tumRange.max,
-        description: `${todayTummy}min — ${tag === "Normal" ? "good amount" : tag === "A little low" ? "try adding a few more minutes" : "great job!"}`,
+        metricKey: "tummyTimeMinPerDay",
+        description: `${todayTummy}min — ${tag === "Within range" ? "good amount" : tag === "A little low" ? "try adding a few more minutes" : "great job!"}`,
         tag, suggestion: tag === "A little low" ? "Even 2–3 extra minutes across the day helps build strength." : undefined,
       });
     }
@@ -307,7 +337,7 @@ export function JourneyScreen() {
     let completed: Record<string, number> = {};
     try { completed = JSON.parse(localStorage.getItem("cradl-milestones") || "{}"); } catch {}
     const builtIn = JOURNEY_MILESTONES.map((m) => ({
-      ...m, doneDate: completed[m.id] ? new Date(completed[m.id]).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null,
+      ...m, doneDate: completed[m.id] ? formatDayMonthShort(completed[m.id], language) : null,
       isCurrent: !completed[m.id] && ageInWeeks >= m.typicalWeeksMin && ageInWeeks <= m.typicalWeeksMax,
       isUpcoming: !completed[m.id] && ageInWeeks < m.typicalWeeksMin,
       isCustom: false,
@@ -315,17 +345,17 @@ export function JourneyScreen() {
     const custom = customMilestones.map((m) => ({
       id: m.id,
       label: m.label,
-      typicalLabel: new Date(m.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+      typicalLabel: formatDayMonthShort(m.date, language),
       typicalWeeksMin: 0,
       typicalWeeksMax: 999,
-      doneDate: new Date(m.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+      doneDate: formatDayMonthShort(m.date, language),
       isCurrent: false,
       isUpcoming: false,
       isCustom: true,
     }));
     return [...builtIn, ...custom];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ageInWeeks, customMilestones, growthRefreshKey]);
+  }, [ageInWeeks, customMilestones, growthRefreshKey, language]);
 
   const DK_SECTION: React.CSSProperties = {
     fontSize: 10, color: "#b09080", textTransform: "uppercase",
@@ -395,30 +425,9 @@ export function JourneyScreen() {
           </div>
         </LocalErrorBoundary>
 
-        <div style={DK_SECTION}>Schedule</div>
+        <div style={DK_SECTION}>{t("journey.schedule.title")}</div>
         <LocalErrorBoundary>
-          <div style={DK_SMALL}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#2c1f1f", marginBottom: 4 }}>
-              {Math.floor(ageInWeeks)} weeks · {ageInWeeks < 12 ? "4–5 naps" : ageInWeeks < 26 ? "3–4 naps" : ageInWeeks < 39 ? "2–3 naps" : "1–2 naps"}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-              {(ageInWeeks < 12
-                ? [{ t: "7:00", l: "Wake", c: "#4a8a4a" }, { t: "8:30", l: "Nap 1", c: "#4080a0" }, { t: "10:30", l: "Nap 2", c: "#4080a0" }, { t: "1:00", l: "Nap 3", c: "#4080a0" }, { t: "3:30", l: "Nap 4", c: "#4080a0" }, { t: "7:30", l: "Bedtime", c: "#7a4ab4" }]
-                : ageInWeeks < 26
-                  ? [{ t: "7:00", l: "Wake", c: "#4a8a4a" }, { t: "9:00", l: "Nap 1", c: "#4080a0" }, { t: "12:00", l: "Nap 2", c: "#4080a0" }, { t: "3:00", l: "Nap 3", c: "#4080a0" }, { t: "7:00", l: "Bedtime", c: "#7a4ab4" }]
-                  : [{ t: "7:00", l: "Wake", c: "#4a8a4a" }, { t: "9:30", l: "Nap 1", c: "#4080a0" }, { t: "1:00", l: "Nap 2", c: "#4080a0" }, { t: "7:00", l: "Bedtime", c: "#7a4ab4" }]
-              ).map((item) => (
-                <div key={item.t + item.l} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: item.c, flexShrink: 0 }} />
-                  <span style={{ fontSize: 9, fontWeight: 600, color: "#2c1f1f", width: 36, fontFamily: F }}>{item.t}</span>
-                  <span style={{ fontSize: 9, color: "#9a8080", fontFamily: F }}>{item.l}</span>
-                </div>
-              ))}
-            </div>
-            <div style={{ fontSize: 8, color: "#b09080", marginTop: 6, fontStyle: "italic", fontFamily: F }}>
-              Follow {babyName}'s cues — this is a guide, not a rule.
-            </div>
-          </div>
+          <ScheduleCreator birthDateMs={birthMs} babyName={babyName} compact />
         </LocalErrorBoundary>
       </>
     );
@@ -474,6 +483,17 @@ export function JourneyScreen() {
                   {(leap?.signs ?? nextLeap?.leap.signs ?? []).map((s, i) => <div key={i}>• {s}</div>)}
                 </div>
               </PremiumGate>
+              <div style={{ marginTop: 6, fontSize: 8, color: "#9a8080", lineHeight: 1.45, fontFamily: F }}>
+                <span style={{ fontWeight: 600 }}>Sources: </span>
+                {LEAP_SOURCE_LINKS.map((src, i) => (
+                  <span key={src.url}>
+                    {i > 0 ? <span> · </span> : null}
+                    <a href={src.url} target="_blank" rel="noopener noreferrer" style={{ color: "#4080a0", textDecoration: "underline", textUnderlineOffset: 2 }}>
+                      {src.label}
+                    </a>
+                  </span>
+                ))}
+              </div>
             </div>
           </LocalErrorBoundary>
         )}
@@ -569,6 +589,18 @@ export function JourneyScreen() {
       <CradlNoticedSection notices={storyNotices} />
       </LocalErrorBoundary>
 
+      {/* Is this normal? (Prompt 11: above Growth) */}
+      <div style={SECTION}>Is this normal?</div>
+      <LocalErrorBoundary>
+      {normalMetrics.length > 0 ? (
+        <IsThisNormalCard ageLabel={`${Math.floor(ageInWeeks)}-week-olds`} metrics={normalMetrics} />
+      ) : (
+        <div style={{ ...CARD, textAlign: "center" as const }}>
+          <div style={{ fontSize: 11, color: "var(--mu)" }}>Log a few feeds and sleeps today to see how {babyName} compares.</div>
+        </div>
+      )}
+      </LocalErrorBoundary>
+
       {/* Growth */}
       <LocalErrorBoundary>
       <div style={SECTION}>Growth</div>
@@ -583,18 +615,6 @@ export function JourneyScreen() {
         weightHistory={growthData.weightHistory}
         onLogMeasurement={() => setMeasureOpen(true)}
       />
-      </LocalErrorBoundary>
-
-      {/* Is this normal? */}
-      <div style={SECTION}>Is this normal?</div>
-      <LocalErrorBoundary>
-      {normalMetrics.length > 0 ? (
-        <IsThisNormalCard ageLabel={`${Math.floor(ageInWeeks)}-week-olds`} metrics={normalMetrics} />
-      ) : (
-        <div style={{ ...CARD, textAlign: "center" as const }}>
-          <div style={{ fontSize: 11, color: "var(--mu)" }}>Log a few feeds and sleeps today to see how {babyName} compares.</div>
-        </div>
-      )}
       </LocalErrorBoundary>
 
       {/* Milestones */}
@@ -653,38 +673,27 @@ export function JourneyScreen() {
                 {(leap?.signs ?? nextLeap?.leap.signs ?? []).map((s, i) => <div key={i}>• {s}</div>)}
               </div>
             </PremiumGate>
+            <div style={{ marginTop: 8, fontSize: 9, color: "#9a8080", lineHeight: 1.45, fontFamily: F }}>
+              <span style={{ fontWeight: 600 }}>Sources: </span>
+              {LEAP_SOURCE_LINKS.map((src, i) => (
+                <span key={src.url}>
+                  {i > 0 ? <span> · </span> : null}
+                  <a href={src.url} target="_blank" rel="noopener noreferrer" style={{ color: "#4080a0", textDecoration: "underline", textUnderlineOffset: 2 }}>
+                    {src.label}
+                  </a>
+                </span>
+              ))}
+            </div>
           </div>
         </LocalErrorBoundary>
       )}
 
-      {/* Schedule suggestion */}
-      <div style={SECTION}>Suggested schedule</div>
+      {/* Schedule — age-based nap stages + saved wake/bed + buildDailySchedule */}
+      <div style={SECTION}>{t("journey.schedule.title")}</div>
       <LocalErrorBoundary>
-      <div style={CARD}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "#2c1f1f", marginBottom: 6 }}>
-          {Math.floor(ageInWeeks)} weeks · {ageInWeeks < 12 ? "4–5 naps" : ageInWeeks < 26 ? "3–4 naps" : ageInWeeks < 39 ? "2–3 naps" : "1–2 naps"}
+        <div style={{ margin: "0 12px 8px" }}>
+          <ScheduleCreator birthDateMs={birthMs} babyName={babyName} />
         </div>
-        <div style={{ fontSize: 10, color: "var(--mu)", fontFamily: F, marginBottom: 6 }}>
-          Wake: 7:00 AM · Bedtime: {ageInWeeks < 12 ? "7:30" : "7:00"} PM
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {(ageInWeeks < 12
-            ? [{ t: "7:00", l: "Wake", c: "#4a8a4a" }, { t: "8:30", l: "Nap 1", c: "#4080a0" }, { t: "10:30", l: "Nap 2", c: "#4080a0" }, { t: "1:00", l: "Nap 3", c: "#4080a0" }, { t: "3:30", l: "Nap 4", c: "#4080a0" }, { t: "7:30", l: "Bedtime", c: "#7a4ab4" }]
-            : ageInWeeks < 26
-              ? [{ t: "7:00", l: "Wake", c: "#4a8a4a" }, { t: "9:00", l: "Nap 1", c: "#4080a0" }, { t: "12:00", l: "Nap 2", c: "#4080a0" }, { t: "3:00", l: "Nap 3", c: "#4080a0" }, { t: "7:00", l: "Bedtime", c: "#7a4ab4" }]
-              : [{ t: "7:00", l: "Wake", c: "#4a8a4a" }, { t: "9:30", l: "Nap 1", c: "#4080a0" }, { t: "1:00", l: "Nap 2", c: "#4080a0" }, { t: "7:00", l: "Bedtime", c: "#7a4ab4" }]
-          ).map((item) => (
-            <div key={item.t + item.l} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 8, height: 8, borderRadius: "50%", background: item.c, flexShrink: 0 }} />
-              <span style={{ fontSize: 10, fontWeight: 600, color: "#2c1f1f", width: 40, fontFamily: F }}>{item.t}</span>
-              <span style={{ fontSize: 10, color: "#9a8080", fontFamily: F }}>{item.l}</span>
-            </div>
-          ))}
-        </div>
-        <div style={{ fontSize: 9, color: "var(--mu)", marginTop: 8, fontStyle: "italic", fontFamily: F }}>
-          Follow {babyName}'s cues — this is a guide, not a rule.
-        </div>
-      </div>
       </LocalErrorBoundary>
 
       {/* Personal Playbook */}
@@ -712,6 +721,15 @@ export function JourneyScreen() {
 }
 
 /* ─── Measurement drawer ─── */
+/** Local noon so formatDate matches the calendar day from the date picker. */
+function datePickerStringToLocalMs(s: string): number | null {
+  const parts = s.trim().split("-").map(Number);
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
+  const [y, mo, d] = parts;
+  const t = new Date(y, mo - 1, d, 12, 0, 0, 0).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+
 function MeasurementDrawer({
   mDate, setMDate, mWeight, setMWeight, mHeight, setMHeight, mHead, setMHead, onSave, onClose,
 }: {
@@ -729,6 +747,8 @@ function MeasurementDrawer({
   };
   const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: "#9a8080", marginBottom: 4, display: "block" };
   const canSave = !!(mWeight || mHeight || mHead);
+  const mDateDisplayMs = datePickerStringToLocalMs(mDate);
+  const mDateDisplay = mDateDisplayMs != null ? formatDate(mDateDisplayMs) : "—";
 
   return (
     <div
@@ -748,6 +768,9 @@ function MeasurementDrawer({
           <div>
             <label style={labelStyle}>Date</label>
             <input type="date" value={mDate} onChange={(e) => setMDate(e.target.value)} style={inputStyle} />
+            <p style={{ fontSize: 11, color: "#9a8080", marginTop: 6, fontFamily: "system-ui, sans-serif" }}>
+              In your date format: <strong style={{ color: "#2c1f1f" }}>{mDateDisplay}</strong>
+            </p>
           </div>
           <div>
             <label style={labelStyle}>Weight (kg)</label>
@@ -804,6 +827,8 @@ function AddMilestoneDialog({
   };
   const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: "#9a8080", marginBottom: 4, display: "block" };
   const canSave = !!label.trim();
+  const milestoneDateMs = datePickerStringToLocalMs(date);
+  const milestoneDateDisplay = milestoneDateMs != null ? formatDate(milestoneDateMs) : "—";
 
   return (
     <div
@@ -834,6 +859,9 @@ function AddMilestoneDialog({
           <div>
             <label style={labelStyle}>When?</label>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} />
+            <p style={{ fontSize: 11, color: "#9a8080", marginTop: 6, fontFamily: "system-ui, sans-serif" }}>
+              In your date format: <strong style={{ color: "#2c1f1f" }}>{milestoneDateDisplay}</strong>
+            </p>
           </div>
         </div>
 

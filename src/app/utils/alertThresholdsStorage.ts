@@ -2,6 +2,8 @@
  * Configurable alert thresholds and dismiss state (hide for 2h).
  */
 
+import { CARE_NOTIFICATIONS_RESCHEDULE_EVENT } from "./careNotificationEvents";
+
 const THRESHOLDS_KEY = "babytrackr-alertThresholds";
 const DISMISS_KEY = "babytrackr-alertDismissed";
 
@@ -43,6 +45,9 @@ export function saveAlertThresholds(t: Partial<AlertThresholds>): void {
   try {
     localStorage.setItem(THRESHOLDS_KEY, JSON.stringify(next));
   } catch { /* ignore */ }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(CARE_NOTIFICATIONS_RESCHEDULE_EVENT));
+  }
 }
 
 const DISMISS_MS = 2 * 60 * 60 * 1000; // 2 hours

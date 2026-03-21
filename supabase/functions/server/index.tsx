@@ -197,6 +197,58 @@ app.post("/family/decline-invite", async (c) => {
   return c.json({ success: true });
 });
 
+// ============= PREMIUM (server is source of truth; verified via RevenueCat) =============
+const PREMIUM_ENTITLEMENT_ID = "premium";
+
+async function getPremiumFromKV(userId: string): Promise<boolean> {
+  const row = (await kv.get(`user:${userId}:premium`)) as { premium?: boolean } | null | undefined;
+  return !!row?.premium;
+}
+
+async function setPremiumInKV(userId: string, premium: boolean): Promise<void> {
+  await kv.set(`user:${userId}:premium`, {
+    premium,
+    source: "revenuecat",
+    updatedAt: Date.now(),
+  });
+}
+
+/** Call RevenueCat API to get subscriber entitlements. app_user_id should be Supabase user id. */
+async function revenueCatGetSubscriber(appUserId: string): Promise<{ premium: boolean }> {
+  const secretKey = Deno.env.get("REVENUECAT_SECRET_KEY");
+  if (!secretKey || !secretKey.startsWith("sk_")) {
+    return { premium: false };
+  }
+  try {
+    const res = await fetch(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(appUserId)}`, {
+      headers: { Authorization: `Bearer ${secretKey}` },
+    });
+    if (!res.ok) return { premium: false };
+    const data = (await res.json()) as { subscriber?: { entitlements?: Record<string, unknown> } };
+    const entitlements = data?.subscriber?.entitlements ?? {};
+    const premium = !!(entitlements[PREMIUM_ENTITLEMENT_ID] as { expires_date?: string } | undefined);
+    return { premium };
+  } catch {
+    return { premium: false };
+  }
+}
+
+app.get("/premium", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  const premium = await getPremiumFromKV(user!.id);
+  return c.json({ premium });
+});
+
+app.post("/premium/sync", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  // Verify with RevenueCat (app_user_id must be set to Supabase user id on the client)
+  const { premium } = await revenueCatGetSubscriber(user!.id);
+  await setPremiumInKV(user!.id, premium);
+  return c.json({ premium });
+});
+
 // ============= DATA SYNC =============
 const DATA_TYPES = [
   "sleepHistory",
@@ -443,6 +495,8 @@ app.get("/data/all", async (c) => {
 
 const registeredRoutes = [
   "GET /health",
+  "GET /premium",
+  "POST /premium/sync",
   "GET /family",
   "POST /family/create",
   "POST /family/invite",

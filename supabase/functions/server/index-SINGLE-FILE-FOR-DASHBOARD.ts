@@ -662,10 +662,63 @@ app.post("/village/groups/:id/board", async (c) => {
   return c.json({ id }, 201);
 });
 
+// ── Premium (server source of truth; verified via RevenueCat) ─────────────
+const PREMIUM_ENTITLEMENT_ID = "premium";
+
+async function getPremiumFromKV(userId: string): Promise<boolean> {
+  const row = await kvGet(`user:${userId}:premium`);
+  return !!(row?.premium);
+}
+
+async function setPremiumInKV(userId: string, premium: boolean): Promise<void> {
+  await kvSet(`user:${userId}:premium`, {
+    premium,
+    source: "revenuecat",
+    updatedAt: Date.now(),
+  });
+}
+
+async function revenueCatGetSubscriber(appUserId: string): Promise<{ premium: boolean }> {
+  const secretKey = Deno.env.get("REVENUECAT_SECRET_KEY");
+  if (!secretKey || !secretKey.startsWith("sk_")) return { premium: false };
+  try {
+    const res = await fetch(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(appUserId)}`, {
+      headers: { Authorization: `Bearer ${secretKey}` },
+    });
+    if (!res.ok) return { premium: false };
+    const data = (await res.json()) as { subscriber?: { entitlements?: Record<string, unknown> } };
+    const entitlements = data?.subscriber?.entitlements ?? {};
+    const premium = !!entitlements[PREMIUM_ENTITLEMENT_ID];
+    return { premium };
+  } catch {
+    return { premium: false };
+  }
+}
+
+app.get("/premium", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  const premium = await getPremiumFromKV(user!.id);
+  return c.json({ premium });
+});
+
+app.post("/premium/sync", async (c) => {
+  const { user, error } = await verifyUser(c.req.header("Authorization"));
+  if (error) return c.json({ error }, 401);
+  const { premium } = await revenueCatGetSubscriber(user!.id);
+  await setPremiumInKV(user!.id, premium);
+  return c.json({ premium });
+});
+
 // ── Ask Cradl AI ───────────────────────────────────────────────────────
 app.post("/ask-cradl", async (c) => {
   const { user, error } = await verifyUser(c.req.header("Authorization"));
   if (error || !user) return c.json({ error: error ?? "auth" }, 401);
+
+  const premium = await getPremiumFromKV(user.id);
+  if (!premium) {
+    return c.json({ error: "premium_required", answer: "Ask Cradl is a Premium feature." }, 403);
+  }
 
   const body = await c.req.json();
   const { question, babyAgeWeeks, recentContext } = body;
@@ -745,6 +798,8 @@ Keep answers under 150 words. End with one word on a new line: "routine", "monit
 
 const registeredRoutes = [
   "GET /health",
+  "GET /premium",
+  "POST /premium/sync",
   "POST /ask-cradl",
   "GET /family",
   "POST /family/create",

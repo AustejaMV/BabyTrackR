@@ -72,7 +72,7 @@ export function PartnerHomeScreen() {
   const sleepSub = currentSleep ? (() => { const { time, ago } = formatTimeAndAgo(currentSleep.startTime ?? 0); return `${time} · ${ago}`; })() : "Awake";
   const diaperSub = recentDiapers.length > 0 ? (() => { const { time, ago } = formatTimeAndAgo(recentDiapers[recentDiapers.length - 1]!.timestamp); return `${time} · ${ago}`; })() : "No changes yet";
   const logButtons = [
-    { type: "feed" as const, label: "Feed", sub: feedSub, dot: "var(--coral)" },
+    { type: "feed" as const, label: "Nurse", sub: feedSub, dot: "var(--coral)" },
     { type: "sleep" as const, label: "Sleep", sub: sleepSub, dot: "var(--blue)" },
     { type: "diaper" as const, label: "Diaper", sub: diaperSub, dot: "var(--grn)" },
     { type: "bottle" as const, label: "Bottle", sub: "Log bottle", dot: "var(--coral)" },
@@ -175,6 +175,7 @@ export function PartnerHomeScreen() {
               type={openDrawer}
               onClose={() => setOpenDrawer(null)}
               onSaved={handleSaved}
+              onSessionChange={() => loadLocalDataRef.current()}
               onSwitchType={(t) => setOpenDrawer(t as "feed" | "sleep" | "diaper" | "bottle")}
               session={session}
             />

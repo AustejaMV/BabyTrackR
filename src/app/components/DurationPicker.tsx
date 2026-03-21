@@ -4,8 +4,6 @@ import { useEffect, useRef, useState } from "react";
 const ROW_HEIGHT = 42;
 const VISIBLE_ROWS = 3;
 const PICKER_HEIGHT = ROW_HEIGHT * VISIBLE_ROWS;
-/** Only sync scroll from valueMs when delta is >= this (avoids live tick overwriting user scroll) */
-const SYNC_SCROLL_THRESHOLD_MS = 25_000;
 
 /** Max duration for editing past sessions: 23h 59m. Use as maxMs when showing picker on history items. */
 export const MAX_DURATION_HISTORY_MS = 23 * 60 * 60 * 1000 + 59 * 60 * 1000;
@@ -56,12 +54,13 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
     return Math.min(ms, maxMs);
   };
 
-  // Sync from controlled value: when liveSync (e.g. timer running), always sync; else only when delta is large or initial
+  // Sync from controlled value: when liveSync (timer running), sync from ticks — but never
+  // clobber wheel indices while the user is scrolling, or the parent timer overwrites their
+  // hour/minute adjustment before it persists (e.g. sleep start time in localStorage).
   useEffect(() => {
-    const currentMs = msFromIndices(hourIndex, minIndex, secIndex);
-    const delta = Math.abs(valueMs - currentMs);
-    const shouldSync = liveSync || !didInitialScroll.current || delta >= SYNC_SCROLL_THRESHOLD_MS;
+    const shouldSync = liveSync || !didInitialScroll.current;
     if (!shouldSync) return;
+    if (liveSync && Date.now() - lastUserScrollAt.current < USER_SCROLL_DEBOUNCE_MS) return;
 
     const h = Math.floor(valueMs / (60 * 60 * 1000));
     const m = Math.floor((valueMs % (60 * 60 * 1000)) / 60_000) % 60;
@@ -98,21 +97,23 @@ export function DurationPicker({ valueMs, maxMs, onChange, showSeconds = false, 
     setTimeout(() => { programmaticScrollRef.current = false; }, 50);
   }, [hourIndex, minIndex, secIndex, maxHours, maxMins, maxSecs, showSeconds]);
 
-  const skipProgrammatic = liveSync && (Date.now() - lastUserScrollAt.current < USER_SCROLL_DEBOUNCE_MS);
+  // When timer is NOT running: never programmatically scroll after user scroll — scroll position is user-driven only (avoids jank).
+  // When timer IS running: sync scroll to valueMs, but skip briefly after user scroll so we don't fight.
+  const skipProgrammatic = !liveSync || (Date.now() - lastUserScrollAt.current < USER_SCROLL_DEBOUNCE_MS);
   const useInstant = liveSync;
 
   useEffect(() => {
-    if (!didInitialScroll.current || skipProgrammatic) return;
+    if (!liveSync || !didInitialScroll.current || skipProgrammatic) return;
     scrollTo(hourRef, hourIndex, useInstant);
-  }, [hourIndex, skipProgrammatic, useInstant]);
+  }, [liveSync, hourIndex, skipProgrammatic, useInstant]);
   useEffect(() => {
-    if (!didInitialScroll.current || skipProgrammatic) return;
+    if (!liveSync || !didInitialScroll.current || skipProgrammatic) return;
     scrollTo(minRef, minIndex, useInstant);
-  }, [minIndex, skipProgrammatic, useInstant]);
+  }, [liveSync, minIndex, skipProgrammatic, useInstant]);
   useEffect(() => {
-    if (!didInitialScroll.current || !showSeconds || skipProgrammatic) return;
+    if (!liveSync || !didInitialScroll.current || !showSeconds || skipProgrammatic) return;
     scrollTo(secRef, secIndex, useInstant);
-  }, [secIndex, showSeconds, skipProgrammatic, useInstant]);
+  }, [liveSync, secIndex, showSeconds, skipProgrammatic, useInstant]);
 
   const handleScroll = (type: "h" | "m" | "s") => {
     if (programmaticScrollRef.current) return; // Ignore scroll events we triggered; user scroll is handled below

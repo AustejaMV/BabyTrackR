@@ -32,7 +32,7 @@ const MAX_HISTORY = 20;
 
 const QUICK_PILLS = [
   "Is this normal?",
-  "Should I call the GP?",
+  "Should I call the doctor?",
   "Why won't she sleep?",
   "Is she eating enough?",
 ];
@@ -77,7 +77,7 @@ function mockResponse(question: string): { answer: string; level: EscalationCard
   if (q.includes("monitor") || q.includes("rash") || q.includes("temperature") || q.includes("fever")) {
     return {
       answer:
-        "This is worth keeping an eye on over the next day or so. Note any changes and, if symptoms persist or worsen, contact your GP or call 111 for guidance.",
+        "This is worth keeping an eye on over the next day or so. Note any changes and, if symptoms persist or worsen, contact your doctor or call your local health advice line for guidance.",
       level: "monitor",
     };
   }
@@ -400,8 +400,8 @@ export function AskCradlSheet({ open, onClose }: AskCradlSheetProps) {
             </p>
             <EscalationCard level={response.level} />
             <p style={{ fontSize: 11, color: "var(--mu)", margin: "12px 0 0", lineHeight: 1.4 }}>
-              Cradl AI is not a medical professional. Always consult your GP, health visitor, or call
-              111 / 999 if you are concerned about your baby's health.
+              Cradl AI is not a medical professional. Always consult your doctor, health visitor, or call
+              your local health advice line or emergency number if you are concerned about your baby's health.
             </p>
           </div>
         )}

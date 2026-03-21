@@ -162,7 +162,7 @@ export function PremiumGate({ feature, children, fallback }: PremiumGateProps) {
             letterSpacing: 0.2,
           }}
         >
-          Watch a short video · unlock 7 days free
+          Watch a short video for 7 days free
         </button>
       </div>
 

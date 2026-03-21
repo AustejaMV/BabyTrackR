@@ -35,10 +35,6 @@ const ANIMATION_STYLES = `
   0%, 100% { opacity: 0.25; transform: scale(0.85); }
   50% { opacity: 0.9; transform: scale(1); }
 }
-@keyframes cradl-cloudDrift {
-  from { transform: translateX(0); }
-  to { transform: translateX(260px); }
-}
 `;
 
 const scene: CSSProperties = {
@@ -78,7 +74,7 @@ const moon: CSSProperties = {
 
 const cradleWrap: CSSProperties = {
   position: "absolute",
-  bottom: 0,
+  bottom: 10,
   left: "50%",
   transform: "translateX(-50%)",
   animation: "cradl-sway 2.8s ease-in-out infinite",
@@ -137,17 +133,6 @@ const bunny: CSSProperties = {
   left: "50%",
   transform: "translateX(-50%)",
   animation: "cradl-breathe 2.8s ease-in-out infinite",
-};
-
-const floor: CSSProperties = {
-  position: "absolute",
-  bottom: 0,
-  left: 0,
-  right: 0,
-  height: 12,
-  background: "#fde8d8",
-  borderRadius: "0 0 20px 20px",
-  opacity: 0.5,
 };
 
 const dots: CSSProperties = {
@@ -265,16 +250,20 @@ export function CradlLoadingAnimation({ label: customLabel, fullScreen }: CradlL
         </div>
 
         <div style={{ position: "absolute", top: 30, right: 55, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-          {[1, 2, 3].map((i) => (
+          {[
+            { size: 14, delay: 1 },
+            { size: 12, delay: 0.5 },
+            { size: 10, delay: 0 },
+          ].map((z, i) => (
             <div
               key={i}
               style={{
-                fontSize: i === 1 ? 10 : i === 2 ? 12 : 14,
+                fontSize: z.size,
                 fontWeight: 600,
                 color: "#d4a0b4",
                 opacity: 0,
                 animation: "cradl-riseZ 3s ease-in-out infinite",
-                animationDelay: `${(i - 1) * 0.5}s`,
+                animationDelay: `${z.delay}s`,
               }}
             >
               z
@@ -300,11 +289,9 @@ export function CradlLoadingAnimation({ label: customLabel, fullScreen }: CradlL
                   <circle cx="14" cy="14" r="1" fill="#d4604a" opacity={0.5} />
                 </svg>
               </div>
-            </div>
-          </div>
         </div>
-
-        <div style={floor} />
+        </div>
+        </div>
       </div>
 
       <div style={dots}>

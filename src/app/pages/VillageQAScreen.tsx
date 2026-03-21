@@ -12,10 +12,13 @@ import {
 } from "../utils/villageQaService";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { TIME_DISPLAY } from "../utils/dateUtils";
+import { getDateLocale, TIME_DISPLAY } from "../utils/dateUtils";
+import { userDayMonthShortPattern } from "../utils/formatPreferencesStorage";
+import { useLanguage } from "../contexts/LanguageContext";
 
 export function VillageQAScreen() {
   const { session } = useAuth();
+  const { language } = useLanguage();
   const [questions, setQuestions] = useState<VillageQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAsk, setShowAsk] = useState(false);
@@ -160,7 +163,10 @@ export function VillageQAScreen() {
                 <Link to={`/village/qa/${q.id}`} className="block">
                   <p className="text-[14px]" style={{ color: "var(--tx)" }}>{q.content}</p>
                   <div className="text-[12px] mt-1" style={{ color: "var(--mu)" }}>
-                    {format(q.createdAt, `d MMM · ${TIME_DISPLAY()}`)} · {q.ageBand}
+                    {format(q.createdAt, `${userDayMonthShortPattern()} · ${TIME_DISPLAY()}`, {
+                      locale: getDateLocale(language),
+                    })}{" "}
+                    · {q.ageBand}
                   </div>
                 </Link>
                 <div className="flex items-center gap-3 mt-2 pt-2" style={{ borderTop: "1px solid var(--bd)" }}>

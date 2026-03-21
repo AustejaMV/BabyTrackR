@@ -18,6 +18,23 @@ const SERIF = 'Georgia, serif';
 const MUTED = 'var(--mu)';
 const DAYS_REQUIRED = 28;
 
+/** P12: Border color by tone — green positive, amber suggestion, terracotta action */
+function getBorderColor(insight: Insight): string {
+  if (insight.type === 'growth' || insight.type === 'pattern') return '#4a8a4a';
+  if (insight.actionable) return '#d4604a';
+  return '#d4904a';
+}
+
+/** P12: Action link for playbook row (optional) */
+function getActionLink(insight: Insight): { label: string; path: string } | null {
+  if (!insight.actionable) return null;
+  if (insight.type === 'feed') return { label: 'Log feed', path: '/?action=feed' };
+  if (insight.type === 'sleep') return { label: 'See schedule', path: '/journey' };
+  if (insight.type === 'tummy') return { label: 'See tummy time', path: '/health' };
+  if (insight.type === 'diaper') return { label: 'Log nappy', path: '/?action=diaper' };
+  return null;
+}
+
 function readHistory<T>(key: string): T[] {
   try {
     return readStoredArray<T>(key);
@@ -50,14 +67,17 @@ function ConfidenceDot({ confidence }: { confidence: 'high' | 'medium' | 'low' }
   );
 }
 
-function InsightCard({ insight }: { insight: Insight }) {
+function InsightCard({ insight, compact }: { insight: Insight; compact?: boolean }) {
+  const borderColor = getBorderColor(insight);
+  const actionLink = getActionLink(insight);
   return (
     <div
       style={{
         background: '#fff',
         border: '1px solid #ede0d4',
-        borderRadius: 14,
-        padding: 14,
+        borderLeft: `4px solid ${borderColor}`,
+        borderRadius: compact ? 12 : 14,
+        padding: compact ? 12 : 14,
         fontFamily: FONT,
       }}
     >
@@ -68,7 +88,7 @@ function InsightCard({ insight }: { insight: Insight }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
-              fontSize: 14,
+              fontSize: compact ? 13 : 14,
               fontFamily: SERIF,
               color: '#2c1f1f',
               lineHeight: 1.45,
@@ -88,13 +108,27 @@ function InsightCard({ insight }: { insight: Insight }) {
               Based on {insight.detail}
             </div>
           )}
+          {actionLink && (
+            <a
+              href={actionLink.path}
+              style={{
+                display: 'inline-block',
+                marginTop: 8,
+                fontSize: 11,
+                fontWeight: 600,
+                color: borderColor,
+              }}
+            >
+              {actionLink.label} →
+            </a>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-export function PersonalPlaybook() {
+export function PersonalPlaybook({ compact }: { compact?: boolean } = {}) {
   const { activeBaby } = useBaby();
   const { isPremium } = usePremium();
 
@@ -200,7 +234,7 @@ export function PersonalPlaybook() {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {insights.map((insight) => (
-            <InsightCard key={insight.id} insight={insight} />
+            <InsightCard key={insight.id} insight={insight} compact={compact} />
           ))}
         </div>
       </div>
@@ -235,7 +269,7 @@ export function PersonalPlaybook() {
             }}
           >
             {rest.slice(0, 2).map((insight) => (
-              <InsightCard key={insight.id} insight={insight} />
+              <InsightCard key={insight.id} insight={insight} compact={compact} />
             ))}
           </div>
           <div

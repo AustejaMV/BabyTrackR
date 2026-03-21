@@ -9,6 +9,7 @@ import {
   setSchedulePrefs,
   getLastNapStage,
   setLastNapStage,
+  normalizeStoredNapStageKey,
 } from '../data/napSchedules';
 
 describe('getNapStage', () => {
@@ -91,6 +92,28 @@ describe('buildDailySchedule', () => {
       expect(prev <= curr || (prev.startsWith('0') && curr.startsWith('1'))).toBe(true);
     }
   });
+
+  it('returns schedule for toddlers beyond 200 weeks (clamped wake window)', () => {
+    const events = buildDailySchedule('07:00', '19:30', 250);
+    expect(events.length).toBeGreaterThanOrEqual(3);
+    expect(events.filter((e) => e.type === 'nap').length).toBe(1);
+  });
+});
+
+describe('normalizeStoredNapStageKey', () => {
+  it('maps legacy English labels to keys', () => {
+    expect(normalizeStoredNapStageKey('3-nap stage')).toBe('threeNap');
+    expect(normalizeStoredNapStageKey('Newborn schedule')).toBe('newborn');
+  });
+
+  it('passes through valid keys', () => {
+    expect(normalizeStoredNapStageKey('twoNap')).toBe('twoNap');
+  });
+
+  it('returns null for unknown values', () => {
+    expect(normalizeStoredNapStageKey('nope')).toBeNull();
+    expect(normalizeStoredNapStageKey(null)).toBeNull();
+  });
 });
 
 describe('Schedule prefs and last nap stage', () => {
@@ -130,10 +153,10 @@ describe('Schedule prefs and last nap stage', () => {
   });
 
   it('stage transition: stored 3-nap and current 2-nap triggers transition message', () => {
-    setLastNapStage('3-nap stage');
+    setLastNapStage('threeNap');
     const currentStage = getNapStage(35);
     expect(currentStage?.label).toBeDefined();
     expect(currentStage?.naps).toBe(2);
-    expect(getLastNapStage()).toBe('3-nap stage');
+    expect(getLastNapStage()).toBe('threeNap');
   });
 });

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { RouterProvider } from 'react-router';
 import { router } from './routes.tsx';
 import { AuthProvider } from './contexts/AuthContext';
+import { PremiumProvider } from './contexts/PremiumContext';
 import { FeedTimerProvider } from './contexts/FeedTimerContext';
 import { BabyProvider, useBaby } from './contexts/BabyContext';
 import { RoleProvider } from './contexts/RoleContext';
@@ -11,6 +12,19 @@ import { OnboardingNavigator } from './components/OnboardingNavigator';
 import { isOnboardingComplete, isOnboardingInProgress, markOnboardingComplete } from './utils/onboardingStorage';
 import { getBabies } from './data/babiesStorage';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { CARE_NOTIFICATIONS_RESCHEDULE_EVENT } from './utils/careNotificationEvents';
+import { rescheduleCareNotificationsFromStorage } from './utils/careNotifications';
+
+function CareNotificationRescheduleListener() {
+  useEffect(() => {
+    const fn = () => {
+      void rescheduleCareNotificationsFromStorage();
+    };
+    window.addEventListener(CARE_NOTIFICATIONS_RESCHEDULE_EVENT, fn);
+    return () => window.removeEventListener(CARE_NOTIFICATIONS_RESCHEDULE_EVENT, fn);
+  }, []);
+  return null;
+}
 
 function hasPreExistingData(): boolean {
   try {
@@ -75,6 +89,7 @@ function BabyGate() {
 
   return (
     <RoleProvider>
+      <CareNotificationRescheduleListener />
       <RouterProvider router={router} />
       <PostOnboardingLoginRedirect />
     </RoleProvider>
@@ -86,12 +101,14 @@ export default function App() {
     <ThemeProvider>
       <LanguageProvider>
         <AuthProvider>
+          <PremiumProvider>
           <FeedTimerProvider>
             <BabyProvider>
               <BabyGate />
               <Toaster />
             </BabyProvider>
           </FeedTimerProvider>
+          </PremiumProvider>
         </AuthProvider>
       </LanguageProvider>
     </ThemeProvider>

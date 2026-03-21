@@ -1,4 +1,8 @@
+import { format } from "date-fns";
 import { PREGNANCY_WEEKS, type PregnancyWeek } from "../data/pregnancyWeeks";
+import { getDateLocale } from "./dateUtils";
+import { userLongDatePattern } from "./formatPreferencesStorage";
+import { getLanguage } from "./languageStorage";
 
 export function isPregnancyMode(birthDateMs: number): boolean {
   return birthDateMs > Date.now();
@@ -33,5 +37,9 @@ export function getWeekData(week: number): PregnancyWeek | undefined {
 }
 
 export function formatDueDate(dueDateMs: number): string {
-  return new Date(dueDateMs).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  try {
+    return format(new Date(dueDateMs), userLongDatePattern(), { locale: getDateLocale(getLanguage()) });
+  } catch {
+    return "—";
+  }
 }
