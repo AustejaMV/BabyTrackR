@@ -22,6 +22,7 @@ import { PregnancyJourneyView } from "../components/PregnancyJourneyView";
 import { ScheduleCreator } from "../components/ScheduleCreator";
 import { useLanguage } from "../contexts/LanguageContext";
 import { formatDurationMsProse, formatIntervalMinutesProse, formatDayMonthShort, formatDate } from "../utils/dateUtils";
+import { averageMinutesBetweenFeedsInRange } from "../utils/feedingPatternUtils";
 
 const F = "system-ui, sans-serif";
 const SECTION: React.CSSProperties = {
@@ -210,8 +211,14 @@ export function JourneyScreen() {
       const thisAvg = thisWeekSleeps.reduce((s, r) => s + ((r.endTime ?? 0) - (r.startTime ?? 0)), 0) / thisWeekSleeps.length;
       const prevAvg = prevWeekSleeps.reduce((s, r) => s + ((r.endTime ?? 0) - (r.startTime ?? 0)), 0) / prevWeekSleeps.length;
       if (thisAvg > prevAvg * 1.15) {
-        cards.push({ id: "sleep-improving", color: "blue", title: "Sleep is getting better this week",
-          body: `Average nap up to ${formatDurationMsProse(thisAvg)} from ${formatDurationMsProse(prevAvg)} last week.` });
+        const wk = Math.floor(ageInWeeks);
+        const inLeap = getLeapAtWeek(wk);
+        const next = !inLeap ? getNextLeap(wk) : null;
+        let body = `This week, average nap length is about ${formatDurationMsProse(thisAvg)} — up from ${formatDurationMsProse(prevAvg)} last week.`;
+        if (next && next.inDays > 0 && next.inDays <= 21) {
+          body += `\n\nLeap ${next.leap.leapNumber} (${next.leap.name}) often stirs sleep around this age — roughly ${next.inDays} day${next.inDays === 1 ? "" : "s"} away. Enjoy calmer nights while you can.`;
+        }
+        cards.push({ id: "sleep-improving", color: "blue", title: "Sleep is getting better this week", body });
       }
     }
 
@@ -224,13 +231,19 @@ export function JourneyScreen() {
       }
       const avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length;
       if (avgGap > 120) {
-        cards.push({ id: "feed-rhythm", color: "green", title: "Feeds spacing out — a good sign",
-          body: `${formatIntervalMinutesProse(avgGap)} between feeds on average. She's settling into a rhythm.` });
+        const prevWeekGap = averageMinutesBetweenFeedsInRange(feedingHistory, prevWeekStart, weekAgo);
+        let body = `Average ${formatIntervalMinutesProse(avgGap)} between feeds this week. She's settling into a rhythm.`;
+        if (prevWeekGap != null && avgGap > prevWeekGap + 15) {
+          body += `\n\nThat's up from ${formatIntervalMinutesProse(prevWeekGap)} last week — her stomach is growing and she's taking more each feed.`;
+        } else {
+          body += "\n\nNo action needed — she's leading the change.";
+        }
+        cards.push({ id: "feed-rhythm", color: "green", title: "Feeds spacing out — a good sign", body });
       }
     }
 
     return cards;
-  }, [sleepHistory, feedingHistory]);
+  }, [sleepHistory, feedingHistory, ageInWeeks]);
 
   /** P18: Tag by SD — within 1 SD = "Within range", 1–2 SD = "A little low/high", >2 SD = "Speak to your GP" */
   function tagForValue(value: number, typicalMin: number, typicalMax: number): "Within range" | "A little low" | "A little high" | "Speak to your GP" {

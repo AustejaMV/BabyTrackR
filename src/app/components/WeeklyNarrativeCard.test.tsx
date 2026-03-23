@@ -46,11 +46,9 @@ describe("WeeklyNarrativeCard", () => {
   });
 
   it("renders 7 daily bars", () => {
-    const { container } = render(<WeeklyNarrativeCard {...BASE_PROPS} />);
-    const bars = container.querySelectorAll(
-      'div[style*="background: #d4604a"]',
-    );
-    expect(bars.length).toBeGreaterThanOrEqual(7);
+    render(<WeeklyNarrativeCard {...BASE_PROPS} />);
+    const bars = screen.getAllByTestId("weekly-narrative-day-bar");
+    expect(bars.length).toBe(7);
   });
 
   it("renders empty-data summary text", () => {

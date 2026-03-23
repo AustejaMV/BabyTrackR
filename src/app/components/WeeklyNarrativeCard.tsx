@@ -96,6 +96,7 @@ export function WeeklyNarrativeCard({
         {dailyBars.map((value, i) => (
           <div
             key={i}
+            data-testid="weekly-narrative-day-bar"
             style={{
               flex: 1,
               borderRadius: 3,

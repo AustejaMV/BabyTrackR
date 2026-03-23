@@ -6,6 +6,14 @@ import type { MumSleepEntry, MumSleepRange } from "../types/mumSleep";
 
 const POOR_RANGES: MumSleepRange[] = ["under_2h", "2_to_4h"];
 
+/** Local calendar YYYY-MM-DD (matches log entry dates from the app UI). */
+export function localISODate(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export interface MumSleepSummary {
   last7DaysEntries: MumSleepEntry[];
   averageCategory: string;
@@ -30,7 +38,7 @@ export function analyseMumSleep(history: MumSleepEntry[], babyName?: string | nu
   else averageCategory = "ok";
 
   let consecutivePoorNights = 0;
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = localISODate();
   for (const e of sorted) {
     if (e.date > todayStr) continue;
     if (POOR_RANGES.includes(e.sleepRange)) {

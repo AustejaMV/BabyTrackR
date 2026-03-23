@@ -437,10 +437,11 @@ export function insightCorrelationTummyNap(
 
   const x = Math.round(avgWith);
   const y = Math.round(avgWithout);
+  const nm = babyName?.trim() || 'Baby';
   return {
     id: 'tummy-nap-correlation',
     type: 'pattern',
-    message: `Naps average ${x}m on days with 20+ min tummy time vs ${y}m without.`,
+    message: `${nm}'s naps average ${x}m on days with 20+ min tummy time vs ${y}m on days without. Tummy time may be helping her settle for longer.`,
     detail: null,
     confidence: 'medium',
     actionable: true,

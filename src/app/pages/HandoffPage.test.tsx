@@ -39,7 +39,7 @@ function renderHandoff(sessionId: string) {
       <Routes>
         <Route path="/handoff/:sessionId" element={<HandoffPage />} />
       </Routes>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 }
 
@@ -54,21 +54,22 @@ describe("HandoffPage", () => {
     vi.mocked(fetchHandoffSession).mockResolvedValue(null);
     renderHandoff("missing-id");
     const msg = await screen.findByText(/session not found/i, {}, { timeout: 3000 });
-    expect(msg).toBeInTheDocument();
+    expect(msg).toBeTruthy();
+    expect(msg.textContent).toMatch(/session not found/i);
   });
 
   it("renders with valid session from local", async () => {
     vi.mocked(getHandoffSessionFromLocal).mockReturnValue(validSession as any);
     renderHandoff("handoff_123");
-    await screen.findByText("Baby", {}, { timeout: 2000 });
-    expect(screen.getByText("Baby")).toBeInTheDocument();
+    const el = await screen.findByText("Baby", {}, { timeout: 2000 });
+    expect(el).toBeTruthy();
   });
 
-  it("renders Session expired when session is expired", async () => {
+  it("renders expired copy when session is expired", async () => {
     vi.mocked(getHandoffSessionFromLocal).mockReturnValue(validSession as any);
     vi.mocked(isHandoffSessionExpired).mockReturnValue(true);
     renderHandoff("handoff_123");
-    await screen.findByText(/session expired/i, {}, { timeout: 2000 });
-    expect(screen.getByText(/session expired/i)).toBeInTheDocument();
+    const el = await screen.findByText(/this handoff card has expired/i, {}, { timeout: 2000 });
+    expect(el).toBeTruthy();
   });
 });

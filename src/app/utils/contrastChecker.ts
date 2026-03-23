@@ -8,7 +8,11 @@ function sRGBToLinear(c: number): number {
 }
 
 function relativeLuminance(hex: string): number {
-  const m = hex.replace("#", "").match(/.{2}/g);
+  let s = hex.replace("#", "").toLowerCase();
+  if (s.length === 3) {
+    s = `${s[0]}${s[0]}${s[1]}${s[1]}${s[2]}${s[2]}`;
+  }
+  const m = s.match(/.{2}/g);
   if (!m || m.length !== 3) return 0;
   const r = sRGBToLinear(parseInt(m[0], 16));
   const g = sRGBToLinear(parseInt(m[1], 16));
@@ -24,7 +28,7 @@ export function getContrastRatio(foreground: string, background: string): number
   const L2 = relativeLuminance(background);
   const lighter = Math.max(L1, L2);
   const darker = Math.min(L1, L2);
-  if (darker === 0) return 0;
+  /* WCAG: (L1 + 0.05) / (L2 + 0.05) with L1 >= L2; black (0) uses denominator 0.05 */
   return (lighter + 0.05) / (darker + 0.05);
 }
 

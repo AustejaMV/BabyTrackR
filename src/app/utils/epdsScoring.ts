@@ -1,9 +1,7 @@
 /**
  * Edinburgh Postnatal Depression Scale scoring.
- * Questions 3, 5, 6, 7, 8, 9, 10 are reverse-scored (score = 3 - answer).
+ * Each item contributes its raw 0–3 score to the total (same coding as the in-app questionnaire).
  */
-
-const REVERSE_QUESTIONS = new Set([3, 5, 6, 7, 8, 9, 10]);
 
 export type EPDSSeverity = "none" | "mild" | "moderate" | "high";
 
@@ -14,8 +12,8 @@ export interface EPDSResult {
 }
 
 /**
- * Score EPDS: 10 answers, each 0–3. Reverse-scored items: 3, 5, 6, 7, 8, 9, 10.
- * Total 0–9: none. 10–12: mild. 13–14: moderate. 15+: high (flagged).
+ * Score EPDS: 10 answers, each 0–3 (summed directly).
+ * Total 0–9: none. 10–12: mild. 13–14: moderate. 15+: high. Flagged at total ≥ 13.
  */
 export function scoreEPDS(answers: number[]): EPDSResult {
   if (!Array.isArray(answers) || answers.length !== 10) {
@@ -29,7 +27,7 @@ export function scoreEPDS(answers: number[]): EPDSResult {
   }
   let total = 0;
   for (let i = 0; i < 10; i++) {
-    total += REVERSE_QUESTIONS.has(i + 1) ? 3 - answers[i]! : answers[i]!;
+    total += answers[i]!;
   }
   const flagged = total >= 13;
   let severity: EPDSSeverity = "none";

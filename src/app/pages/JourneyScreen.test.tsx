@@ -1,14 +1,17 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { JourneyScreen } from "./JourneyScreen";
 import { LanguageProvider } from "../contexts/LanguageContext";
 
 function renderJourney() {
   return render(
-    <LanguageProvider>
-      <JourneyScreen />
-    </LanguageProvider>,
+    <MemoryRouter>
+      <LanguageProvider>
+        <JourneyScreen />
+      </LanguageProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -62,7 +65,7 @@ describe("JourneyScreen (Story tab)", () => {
   });
 
   it("renders Is this normal? section", () => {
-    render(<JourneyScreen />);
+    renderJourney();
     expect(screen.getByText("Is this normal?")).toBeDefined();
   });
 

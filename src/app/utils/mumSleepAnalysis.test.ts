@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { analyseMumSleep } from "./mumSleepAnalysis";
+import { analyseMumSleep, localISODate } from "./mumSleepAnalysis";
 
 function d(daysAgo: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - daysAgo);
-  return d.toISOString().slice(0, 10);
+  const x = new Date();
+  x.setDate(x.getDate() - daysAgo);
+  return localISODate(x);
 }
 
 describe("analyseMumSleep", () => {
@@ -16,10 +16,11 @@ describe("analyseMumSleep", () => {
   });
 
   it("returns summary with consecutivePoorNights from today backwards", () => {
+    // Today + yesterday poor, then a good night — streak of 2 (below support threshold).
     const history = [
       { id: "1", date: d(0), sleepRange: "under_2h" as const, loggedAt: new Date().toISOString() },
       { id: "2", date: d(1), sleepRange: "2_to_4h" as const, loggedAt: new Date().toISOString() },
-      { id: "3", date: d(2), sleepRange: "2_to_4h" as const, loggedAt: new Date().toISOString() },
+      { id: "3", date: d(2), sleepRange: "6h_plus" as const, loggedAt: new Date().toISOString() },
       { id: "4", date: d(3), sleepRange: "6h_plus" as const, loggedAt: new Date().toISOString() },
     ];
     const r = analyseMumSleep(history);

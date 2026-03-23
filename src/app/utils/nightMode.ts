@@ -6,12 +6,15 @@ const NIGHT_START_HOUR = 23;
 const NIGHT_END_HOUR = 5;
 
 /**
- * Returns true if current local hour is >= 23 or <= 5.
+ * Returns true during "small hours": from 23:00 up to and including 05:00 local,
+ * but false from 05:01 onward (day starts after 5am).
  */
 export function isNightHours(now?: Date): boolean {
   const d = now ?? new Date();
-  const hour = d.getHours();
-  return hour >= NIGHT_START_HOUR || hour <= NIGHT_END_HOUR;
+  const mins = d.getHours() * 60 + d.getMinutes();
+  const start = NIGHT_START_HOUR * 60; // 23:00
+  const endInclusive = NIGHT_END_HOUR * 60; // 05:00
+  return mins >= start || mins <= endInclusive;
 }
 
 const NIGHT_MESSAGES = [

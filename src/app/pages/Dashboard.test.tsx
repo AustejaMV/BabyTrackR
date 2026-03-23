@@ -43,6 +43,10 @@ vi.mock("../contexts/FeedTimerContext", () => ({
   }),
 }));
 
+vi.mock("../components/AppLayout", () => ({
+  useDesktop: () => ({ isDesktop: false }),
+}));
+
 vi.mock("../utils/dataSync", () => ({
   loadAllDataFromServer: vi.fn(() => Promise.resolve({ ok: false, data: {} })),
   saveData: vi.fn(),
@@ -140,20 +144,15 @@ describe("Dashboard (Today tab)", () => {
     expect(screen.getByText("More")).toBeDefined();
   });
 
-  it("renders custom trackers card", () => {
+  it("renders Why is she crying? card", () => {
     render(<Dashboard />);
-    expect(screen.getByText("Custom trackers")).toBeDefined();
+    expect(screen.getByText("Why is she crying?")).toBeDefined();
   });
 
-  it("renders Today calendar section", () => {
+  it("renders handoff strip when signed in", () => {
     render(<Dashboard />);
-    expect(screen.getByText("Today")).toBeDefined();
-  });
-
-  it("renders pain relief card", () => {
-    render(<Dashboard />);
-    expect(screen.getByText("Pain relief")).toBeDefined();
-    expect(screen.getByText("No doses logged yet")).toBeDefined();
+    expect(screen.getByText(/Leaving now/)).toBeDefined();
+    expect(screen.getByText(/Share →/)).toBeDefined();
   });
 
   it("does NOT render removed components (WarningIndicators, WellbeingCard, LeapsCard)", () => {
@@ -167,14 +166,17 @@ describe("Dashboard (Today tab)", () => {
     const { container } = render(<Dashboard />);
     const allText = container.textContent ?? "";
     const greetingIdx = allText.indexOf("Sarah");
-    const sweetSpotIdx = allText.indexOf("Sleep sweet spot");
     const logIdx = allText.indexOf("Log");
-    const customIdx = allText.indexOf("Custom trackers");
-    const todayIdx = allText.indexOf("Today");
+    const sweetSpotIdx = allText.indexOf("Sleep sweet spot");
+    const cryingIdx = allText.indexOf("Why is she crying?");
+    const noticedIdx = allText.indexOf("Cradl noticed");
+    const handoffIdx = allText.indexOf("Leaving now");
 
-    expect(greetingIdx).toBeLessThan(sweetSpotIdx);
-    expect(sweetSpotIdx).toBeLessThan(logIdx);
-    expect(logIdx).toBeLessThan(customIdx);
-    expect(customIdx).toBeLessThan(todayIdx);
+    expect(greetingIdx).toBeGreaterThanOrEqual(0);
+    expect(greetingIdx).toBeLessThan(logIdx);
+    expect(logIdx).toBeLessThan(sweetSpotIdx);
+    expect(sweetSpotIdx).toBeLessThan(cryingIdx);
+    expect(cryingIdx).toBeLessThan(noticedIdx);
+    expect(noticedIdx).toBeLessThan(handoffIdx);
   });
 });

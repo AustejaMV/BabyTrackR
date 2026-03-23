@@ -18,12 +18,7 @@ export function getGreeting(
   else if (hour >= 23 || hour < 5) timeOfDay = "Hi";
 
   if (name && baby) {
-    const variants = [
-      `${timeOfDay}, ${name} — ${baby} had a good night.`,
-      `${timeOfDay}, ${name}.`,
-      `Hello, ${name}.`,
-    ];
-    return variants[Math.abs(hour) % variants.length]!;
+    return `${timeOfDay}, ${name} — ${baby} had a good night.`;
   }
   if (baby) return `${timeOfDay} — ${baby} had a good night.`;
   return `${timeOfDay}.`;

@@ -146,6 +146,7 @@ export function CradlNoticedSection({ notices, compact }: { notices: NoticeCard[
               lineHeight: 1.4,
               fontFamily: "system-ui, sans-serif",
               overflowWrap: "break-word" as const,
+              whiteSpace: "pre-line",
             }}
           >
             {notice.body}

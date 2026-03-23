@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface Measurement {
   value: number;
@@ -41,6 +41,14 @@ export function getPercentileDescriptor(percentile: number): string {
   if (percentile <= 85) return 'Average weight';
   if (percentile <= 97) return 'Heavier than most';
   return 'Above most babies her age — mention at your next check';
+}
+
+/** Plain-English explainer for “what does this label mean?” */
+export function getWeightPercentileMeaning(percentile: number, babyName: string): string {
+  const p = Math.round(Math.min(100, Math.max(0, percentile)));
+  const lighterCount = Math.max(0, Math.min(100, 100 - p));
+  const nm = babyName.trim() || 'Baby';
+  return `Out of 100 babies her age, about ${lighterCount} would weigh less than ${nm}. If she’s gaining steadily, she’s in a healthy range — the trend matters more than the exact number.`;
 }
 
 function getPercentileBand(percentile: number): number {
@@ -188,10 +196,36 @@ export function GrowthSection({
   compact,
   onLogMeasurement,
 }: GrowthSectionProps) {
+  const [weightHelpOpen, setWeightHelpOpen] = useState(false);
   const hasData = weight || length || headCirc;
   const status = getGrowthStatus(weightGainGrams, weeksSinceLastMeasure);
   const trajectoryDesc = getTrajectoryDescriptor(weightHistory, ageWeeks);
   const consistencyDesc = getConsistencyDescriptor(weightHistory);
+  const displayName = babyName?.trim() || 'Baby';
+
+  const perWeekG =
+    weightGainGrams != null && weeksSinceLastMeasure != null && weeksSinceLastMeasure > 0
+      ? weightGainGrams / weeksSinceLastMeasure
+      : null;
+  const typicalWeeklyBand =
+    ageWeeks <= 12 ? 'about 150–200g' : ageWeeks <= 26 ? 'about 100–150g' : 'about 70–100g';
+  const showSlowGainPanel =
+    trajectoryDesc === 'Weight gain has slowed' ||
+    (perWeekG != null && perWeekG < 100 && weightGainGrams != null && weeksSinceLastMeasure != null && weeksSinceLastMeasure >= 1);
+  const showSmallSideReassurance =
+    weight != null &&
+    weight.percentile >= 3 &&
+    weight.percentile < 25 &&
+    consistencyDesc === 'Growing along her curve';
+
+  let headerSubtitle = '';
+  if (status.color === '#2a6a2a') {
+    headerSubtitle = consistencyDesc ? `✓ ${consistencyDesc} · no concerns` : '✓ Consistent trend · no concerns';
+  } else if (status.color === '#8a5a00') {
+    headerSubtitle = '⚠ Worth monitoring — mention at your next check if unsure';
+  } else {
+    headerSubtitle = 'Log two weights a few weeks apart to see trend';
+  }
 
   return (
     <div
@@ -227,12 +261,18 @@ export function GrowthSection({
           <div
             style={{
               display: 'flex',
-              alignItems: 'center',
+              alignItems: 'flex-start',
               justifyContent: 'space-between',
+              gap: 8,
             }}
           >
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#2c1f1f', overflowWrap: 'break-word' as const }}>
-              {babyName || 'Baby'} is growing well
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#2c1f1f', overflowWrap: 'break-word' as const }}>
+                {showSlowGainPanel ? "Let's keep an eye on growth" : `${displayName} is growing well`}
+              </div>
+              <div style={{ fontSize: 9, color: status.color === '#2a6a2a' ? '#4a8c4a' : '#9a8080', marginTop: 3, lineHeight: 1.35 }}>
+                {headerSubtitle}
+              </div>
             </div>
             <div
               style={{
@@ -240,6 +280,7 @@ export function GrowthSection({
                 fontWeight: 600,
                 padding: '3px 8px',
                 borderRadius: 20,
+                flexShrink: 0,
                 background: status.color === '#2a6a2a' ? '#e4f4e4' : '#fef4e4',
                 color: status.color,
               }}
@@ -264,6 +305,29 @@ export function GrowthSection({
                 <div style={{ fontSize: 9, color: '#9a8080', marginTop: 2 }}>
                   {getPercentileDescriptor(weight.percentile)}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setWeightHelpOpen((o) => !o)}
+                  style={{
+                    marginTop: 6,
+                    fontSize: 8,
+                    color: '#c0a898',
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    textAlign: 'left' as const,
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 2,
+                  }}
+                >
+                  What does &quot;{percentileToLabel(weight.percentile).toLowerCase()}&quot; mean? {weightHelpOpen ? '↑' : '↓'}
+                </button>
+                {weightHelpOpen && (
+                  <p style={{ fontSize: 8, color: '#9a8080', marginTop: 4, lineHeight: 1.45 }}>
+                    {getWeightPercentileMeaning(weight.percentile, displayName)}
+                  </p>
+                )}
               </div>
             )}
             {length && (
@@ -300,7 +364,7 @@ export function GrowthSection({
             )}
           </div>
 
-          {/* Trend box */}
+          {/* Trend box — sentence-first (redesign) */}
           {weightGainGrams != null && weeksSinceLastMeasure != null && (
             <div
               style={{
@@ -312,32 +376,64 @@ export function GrowthSection({
                 color: status.color,
               }}
             >
-              {status.text} over the last{' '}
-              {weeksSinceLastMeasure === 1
-                ? 'week'
-                : `${weeksSinceLastMeasure} weeks`}
+              <div style={{ fontWeight: 600, marginBottom: 2 }}>
+                {trajectoryDesc === 'Gaining steadily' ? 'Gaining steadily ✓' : trajectoryDesc === 'Weight gain has slowed' ? 'Weight gain has slowed' : 'Recent gain'}
+              </div>
+              <div style={{ fontWeight: 400, lineHeight: 1.45 }}>
+                {displayName} gained <strong>{weightGainGrams}g</strong> in the last{' '}
+                {weeksSinceLastMeasure === 1 ? 'week' : `${weeksSinceLastMeasure} weeks`} ({status.text.toLowerCase()}).
+                Consistent gain matters more than the exact percentile.
+              </div>
             </div>
           )}
 
-          {/* Trajectory & consistency */}
-          {(trajectoryDesc || consistencyDesc) && (
-            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {trajectoryDesc && (
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: trajectoryDesc.includes('steadily') ? '#2a6a2a' : '#8a5a00',
-                    fontWeight: 600,
-                  }}
-                >
-                  {trajectoryDesc}
+          {showSlowGainPanel && weightGainGrams != null && weeksSinceLastMeasure != null && (
+            <div
+              style={{
+                marginTop: 10,
+                borderRadius: 12,
+                padding: '10px 12px',
+                border: '1px solid rgba(245, 166, 35, 0.45)',
+                background: '#fffdf8',
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#2c1f1f' }}>Weight gain has slowed</div>
+              <div style={{ fontSize: 9, color: '#d4904a', marginTop: 2, fontWeight: 600 }}>⚠ Worth mentioning at your next check</div>
+              <p style={{ fontSize: 10, color: '#3d2c2c', lineHeight: 1.5, margin: '8px 0' }}>
+                {displayName} gained {weightGainGrams}g in the last {weeksSinceLastMeasure === 1 ? 'week' : `${weeksSinceLastMeasure} weeks`} — a bit
+                under the {typicalWeeklyBand}/week often seen around this age. Often nothing to worry about; your health visitor will want the full picture.
+              </p>
+              <div style={{ background: '#fff8e8', borderRadius: 8, padding: '8px 10px', marginBottom: 6 }}>
+                <div style={{ fontSize: 9, color: '#7a5000', fontWeight: 600, marginBottom: 2 }}>What to say at your appointment:</div>
+                <div style={{ fontSize: 9, color: '#9a6020', lineHeight: 1.4 }}>
+                  &quot;Her weight gain is around {perWeekG != null ? `${Math.round(perWeekG)}g` : '—'} per week lately — I&apos;d like your opinion.&quot;
                 </div>
-              )}
-              {consistencyDesc && (
-                <div style={{ fontSize: 10, color: '#2a6a2a', fontWeight: 600 }}>
-                  {consistencyDesc}
-                </div>
-              )}
+              </div>
+              <div style={{ fontSize: 9, color: '#9a8080', lineHeight: 1.4 }}>
+                One slower stretch is common. If it continues for 2–3 months, it&apos;s worth a closer look together.
+              </div>
+            </div>
+          )}
+
+          {showSmallSideReassurance && (
+            <div
+              style={{
+                marginTop: 10,
+                borderRadius: 12,
+                padding: '10px 12px',
+                border: '1px solid rgba(122, 179, 212, 0.5)',
+                background: '#f5fafc',
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#2c1f1f' }}>On the smaller side — and that&apos;s fine</div>
+              <div style={{ fontSize: 9, color: '#4080a0', marginTop: 2, fontWeight: 600 }}>Consistent trend · no concerns</div>
+              <p style={{ fontSize: 10, color: '#3d2c2c', lineHeight: 1.5, margin: '8px 0 6px' }}>
+                {displayName} is lighter than many babies her age — but she&apos;s been tracking along her own curve, and she&apos;s growing steadily.
+                Small babies who gain consistently are usually healthy babies.
+              </p>
+              <div style={{ background: '#d4eaf7', borderRadius: 8, padding: '7px 10px', fontSize: 9, color: '#2a5070', lineHeight: 1.4 }}>
+                Growing along <em>her</em> curve matters more than which average line she sits near.
+              </div>
             </div>
           )}
 

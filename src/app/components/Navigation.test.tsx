@@ -3,16 +3,17 @@ import { render, screen } from "@testing-library/react";
 import { Navigation } from "./Navigation";
 
 describe("Navigation", () => {
-  it("renders exactly 4 tab labels", () => {
+  it("renders exactly 5 tab labels", () => {
     render(<Navigation />);
     const links = screen.getAllByRole("link");
-    expect(links).toHaveLength(4);
+    expect(links).toHaveLength(5);
   });
 
-  it('renders "Today", "Story", "Village", and "Me" tabs', () => {
+  it('renders "Today", "Story", "Health", "Village", and "Me" tabs', () => {
     render(<Navigation />);
     expect(screen.getByText("Today")).toBeDefined();
     expect(screen.getByText("Story")).toBeDefined();
+    expect(screen.getByText("Health")).toBeDefined();
     expect(screen.getByText("Village")).toBeDefined();
     expect(screen.getByText("Me")).toBeDefined();
   });
@@ -33,6 +34,12 @@ describe("Navigation", () => {
     render(<Navigation />);
     const storyLink = screen.getByText("Story").closest("a");
     expect(storyLink?.getAttribute("href")).toBe("/journey");
+  });
+
+  it('Health tab links to "/health"', () => {
+    render(<Navigation />);
+    const healthLink = screen.getByText("Health").closest("a");
+    expect(healthLink?.getAttribute("href")).toBe("/health");
   });
 
   it('Village tab links to "/village"', () => {

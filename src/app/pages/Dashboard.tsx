@@ -12,7 +12,6 @@ import { CradlNoticedSection, type NoticeCard } from "../components/CradlNoticed
 import { CradlNoticedCollapsed } from "../components/CradlNoticedCollapsed";
 import { DailySignOffCard } from "../components/DailySignOffCard";
 import { getLeapAtWeek, getNextLeap } from "../data/leaps";
-import { PainReliefCard } from "../components/PainReliefCard";
 import { DailyGoodEnoughCard } from "../components/DailyGoodEnoughCard";
 import { HandoffCardCompact } from "../components/HandoffCardCompact";
 import { LogDrawer } from "../components/LogDrawer";
@@ -59,6 +58,7 @@ import type { CustomTrackerDefinition } from "../types/customTracker";
 import { syncWidgetData } from "../plugins/CapacitorBridge";
 import { quickLogFeed, quickLogSleep, quickLogDiaper, quickLogTummy, quickEndFeed, quickEndSleep, quickEndTummy } from "../utils/quickLog";
 import { getTimerThresholdState } from "../utils/activeTimerThresholds";
+import { averageMinutesBetweenFeedsInRange } from "../utils/feedingPatternUtils";
 
 type DrawerType = "feed" | "sleep" | "diaper" | "tummy" | "bottle" | "pump" | "health" | "solids" | "activity" | "spitup" | null;
 
@@ -93,6 +93,14 @@ const LOG_ICON_MAP: Record<string, (color: string, size: number) => React.ReactN
   pump: (c, s) => <IconPump size={s} color={c} />,
   solids: (c, s) => <IconSpoon size={s} color={c} />,
 };
+
+function growthSpurtContextSentence(weeks: number): string {
+  if (weeks >= 2 && weeks <= 4) return ` At ${weeks} weeks, cluster feeding during an early growth spurt is common.`;
+  if (weeks >= 5 && weeks <= 8) return ` Around ${weeks} weeks is a well-known growth-spurt window — extra feeds are normal.`;
+  if (weeks >= 10 && weeks <= 18) return ` Many babies feed more between roughly 3–5 months during a growth spurt.`;
+  if (weeks >= 24 && weeks <= 36) return ` Some babies ramp up feeds again around 6–9 months — often normal.`;
+  return "";
+}
 
 /** Wall-clock elapsed for active sleep; supports string timestamps from JSON/sync. */
 function getSleepTrackingStartMs(record: SleepRecord | null): number {
@@ -521,17 +529,23 @@ export function Dashboard() {
 
   const notices = useMemo<NoticeCard[]>(() => {
     const cards: NoticeCard[] = [];
+    const nm = babyProfile?.name?.trim() || "Baby";
     const todayStart = new Date().setHours(0, 0, 0, 0);
     const todayFeeds = feedingHistory.filter((f) => (f.endTime ?? f.timestamp ?? 0) >= todayStart);
     const weekAgo = Date.now() - 7 * 86400000;
+    const prevWeekStart = weekAgo - 7 * 86400000;
     const weekFeeds = feedingHistory.filter((f) => (f.endTime ?? f.timestamp ?? 0) >= weekAgo);
     const avgDailyFeeds = weekFeeds.length > 0 ? weekFeeds.length / 7 : 0;
+    const wks = ageInWeeks ?? 0;
 
     if (todayFeeds.length > avgDailyFeeds * 1.3 && todayFeeds.length >= 3 && avgDailyFeeds > 0) {
+      const spurt = growthSpurtContextSentence(Math.floor(wks));
       cards.push({
-        id: "more-feeds", color: "amber",
+        id: "more-feeds",
+        color: "amber",
         title: "More feeds than usual today",
-        body: `${todayFeeds.length} feeds so far vs ${Math.round(avgDailyFeeds)} average. Could be a growth spurt, or she may just be hungrier than usual — both are normal.`,
+        dismissible: true,
+        body: `${nm} has fed ${todayFeeds.length} times today — her usual is about ${Math.round(avgDailyFeeds)} per day.${spurt}\n\nShe may also be cluster feeding before a longer sleep. Both are normal — let her lead.`,
       });
     }
 
@@ -540,9 +554,10 @@ export function Dashboard() {
       const avgDur = recentSleeps.reduce((s, r) => s + ((r.endTime ?? 0) - (r.startTime ?? 0)), 0) / recentSleeps.length;
       if (avgDur < 40 * 60000 && avgDur > 0) {
         cards.push({
-          id: "short-naps", color: "amber",
+          id: "short-naps",
+          color: "amber",
           title: "Short naps — she may be overtired going down",
-          body: `Average nap is ${formatDurationMsProse(avgDur)} this week. Try putting her down 10 minutes earlier.`,
+          body: `Average nap is ${formatDurationMsProse(avgDur)} this week. Short naps at this age often mean she's overtired before the nap even starts.\n\nTry this tomorrow: start the nap routine 10–15 minutes earlier than usual. One day can show a difference.`,
         });
       }
     }
@@ -555,10 +570,18 @@ export function Dashboard() {
       }
       const avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length;
       if (avgGap > 150 && weekFeeds.length > 10) {
+        const prevWeekGap = averageMinutesBetweenFeedsInRange(feedingHistory, prevWeekStart, weekAgo);
+        let body = `Average ${formatIntervalMinutesProse(avgGap)} between feeds today. She's settling into a rhythm.`;
+        if (prevWeekGap != null && avgGap > prevWeekGap + 15) {
+          body += `\n\nThat's wider than last week's average (${formatIntervalMinutesProse(prevWeekGap)} between feeds) — she's likely taking more at each feed.`;
+        } else {
+          body += "\n\nNo action needed — she's leading the change.";
+        }
         cards.push({
-          id: "feed-spacing", color: "green",
+          id: "feed-spacing",
+          color: "green",
           title: "Feeds spacing out — a good sign",
-          body: `Average ${formatIntervalMinutesProse(avgGap)} between feeds today. She's settling into a rhythm.`,
+          body,
         });
       }
     }
@@ -596,7 +619,7 @@ export function Dashboard() {
     }
 
     return cards;
-  }, [feedingHistory, sleepHistory, ageInWeeks, babyProfile?.birthDate]);
+  }, [feedingHistory, sleepHistory, ageInWeeks, babyProfile?.birthDate, babyProfile?.name]);
 
   const [dismissedArticleIds, setDismissedArticleIds] = useState<Set<string>>(new Set());
 

@@ -46,23 +46,21 @@ function WhyTimingMattersContent() {
   return (
     <>
       <div style={{ fontSize: 12, fontWeight: 600, color: "#2c1f1f", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-        Why timing matters
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
+        Why timing matters <span aria-hidden>🌙</span>
       </div>
       <p style={{ fontSize: 10, color: "#5a4a40", lineHeight: 1.6, margin: "0 0 8px" }}>
-        Babies have a biological "sweet spot" when their body is ready for sleep.
-        Put them down during this window and they settle quickly. Miss it and
-        they become overtired — fighting sleep even though they're exhausted.
+        Babies can only stay awake so long before becoming <strong>overtired</strong> — when that happens, stress hormones
+        make them harder to settle and sleep worse, not better.
       </p>
       <p style={{ fontSize: 10, color: "#5a4a40", lineHeight: 1.6, margin: "0 0 10px" }}>
-        Cradl tracks your baby's patterns to show when the sweet spot is open.
-        The three zones help you make decisions at a glance.
+        There&apos;s a sweet spot — when she&apos;s tired enough to drift off easily. Miss it and you&apos;re fighting
+        cortisol, not tiredness. Cradl uses your logs to show when that sweet spot is open so you can act in time.
       </p>
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         {[
-          { bg: "#e4f4e4", border: "#4a8a4a", title: "Sweet spot", sub: "She'll go down easily" },
-          { bg: "#fef4e4", border: "#d4904a", title: "Closing", sub: "Start your routine now" },
-          { bg: "#fce8e8", border: "#c04040", title: "Overtired", sub: "Extra soothing needed" },
+          { bg: "#e4f4e4", border: "#4a8a4a", title: "Sweet spot open", sub: "She'll settle quickly — go now" },
+          { bg: "#fef4e4", border: "#d4904a", title: "Approaching — act soon", sub: "Last minutes before overtired" },
+          { bg: "#fce8e8", border: "#c04040", title: "Overtired — harder now", sub: "She'll fight sleep · try anyway" },
         ].map((z) => (
           <div
             key={z.title}
@@ -117,10 +115,10 @@ function NapExplainer({ onDismiss, compact }: { onDismiss: () => void; compact?:
 function arcA11yLabel(prediction: SweetSpotPrediction, state: SweetState): string {
   const opensStr = formatTime(prediction.opensAt);
   const closesStr = formatTime(prediction.closesAt);
-  if (state === "pre") return `Sleep sweet spot chart. Nap window opens at ${opensStr}`;
-  if (state === "green") return `Sleep sweet spot chart. Nap window open now, ${opensStr} to ${closesStr}`;
-  if (state === "amber") return `Sleep sweet spot chart. Nap window closing soon, started at ${opensStr}`;
-  return `Sleep sweet spot chart. Nap window has passed, was ${opensStr} to ${closesStr}`;
+  if (state === "pre") return `Sleep sweet spot chart. Sweet spot opens at ${opensStr}`;
+  if (state === "green") return `Sleep sweet spot chart. Sweet spot open now, ${opensStr} to ${closesStr}`;
+  if (state === "amber") return `Sleep sweet spot chart. Sweet spot just closed — settle soon, was ${opensStr} to ${closesStr}`;
+  return `Sleep sweet spot chart. Sweet spot has passed, was ${opensStr} to ${closesStr}`;
 }
 
 function ArcSvg({
@@ -268,9 +266,9 @@ export function SleepSweetSpot({ prediction, onStartSleep, babyName, compact }: 
       bg: "#f0ece8",
       color: "#7a6a60",
     },
-    green: { text: "Open now", bg: "#e4f4e4", color: "#2a6a2a" },
-    amber: { text: "Closing soon", bg: "#fef4e4", color: "#8a5a00" },
-    red: { text: "Overtired now", bg: "#fce8e8", color: "#8a2020" },
+    green: { text: "● Open now", bg: "#e4f4e4", color: "#2a6a2a" },
+    amber: { text: "⚠ Closing soon", bg: "#fef4e4", color: "#8a5a00" },
+    red: { text: "● Overtired now", bg: "#fce8e8", color: "#8a2020" },
   };
 
   const tag = TAG[state];
@@ -489,11 +487,12 @@ export function SleepSweetSpot({ prediction, onStartSleep, babyName, compact }: 
               </>
             )}
             {state === "amber" && (() => {
-              const m = minutesSince(prediction.closesAt, now);
+              const dangerAt = prediction.closesAt.getTime() + 15 * 60 * 1000;
+              const minsBeforeOvertired = Math.max(1, Math.round((dangerAt - now) / 60000));
               return (
                 <div style={{ fontSize: 10, color: "#2c1f1f", marginTop: 2, lineHeight: 1.4 }}>
-                  The ideal window just closed about {m} minute{m === 1 ? "" : "s"} ago — settle her
-                  now before it gets harder.
+                  About <strong>{minsBeforeOvertired} minute{minsBeforeOvertired === 1 ? "" : "s"}</strong> before
+                  she&apos;s likely fully overtired. Put her down soon.
                 </div>
               );
             })()}
