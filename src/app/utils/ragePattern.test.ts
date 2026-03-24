@@ -51,7 +51,7 @@ describe("detectOverwhelmedPattern", () => {
     expect(r).not.toBeNull();
     expect(r!.entriesInLastWeek).toBe(3);
     expect(r!.shouldSuggestSupport).toBe(true);
-    expect(r!.message).toContain("PANDAS");
+    expect(r!.message).toContain("health visitor");
   });
 
   it("returns pattern with shouldSuggestSupport true when 5+ overwhelmed in last 14 days", () => {

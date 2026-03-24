@@ -1,1 +1,5 @@
-/*    /index.html   200
+# No catch-all rewrite here — Cloudflare Pages rejects `/* /index.html 200` (infinite loop / validation error 10021).
+# SPA routing: if there is no top-level `404.html`, Pages serves unknown paths as the root app. See:
+# https://developers.cloudflare.com/pages/configuration/serving-pages/#single-page-application-spa-rendering
+#
+# Netlify: see repo root `netlify.toml` for the SPA redirect.

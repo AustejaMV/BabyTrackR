@@ -31,7 +31,9 @@ export function Navigation() {
         borderTop: "1px solid var(--bd)",
         display: "flex",
         alignItems: "stretch",
-        height: 68,
+        height: "calc(68px + env(safe-area-inset-bottom, 0px))",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        boxSizing: "border-box",
       }}
     >
       {navConfig.map((item) => {

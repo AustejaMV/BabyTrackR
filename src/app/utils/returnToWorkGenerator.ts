@@ -23,14 +23,27 @@ const COUNTDOWN_MESSAGES: Record<number, string> = {
   0: "Today's the day. You've prepared. You're ready. And you'll be home before you know it.",
 };
 
+/** Parse YYYY-MM-DD as a local calendar date (avoid UTC midnight shifting the day in non-UTC zones). */
 function parseReturnDate(returnDate: string): Date {
+  const m = returnDate.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    const y = parseInt(m[1], 10);
+    const mo = parseInt(m[2], 10) - 1;
+    const day = parseInt(m[3], 10);
+    const d = new Date(y, mo, day);
+    if (Number.isNaN(d.getTime())) throw new Error("Invalid return date");
+    return d;
+  }
   const d = new Date(returnDate);
   if (Number.isNaN(d.getTime())) throw new Error("Invalid return date");
   return d;
 }
 
 function toDateOnlyISO(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${mo}-${day}`;
 }
 
 function daysBetween(a: Date, b: Date): number {

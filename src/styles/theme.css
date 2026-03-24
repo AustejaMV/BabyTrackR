@@ -199,6 +199,18 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* Native WebView / PWA: keep content out of status bar, notch, punch-hole.
+   Needs viewport-fit=cover (index.html). Android 15+ edge-to-edge (e.g. targetSdk 36)
+   may ignore StatusBar overlaysWebView — env() insets still apply in Chromium WebView. */
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  box-sizing: border-box;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

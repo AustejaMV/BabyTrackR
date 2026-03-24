@@ -16,8 +16,6 @@ export function computeSkinCorrelations(
   windowHours: number = 48
 ): SkinCorrelation[] {
   if (!Array.isArray(triggers) || triggers.length === 0) return [];
-  const total = (triggers.length + (Array.isArray(flares) ? flares.length : 0));
-  if (total < 3) return [];
 
   const flareList = Array.isArray(flares) ? flares : [];
   const windowMs = windowHours * 60 * 60 * 1000;

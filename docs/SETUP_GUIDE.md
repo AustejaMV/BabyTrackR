@@ -328,7 +328,9 @@
 
    ### SPA Routing
 
-   A `public/_redirects` file is already created (`/* /index.html 200`). This ensures client-side routing works on Netlify/Cloudflare. Vercel handles this automatically.
+   - **Cloudflare Pages:** Do **not** use `/* /index.html 200` in `_redirects` — deploy validation rejects it (infinite loop / error 10021). With **no** top-level `404.html`, Pages already treats the site as an SPA and matches unknown paths to `/` ([docs](https://developers.cloudflare.com/pages/configuration/serving-pages/#single-page-application-spa-rendering)). The repo’s `public/_redirects` is comments-only for this reason.
+   - **Netlify:** The repo includes `netlify.toml` with a `/* → /index.html` rewrite (200).
+   - **Vercel:** Handles SPA routing automatically.
 
    ### Custom domain
 
@@ -1033,7 +1035,7 @@
    │   ├── mark-256.png              ← Mark only (transparent)
    │   ├── mark-dark.png             ← Mark for dark backgrounds
    │   ├── manifest.json             ← PWA manifest
-   │   └── _redirects                ← SPA routing for static hosts
+   │   └── _redirects                ← Notes only (Cloudflare SPA = no top-level 404.html); Netlify uses netlify.toml
    ├── src/
    │   ├── app/
    │   │   ├── components/           ← UI components

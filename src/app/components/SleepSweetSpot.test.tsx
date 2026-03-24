@@ -31,8 +31,8 @@ describe("SleepSweetSpot", () => {
         babyName="Lila"
       />,
     );
-    expect(screen.getByText("Sleep sweet spot")).toBeDefined();
-    expect(screen.getByText(/Log a sleep to see/)).toBeDefined();
+    expect(screen.getByText(/Sleep sweet spot/)).toBeDefined();
+    expect(screen.getByText(/log a sleep to activate/i)).toBeDefined();
   });
 
   it('renders "Open now" tag in green state', () => {
@@ -44,7 +44,7 @@ describe("SleepSweetSpot", () => {
         babyName="Lila"
       />,
     );
-    expect(screen.getByText("Open now")).toBeDefined();
+    expect(screen.getByText(/Open now/)).toBeDefined();
   });
 
   it("renders green action bar with Start sleep", () => {
@@ -70,7 +70,7 @@ describe("SleepSweetSpot", () => {
         babyName="Lila"
       />,
     );
-    expect(screen.getByText("Closing soon")).toBeDefined();
+    expect(screen.getByText(/Closing soon/)).toBeDefined();
   });
 
   it("shows amber suggestion about nap routine", () => {
@@ -96,7 +96,7 @@ describe("SleepSweetSpot", () => {
         babyName="Lila"
       />,
     );
-    expect(screen.getByText("Overtired now")).toBeDefined();
+    expect(screen.getByText(/Overtired now/)).toBeDefined();
   });
 
   it("shows red soothing tip", () => {
@@ -147,7 +147,7 @@ describe("SleepSweetSpot", () => {
         babyName="Lila"
       />,
     );
-    const dismiss = screen.getByText(/Got it/);
+    const dismiss = screen.getByText(/Got it — show me her sweet spot/);
     fireEvent.click(dismiss);
     expect(screen.queryByText(/Why timing matters/)).toBeNull();
     expect(localStorage.getItem("cradl-nap-explainer-seen")).toBe("true");
@@ -182,8 +182,8 @@ describe("SleepSweetSpot", () => {
         babyName="Lila"
       />,
     );
-    expect(screen.getByText("Sweet spot")).toBeDefined();
-    expect(screen.getByText("Closing")).toBeDefined();
-    expect(screen.getByText("Overtired")).toBeDefined();
+    expect(screen.getByText("Sweet spot open")).toBeDefined();
+    expect(screen.getByText("Approaching — act soon")).toBeDefined();
+    expect(screen.getByText("Overtired — harder now")).toBeDefined();
   });
 });

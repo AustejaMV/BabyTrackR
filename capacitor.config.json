@@ -23,6 +23,7 @@
       "resizeOnFullScreen": true
     },
     "StatusBar": {
+      "overlaysWebView": false,
       "style": "LIGHT",
       "backgroundColor": "#FAF7F2"
     },

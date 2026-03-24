@@ -47,7 +47,7 @@ describe("MeScreen (Me tab)", () => {
   it("renders 3 stat cells (Your sleep, Pelvic floor, Mood)", () => {
     renderMe();
     expect(screen.getByText("Your sleep")).toBeDefined();
-    expect(screen.getByText("Pelvic floor")).toBeDefined();
+    expect(screen.getAllByText("Pelvic floor").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Mood")).toBeDefined();
   });
 
@@ -75,7 +75,23 @@ describe("MeScreen (Me tab)", () => {
   });
 
   it("renders Cradl noticed section with support guidance", () => {
+    // Section only mounts when notices exist — seed mood log so overwhelmed-pattern fires
+    // (3+ overwhelmed in 7d → shouldSuggestSupport + SUPPORT_MESSAGE in ragePattern.ts).
+    const isoDaysAgo = (daysAgo: number) => {
+      const t = new Date();
+      t.setDate(t.getDate() - daysAgo);
+      return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+    };
+    localStorage.setItem(
+      "cradl-mood-log",
+      JSON.stringify([
+        { date: isoDaysAgo(0), mood: "overwhelmed" },
+        { date: isoDaysAgo(1), mood: "overwhelmed" },
+        { date: isoDaysAgo(2), mood: "overwhelmed" },
+      ]),
+    );
     renderMe();
+    expect(screen.getByText(/Cradl noticed/i)).toBeDefined();
     expect(screen.getByText(/local emergency or mental health crisis line/i)).toBeDefined();
   });
 

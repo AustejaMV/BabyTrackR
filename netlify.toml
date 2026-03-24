@@ -1,0 +1,6 @@
+# SPA client-side routing (replaces Netlify-style `/* /index.html 200` in public/_redirects;
+# Cloudflare Pages does not accept that rule — see public/_redirects comments.)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

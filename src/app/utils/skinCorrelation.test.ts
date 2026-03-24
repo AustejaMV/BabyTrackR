@@ -26,8 +26,9 @@ describe("computeSkinCorrelations", () => {
   });
 
   it("returns coincidental when flare is after 24h", () => {
-    const triggerTime = new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString();
-    const flareTime = new Date(Date.now() - 28 * 60 * 60 * 1000).toISOString();
+    // Flare ~35h after trigger (>24h ⇒ coincidental), still within default 48h window
+    const triggerTime = new Date(Date.now() - 40 * 60 * 60 * 1000).toISOString();
+    const flareTime = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
     const triggers = [
       { id: "t1", timestamp: triggerTime, triggerType: "product" as const, description: "Soap", note: null },
     ];

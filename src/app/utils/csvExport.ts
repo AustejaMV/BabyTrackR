@@ -18,12 +18,11 @@ function escapeCell(value: string): string {
   return safe;
 }
 
-/** Format date for CSV (ISO date or datetime). */
+/** Format date for CSV (ISO date or UTC datetime — stable across timezones). */
 export function formatDateForCSV(ms: number, mode: "date" | "datetime" = "datetime"): string {
   const d = new Date(ms);
-  const date = d.toISOString().slice(0, 10);
-  if (mode === "date") return date;
-  return `${date} ${d.toTimeString().slice(0, 8)}`;
+  if (mode === "date") return d.toISOString().slice(0, 10);
+  return d.toISOString().slice(0, 19).replace("T", " ");
 }
 
 /** Format duration (ms) as hours and minutes for CSV. */

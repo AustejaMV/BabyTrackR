@@ -23,6 +23,20 @@ vi.mock("../utils/imageCompress", () => ({
   compressBabyPhoto: vi.fn(),
 }));
 
+/** Navigate: Welcome → Why Cradl → Preferences → Baby → Parent name → (caller continues from step 5). */
+function advanceThroughParentName() {
+  fireEvent.click(screen.getByText("Get started"));
+  vi.advanceTimersByTime(300);
+  fireEvent.click(screen.getByText("Sounds good"));
+  vi.advanceTimersByTime(300);
+  fireEvent.click(screen.getByText("Continue"));
+  vi.advanceTimersByTime(300);
+  fireEvent.click(screen.getByText("Continue"));
+  vi.advanceTimersByTime(300);
+  fireEvent.click(screen.getByText("Continue"));
+  vi.advanceTimersByTime(300);
+}
+
 describe("OnboardingNavigator", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -33,14 +47,10 @@ describe("OnboardingNavigator", () => {
     vi.useRealTimers();
   });
 
-  it("renders 8 progress dots", () => {
-    const { container } = render(
-      <OnboardingNavigator onComplete={() => {}} />,
-    );
-    const dots = container.querySelectorAll(
-      'div[style*="border-radius: 4"]',
-    );
-    expect(dots.length).toBe(8);
+  it("renders 7 progress dots (steps 0–6)", () => {
+    const { container } = render(<OnboardingNavigator onComplete={() => {}} />);
+    const dots = container.querySelectorAll('div[style*="border-radius: 4"]');
+    expect(dots.length).toBe(7);
   });
 
   it('shows "Get started" button on step 0 (Welcome)', () => {
@@ -71,39 +81,11 @@ describe("OnboardingNavigator", () => {
     expect(screen.getByText("You matter too")).toBeDefined();
   });
 
-  it("shows baby setup fields on step 2", () => {
+  it("shows preferences on step 2", () => {
     render(<OnboardingNavigator onComplete={() => {}} />);
     fireEvent.click(screen.getByText("Get started"));
     vi.advanceTimersByTime(300);
     fireEvent.click(screen.getByText("Sounds good"));
-    vi.advanceTimersByTime(300);
-    expect(
-      screen.getByText("Tell me about your little one"),
-    ).toBeDefined();
-    expect(screen.getByLabelText("Baby's name")).toBeDefined();
-    expect(screen.getByLabelText("Birth date")).toBeDefined();
-  });
-
-  it('shows "And what\'s your name?" on step 3', () => {
-    render(<OnboardingNavigator onComplete={() => {}} />);
-    fireEvent.click(screen.getByText("Get started"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Sounds good"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    expect(screen.getByText("And what's your name?")).toBeDefined();
-  });
-
-  it('shows preferences (date, time, language) on step 4', () => {
-    render(<OnboardingNavigator onComplete={() => {}} />);
-    fireEvent.click(screen.getByText("Get started"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Sounds good"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
     vi.advanceTimersByTime(300);
     expect(screen.getByText("How do you like your dates?")).toBeDefined();
     expect(screen.getByText("DD/MM/YYYY")).toBeDefined();
@@ -113,7 +95,7 @@ describe("OnboardingNavigator", () => {
     expect(screen.getByText("English")).toBeDefined();
   });
 
-  it('shows "Log your first event" on step 5', () => {
+  it("shows baby setup fields on step 3", () => {
     render(<OnboardingNavigator onComplete={() => {}} />);
     fireEvent.click(screen.getByText("Get started"));
     vi.advanceTimersByTime(300);
@@ -121,92 +103,43 @@ describe("OnboardingNavigator", () => {
     vi.advanceTimersByTime(300);
     fireEvent.click(screen.getByText("Continue"));
     vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    expect(screen.getByText("Log your first event")).toBeDefined();
-    expect(screen.getByText("Log a feed now")).toBeDefined();
+    expect(screen.getByText("Tell me about your little one")).toBeDefined();
+    expect(screen.getByLabelText("Baby's name")).toBeDefined();
+    expect(screen.getByLabelText("Birth date")).toBeDefined();
   });
 
-  it("shows 4 quick-log alternatives on step 5", () => {
+  it('shows "What\'s your name?" on step 4', () => {
     render(<OnboardingNavigator onComplete={() => {}} />);
-    fireEvent.click(screen.getByText("Get started"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Sounds good"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    expect(screen.getByText("Sleep")).toBeDefined();
-    expect(screen.getByText("Nappy")).toBeDefined();
-    expect(screen.getByText("Bottle")).toBeDefined();
-    expect(screen.getByText("Tummy")).toBeDefined();
+    advanceThroughParentName();
+    expect(screen.getByText("What's your name?")).toBeDefined();
   });
 
-  it('shows "Save your data" on step 6', () => {
+  it('shows quick tour with 4 cards on step 5', () => {
     render(<OnboardingNavigator onComplete={() => {}} />);
-    fireEvent.click(screen.getByText("Get started"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Sounds good"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Log a feed now"));
-    vi.advanceTimersByTime(300);
-    expect(screen.getByText("Save your data")).toBeDefined();
-    expect(screen.getByText("Continue with Google")).toBeDefined();
-    expect(screen.getByText("Continue with Email")).toBeDefined();
+    advanceThroughParentName();
+    expect(screen.getByText("Here's how Cradl works")).toBeDefined();
+    expect(screen.getByText("Tap to log")).toBeDefined();
+    expect(screen.getByText("Patterns emerge")).toBeDefined();
+    expect(screen.getByText("3am mode")).toBeDefined();
+    expect(screen.getByText("Got it")).toBeDefined();
   });
 
-  it('shows "You\'re ready!" and "Start tracking" on step 7', () => {
+  it('shows "You\'re all set!" and "Start tracking" on step 6', () => {
     render(<OnboardingNavigator onComplete={() => {}} />);
-    fireEvent.click(screen.getByText("Get started"));
+    advanceThroughParentName();
+    fireEvent.click(screen.getByText("Got it"));
     vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Sounds good"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Log a feed now"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue without account"));
-    vi.advanceTimersByTime(300);
-    expect(screen.getByText("You're ready!")).toBeDefined();
+    expect(screen.getByText("You're all set!")).toBeDefined();
     expect(screen.getByText("Start tracking")).toBeDefined();
   });
 
-  it("shows 5 unlock features on step 7", () => {
+  it("shows backup upsell on step 6", () => {
     render(<OnboardingNavigator onComplete={() => {}} />);
-    fireEvent.click(screen.getByText("Get started"));
+    advanceThroughParentName();
+    fireEvent.click(screen.getByText("Got it"));
     vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Sounds good"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Log a feed now"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue without account"));
-    vi.advanceTimersByTime(300);
-    expect(screen.getByText("Pattern hints")).toBeDefined();
-    expect(screen.getByText("Nap predictor")).toBeDefined();
-    expect(screen.getByText("Daily summary")).toBeDefined();
-    expect(screen.getByText("Weekly narrative")).toBeDefined();
-    expect(screen.getByText("Full insights")).toBeDefined();
+    expect(screen.getByText("Want to back up your data?")).toBeDefined();
+    expect(screen.getByText("Create account")).toBeDefined();
   });
 
   it('calls onComplete when "Start tracking" is clicked', () => {
@@ -218,19 +151,8 @@ describe("OnboardingNavigator", () => {
         }}
       />,
     );
-    fireEvent.click(screen.getByText("Get started"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Sounds good"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Log a feed now"));
-    vi.advanceTimersByTime(300);
-    fireEvent.click(screen.getByText("Continue without account"));
+    advanceThroughParentName();
+    fireEvent.click(screen.getByText("Got it"));
     vi.advanceTimersByTime(300);
     fireEvent.click(screen.getByText("Start tracking"));
     expect(completed).toBe(true);
